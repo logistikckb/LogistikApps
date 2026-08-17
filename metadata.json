@@ -1,5 +1,5 @@
 {
-  "name": "LOGISTIKAPPS.V.01.00",
+  "name": "LogistikApps",
   "description": "Aplikasi Logistik Terintegrasi: Cek Expired Date (ED Checker), Master Database Barang & Distributor, dan Kedatangan (Incoming/Inbound)",
   "requestFramePermissions": [],
   "majorCapabilities": [

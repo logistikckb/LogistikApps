@@ -1,7 +1,7 @@
 {
-  "name": "CKBLogistic - Digital HUB",
-  "short_name": "CKBLogistic",
-  "description": "Portal Operasional Logistik, Batch Reconciliation, ED Checker, Serial Number & Tools Terpadu",
+  "name": "LogistikApps - Digital HUB",
+  "short_name": "LogistikApps",
+  "description": "Portal Operasional Logistik Terpadu: ED Checker, Master Database Barang & Kedatangan Inbound",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -41,10 +41,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Batch Reconciliation Checker",
-      "short_name": "Batch Checker",
-      "description": "Komparasi status batch LARGO vs SAP MB52",
-      "url": "/?tool=batch-checker",
+      "name": "Incoming Kedatangan Barang",
+      "short_name": "Kedatangan",
+      "description": "Pencatatan dan monitoring inbound kedatangan barang",
+      "url": "/?tool=incoming",
       "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
     },
     {
@@ -55,17 +55,10 @@
       "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
     },
     {
-      "name": "Stock Opname Suite",
-      "short_name": "Stock Opname",
-      "description": "Konversi LARGO ke SAP & Berita Acara SO",
-      "url": "/?tool=stock-opname",
-      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
-    },
-    {
-      "name": "Surat Jalan Studio",
-      "short_name": "Surat Jalan",
-      "description": "Pembuatan surat jalan pengiriman gudang",
-      "url": "/?tool=surat-jalan",
+      "name": "Master Database Barang & Supplier",
+      "short_name": "Master Data",
+      "description": "Katalog master barang dan distributor",
+      "url": "/?tool=database-master",
       "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
     }
   ]

@@ -137,17 +137,21 @@ export function LoginPage() {
         
         {/* Header Logo & Branding */}
         <div className="text-center space-y-3">
-          {/* Main App Badge / Logo */}
-          <div className="inline-flex items-center justify-center p-3.5 bg-gradient-to-tr from-blue-900 to-indigo-700 text-white rounded-3xl shadow-xl border-2 border-white/80 ring-4 ring-blue-900/10 mb-1">
-            <ShieldCheck size={38} className="text-orange-400" />
+          {/* Main App Badge / Shield Logo */}
+          <div className="inline-flex items-center justify-center p-1.5 bg-slate-900 text-white rounded-3xl shadow-2xl border-2 border-white/80 ring-4 ring-blue-900/10 mb-1 overflow-hidden">
+            <img 
+              src="/icons/icon.svg" 
+              alt="LogistikApps Shield Logo" 
+              className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md rounded-2xl"
+            />
           </div>
 
           <div className="flex justify-center items-center gap-2 flex-wrap">
             <span className="bg-blue-900 text-white text-[10px] sm:text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1.5">
-              <ShieldCheck size={13} /> Logistik Portal
+              <ShieldCheck size={13} className="text-sky-300" /> LogistikApps Portal
             </span>
             <span className="bg-orange-500 text-white text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-xs">
-              Aplikasi RR V1.0
+              V1.0
             </span>
             
             {/* Cloud Sync Status Badge */}

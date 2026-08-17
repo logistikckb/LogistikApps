@@ -23,20 +23,20 @@ export function PwaInstallPrompt() {
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-sm z-[150] animate-in slide-in-from-bottom-5 duration-300">
       <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-3.5 rounded-2xl border border-blue-500/40 shadow-2xl backdrop-blur-md flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white shrink-0 shadow-inner border border-white/20">
-            <Smartphone size={20} className="animate-bounce" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-inner border border-white/20 shrink-0 bg-slate-950 flex items-center justify-center p-0.5">
+            <img src="/icons/icon.svg" alt="LogistikApps Shield Logo" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <h4 className="text-xs font-bold text-white truncate m-0 leading-tight">
-                Pasang CKBLogistic App
+                Pasang LogistikApps
               </h4>
               <span className="px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 text-[9px] font-black rounded-md border border-cyan-400/30">
                 PWA
               </span>
             </div>
             <p className="text-[11px] text-slate-300 m-0 truncate mt-0.5">
-              Akses cepat, layar penuh & offline
+              Aplikasi Logistik Terintegrasi & Cepat
             </p>
           </div>
         </div>
