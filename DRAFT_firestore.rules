@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidLink(data) {
+      return data.keys().hasAll(['title', 'url', 'category']) &&
+             data.keys().size() <= 5 &&
+             data.title is string && data.title.size() <= 100 &&
+             data.url is string && data.url.size() <= 500 &&
+             data.category is string && data.category.size() <= 50 &&
+             (data.get('subcategory', '') is string) &&
+             (data.get('icon', '') is string);
+    }
+    
+    function isValidTodo(data) {
+      return data.keys().hasAll(['task', 'status']) &&
+             data.keys().size() <= 2 &&
+             data.task is string && data.task.size() <= 300 &&
+             data.status in ['no', 'onproses', 'close'];
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['messages']) &&
+             data.keys().size() <= 1 &&
+             data.messages is list && data.messages.size() <= 20 &&
+             (data.messages.size() == 0 || data.messages[0] is string);
+    }
+
+    match /links/{linkId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(linkId) && isValidLink(incoming());
+      allow update: if isSignedIn() && isValidId(linkId) && isValidLink(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'url', 'category', 'subcategory', 'icon']);
+      allow delete: if isSignedIn() && isValidId(linkId);
+    }
+
+    match /todos/{todoId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(todoId) && isValidTodo(incoming());
+      allow update: if isSignedIn() && isValidId(todoId) && isValidTodo(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['task', 'status']);
+      allow delete: if isSignedIn() && isValidId(todoId);
+    }
+
+    match /settings/announcements {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidAnnouncement(incoming());
+    }
+  }
+}

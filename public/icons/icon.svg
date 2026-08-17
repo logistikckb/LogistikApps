@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="boxTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="boxLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+    <linearGradient id="boxRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="accentGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  
+  <!-- Outer glowing ring accent -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="url(#accentGlow)" stroke-width="4" opacity="0.35"/>
+
+  <!-- Isometric 3D Logistics Box Icon -->
+  <g transform="translate(256, 230)" filter="url(#glow)">
+    <!-- Top Face -->
+    <polygon points="0,-90 120,-30 0,30 -120,-30" fill="url(#boxTop)"/>
+    
+    <!-- Left Face -->
+    <polygon points="-120,-30 0,30 0,140 -120,80" fill="url(#boxLeft)"/>
+    
+    <!-- Right Face -->
+    <polygon points="0,30 120,-30 120,80 0,140" fill="url(#boxRight)"/>
+    
+    <!-- Box Inner Tape / Logistics Ribbon -->
+    <path d="M-60,-60 L-30,-45 L90,15 L60,0 Z" fill="#ffffff" opacity="0.25"/>
+    <path d="M-15,-22.5 L15,-7.5 L15,147.5 L-15,132.5 Z" fill="#ffffff" opacity="0.18"/>
+  </g>
+
+  <!-- Digital Hub Spark / Lightning Accent -->
+  <g transform="translate(256, 210)" fill="#ffffff">
+    <!-- QR / Barcode / Smart Logistics Nodes -->
+    <circle cx="-50" cy="-25" r="7" fill="#38bdf8" />
+    <circle cx="50" cy="-25" r="7" fill="#38bdf8" />
+    <circle cx="0" cy="5" r="9" fill="#ffffff" />
+    <line x1="-50" y1="-25" x2="0" y2="5" stroke="#ffffff" stroke-width="3" opacity="0.8"/>
+    <line x1="50" y1="-25" x2="0" y2="5" stroke="#ffffff" stroke-width="3" opacity="0.8"/>
+  </g>
+
+  <!-- Bottom Brand Text -->
+  <text x="256" y="442" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="36" font-weight="900" letter-spacing="4">
+    CKBLOGISTIC
+  </text>
+  <text x="256" y="472" text-anchor="middle" fill="#93c5fd" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="700" letter-spacing="6">
+    DIGITAL HUB
+  </text>
+</svg>
