@@ -43,9 +43,11 @@ import {
   Archive,
   QrCode,
   RotateCcw,
-  Zap
+  Zap,
+  MessageSquare
 } from 'lucide-react';
 import Fuse from 'fuse.js';
+import QRCode from 'qrcode';
 import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -90,10 +92,62 @@ export function PenyiapanModule() {
   const [selectedItem, setSelectedItem] = useState<PenyiapanItem | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<PenyiapanItem>>({});
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  // Generate QR Code dynamically when LPN / Serial Number changes
+  useEffect(() => {
+    const rawVal = formData.lpn_serial_number?.trim();
+    if (!rawVal || rawVal === '-') {
+      setQrCodeDataUrl('');
+      return;
+    }
+
+    QRCode.toDataURL(rawVal, {
+      width: 256,
+      margin: 1,
+      color: {
+        dark: '#1e293b',
+        light: '#ffffff'
+      }
+    })
+      .then((url: string) => setQrCodeDataUrl(url))
+      .catch((err: any) => {
+        console.warn('Gagal membuat QR Code:', err);
+        setQrCodeDataUrl('');
+      });
+  }, [formData.lpn_serial_number]);
 
   // Searchable Autocomplete States for Form
   const [barangSearchText, setBarangSearchText] = useState('');
   const [isBarangDropdownOpen, setIsBarangDropdownOpen] = useState(false);
+  const barangSearchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close Master Barang Dropdown and revert text if user clicks outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        barangSearchContainerRef.current &&
+        !barangSearchContainerRef.current.contains(event.target as Node)
+      ) {
+        if (isBarangDropdownOpen) {
+          setIsBarangDropdownOpen(false);
+          // Kembalikan ke nilai awal jika user tidak jadi memilih master SKU
+          if (formData.item_code && formData.item_name) {
+            setBarangSearchText(`${formData.item_code} - ${formData.item_name}`);
+          } else if (!formData.item_code) {
+            setBarangSearchText('');
+          }
+        }
+      }
+    };
+
+    if (isBarangDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isBarangDropdownOpen, formData.item_code, formData.item_name]);
 
   // Speech-to-Text Voice Recognition States
   const [isListeningBarang, setIsListeningBarang] = useState(false);
@@ -893,8 +947,14 @@ export function PenyiapanModule() {
     }
   };
 
-  // Delete Handler
+  // Delete Handler (Akses Khusus Admin)
   const handleDeleteItem = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      setShowDeleteModal(false);
+      return;
+    }
+
     if (!selectedItem) return;
     const idToDelete = selectedItem.id_penyiapan;
 
@@ -1923,34 +1983,26 @@ export function PenyiapanModule() {
                       <td className="p-2 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setShowDetailModal(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-900 transition-colors cursor-pointer"
-                            title="Lihat Detail Penyiapan"
-                          >
-                            <Eye size={13} />
-                          </button>
-
-                          <button
                             onClick={() => handleOpenEditModal(item)}
                             className="p-1.5 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
-                            title="Edit Data"
+                            title="Edit / Lihat Data"
                           >
                             <Edit2 size={13} />
                           </button>
 
-                          <button
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setShowDeleteModal(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer"
-                            title="Hapus Data"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {/* Aksi Hapus khusus Admin */}
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setShowDeleteModal(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer"
+                              title="Hapus Data (Khusus Admin)"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -1964,9 +2016,20 @@ export function PenyiapanModule() {
                         </td>
                       )}
 
-                      {/* Item Name */}
-                      <td className="p-3 font-extrabold text-slate-800 max-w-xs truncate" title={item.item_name}>
-                        {item.item_name}
+                      {/* Item Name & Note */}
+                      <td className="p-3 max-w-xs" title={item.item_name}>
+                        <div className="font-extrabold text-slate-800 truncate">
+                          {item.item_name}
+                        </div>
+                        {item.note && (
+                          <div
+                            className="text-[10px] text-blue-800 font-semibold flex items-center gap-1 mt-0.5 max-w-xs truncate bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200"
+                            title={`Catatan: ${item.note}`}
+                          >
+                            <MessageSquare size={10} className="shrink-0 text-blue-600" />
+                            <span className="truncate">{item.note}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Last Qty */}
@@ -2059,35 +2122,76 @@ export function PenyiapanModule() {
             {/* Modal Form Body */}
             <form onSubmit={handleSaveForm} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               
-              {/* Grup 1: Informasi Master Barang */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <span className="font-bold text-slate-700 block text-[11px] uppercase tracking-wide">
-                  1. Informasi Produk / Master Barang
-                </span>
-
-                {/* Autocomplete Search Master Barang */}
-                <div className="relative">
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              {/* 1. Cari Master SKU / Nama Barang */}
+              <div ref={barangSearchContainerRef} className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700">
                     Cari Master SKU / Nama Barang <span className="text-rose-500">*</span>
                   </label>
-                  <div className="relative flex items-center">
-                    <Search size={14} className="absolute left-3 text-slate-400" />
-                    <input
-                      type="text"
-                      value={barangSearchText}
-                      onChange={(e) => {
-                        setBarangSearchText(e.target.value);
-                        setIsBarangDropdownOpen(true);
+                  {isBarangDropdownOpen && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsBarangDropdownOpen(false);
+                        if (formData.item_code && formData.item_name) {
+                          setBarangSearchText(`${formData.item_code} - ${formData.item_name}`);
+                        } else if (!formData.item_code) {
+                          setBarangSearchText('');
+                        }
                       }}
-                      onFocus={() => setIsBarangDropdownOpen(true)}
-                      placeholder="Ketik SKU atau Nama Barang..."
-                      className="w-full pl-9 pr-20 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-800"
-                    />
+                      className="text-[10px] font-bold text-slate-500 hover:text-rose-600 flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <X size={12} />
+                      <span>Tutup / Batal Cari</span>
+                    </button>
+                  )}
+                </div>
+                <div className="relative flex items-center">
+                  <Search size={14} className="absolute left-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={barangSearchText}
+                    onChange={(e) => {
+                      setBarangSearchText(e.target.value);
+                      setIsBarangDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsBarangDropdownOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setIsBarangDropdownOpen(false);
+                        if (formData.item_code && formData.item_name) {
+                          setBarangSearchText(`${formData.item_code} - ${formData.item_name}`);
+                        } else if (!formData.item_code) {
+                          setBarangSearchText('');
+                        }
+                      }
+                    }}
+                    placeholder="Ketik SKU atau Nama Barang..."
+                    className="w-full pl-9 pr-24 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-800"
+                  />
 
+                  <div className="absolute right-2 flex items-center gap-1">
+                    {barangSearchText && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBarangDropdownOpen(false);
+                          if (formData.item_code && formData.item_name) {
+                            setBarangSearchText(`${formData.item_code} - ${formData.item_name}`);
+                          } else {
+                            setBarangSearchText('');
+                          }
+                        }}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        title="Batal Cari / Reset ke Nilai Awal"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={toggleSpeechToTextBarang}
-                      className={`absolute right-2 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ${
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
                         isListeningBarang ? 'bg-rose-500 text-white animate-pulse' : 'bg-blue-50 text-blue-900'
                       }`}
                     >
@@ -2095,289 +2199,236 @@ export function PenyiapanModule() {
                       <span>Suara</span>
                     </button>
                   </div>
+                </div>
 
-                  {speechFeedbackBarang && (
-                    <div className="mt-1 text-[11px] text-rose-600 font-semibold">{speechFeedbackBarang}</div>
-                  )}
+                {speechFeedbackBarang && (
+                  <div className="mt-1 text-[11px] text-rose-600 font-semibold">{speechFeedbackBarang}</div>
+                )}
 
-                  {/* Dropdown Results */}
-                  {isBarangDropdownOpen && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 divide-y divide-slate-100">
-                      {filteredBarangList.length === 0 ? (
-                        <div className="p-3 text-center text-slate-400 font-medium">
-                          Tidak ditemukan SKU. Masukkan manual pada field di bawah.
-                        </div>
-                      ) : (
-                        filteredBarangList.slice(0, 15).map(b => (
-                          <div
-                            key={b.item_code}
-                            onClick={() => handleSelectBarangItem(b)}
-                            className="p-2.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs"
-                          >
-                            <div>
-                              <span className="font-mono font-bold text-blue-900 mr-2">{b.item_code}</span>
-                              <span className="font-extrabold text-slate-800">{b.item_name}</span>
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-400">{b.uom || 'CTN'}</span>
+                {/* Dropdown Results */}
+                {isBarangDropdownOpen && (
+                  <div className="absolute z-30 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 divide-y divide-slate-100">
+                    <div className="p-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-bold">
+                      <span>Pilih dari Master SKU (atau tekan Esc / klik luar untuk batal)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBarangDropdownOpen(false);
+                          if (formData.item_code && formData.item_name) {
+                            setBarangSearchText(`${formData.item_code} - ${formData.item_name}`);
+                          }
+                        }}
+                        className="text-slate-400 hover:text-rose-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    {filteredBarangList.length === 0 ? (
+                      <div className="p-3 text-center text-slate-400 font-medium">
+                        Tidak ditemukan SKU. Masukkan manual pada field di bawah.
+                      </div>
+                    ) : (
+                      filteredBarangList.slice(0, 15).map(b => (
+                        <div
+                          key={b.item_code}
+                          onClick={() => handleSelectBarangItem(b)}
+                          className="p-2.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div>
+                            <span className="font-mono font-bold text-blue-900 mr-2">{b.item_code}</span>
+                            <span className="font-extrabold text-slate-800">{b.item_name}</span>
                           </div>
-                        ))
-                      )}
+                          <span className="text-[10px] font-bold text-slate-400">{b.uom || 'CTN'}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Item Code & Item Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Item Code <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.item_code || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, item_code: e.target.value }))}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-slate-800"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Item Name <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.item_name || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, item_name: e.target.value }))}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-extrabold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Location, Last Qty, Batch, Expired Date */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={formData.location || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Last Qty</label>
+                  <input
+                    type="number"
+                    value={formData.last_qty ?? 0}
+                    onChange={(e) => setFormData(prev => ({ ...prev, last_qty: Number(e.target.value) }))}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-black text-emerald-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Batch</label>
+                  <input
+                    type="text"
+                    value={formData.batch || ''}
+                    onChange={(e) => {
+                      const newBatch = e.target.value;
+                      let autoEd = formData.expired_date;
+                      let autoShelf = formData.shelf_life;
+                      if (newBatch && formData.item_name) {
+                        const comp = getEdIsoDateString(formData.item_code || '', formData.item_name, newBatch);
+                        if (comp && comp.isoDate) {
+                          autoEd = comp.isoDate;
+                          autoShelf = comp.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${comp.result.lamaEdTahun * 12} Bulan`;
+                        }
+                      }
+                      setFormData(prev => ({ ...prev, batch: newBatch, expired_date: autoEd, shelf_life: autoShelf }));
+                    }}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-amber-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Expired Date (YYYY-MM-DD)</label>
+                  <input
+                    type="date"
+                    value={formData.expired_date || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, expired_date: e.target.value }))}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* 4. LPN / Serial Number & QR Code LPN / Serial */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-8">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">LPN / Serial Number</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: LPN-202502-001 / S/N..."
+                    value={formData.lpn_serial_number || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lpn_serial_number: e.target.value }))}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-mono font-bold text-slate-800 text-xs focus:ring-2 focus:ring-blue-800"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    QR Code di sebelah kanan akan terbuat secara otomatis berdasarkan LPN / Serial ini.
+                  </p>
+                </div>
+
+                {/* QR Code LPN / Serial */}
+                <div className="sm:col-span-4 p-3 bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center text-center shadow-xs">
+                  <div className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-600 mb-1.5">
+                    <QrCode size={13} className="text-blue-900" />
+                    <span>QR Code LPN / Serial</span>
+                  </div>
+
+                  {qrCodeDataUrl ? (
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="p-1 bg-white border border-slate-200 rounded-lg shadow-inner">
+                        <img
+                          src={qrCodeDataUrl}
+                          alt={`QR Code ${formData.lpn_serial_number}`}
+                          className="w-24 h-24 object-contain rounded"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <span className="font-mono text-[10px] font-bold text-slate-700 max-w-[180px] truncate bg-slate-100 px-2 py-0.5 rounded">
+                        {formData.lpn_serial_number}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-lg bg-slate-50 border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 p-2">
+                      <QrCode size={24} className="opacity-40 mb-1" />
+                      <span className="text-[9px] leading-tight font-medium text-slate-400">
+                        Isi LPN / Serial untuk QR Code
+                      </span>
                     </div>
                   )}
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Item Code <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.item_code || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, item_code: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Item Name <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.item_name || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, item_name: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-extrabold text-slate-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Category</label>
-                    <input
-                      type="text"
-                      value={formData.category || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tujuan Penyiapan</label>
-                    <input
-                      type="text"
-                      value={formData.tujuan || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, tujuan: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-medium text-slate-800"
-                    />
-                  </div>
-                </div>
               </div>
 
-              {/* Grup 2: Lokasi & Kuantitas */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <span className="font-bold text-slate-700 block text-[11px] uppercase tracking-wide">
-                  2. Lokasi, SLOC & Kuantitas
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={formData.location || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-800"
-                    />
+              {/* 5. Status & Note (Catatan Perbedaan Data) */}
+              <div className={`p-3.5 rounded-xl border transition-colors space-y-2.5 ${
+                (formData.status || '').toLowerCase() === 'beda'
+                  ? 'bg-blue-50/80 border-blue-300'
+                  : 'bg-slate-50 border-slate-200/80'
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wide">
+                      Status Penyiapan & Catatan (Note)
+                    </span>
+                    {(formData.status || '').toLowerCase() === 'beda' && (
+                      <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-extrabold text-[10px] animate-pulse">
+                        Status Beda
+                      </span>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Location Type</label>
-                    <input
-                      type="text"
-                      value={formData.location_type || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, location_type: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SLOC</label>
-                    <input
-                      type="text"
-                      value={formData.sloc || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, sloc: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-blue-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">LPN / Serial Number</label>
-                    <input
-                      type="text"
-                      value={formData.lpn_serial_number || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, lpn_serial_number: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono text-slate-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">First Qty</label>
-                    <input
-                      type="number"
-                      value={formData.first_qty ?? 0}
-                      onChange={(e) => setFormData(prev => ({ ...prev, first_qty: Number(e.target.value) }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Last Qty</label>
-                    <input
-                      type="number"
-                      value={formData.last_qty ?? 0}
-                      onChange={(e) => setFormData(prev => ({ ...prev, last_qty: Number(e.target.value) }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-black text-emerald-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Uom</label>
-                    <input
-                      type="text"
-                      value={formData.uom || 'CTN'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, uom: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Qty Convert</label>
-                    <input
-                      type="number"
-                      value={formData.qty_convert ?? 0}
-                      onChange={(e) => setFormData(prev => ({ ...prev, qty_convert: Number(e.target.value) }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-purple-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Uom Convert</label>
-                    <input
-                      type="text"
-                      value={formData.uom_convert || 'PCS'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, uom_convert: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white text-slate-800"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Grup 3: Batch, ED & QC Code */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <span className="font-bold text-slate-700 block text-[11px] uppercase tracking-wide">
-                  3. Batch, Expired Date & QC Status
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Batch</label>
-                    <input
-                      type="text"
-                      value={formData.batch || ''}
-                      onChange={(e) => {
-                        const newBatch = e.target.value;
-                        let autoEd = formData.expired_date;
-                        let autoShelf = formData.shelf_life;
-                        if (newBatch && formData.item_name) {
-                          const comp = getEdIsoDateString(formData.item_code || '', formData.item_name, newBatch);
-                          if (comp && comp.isoDate) {
-                            autoEd = comp.isoDate;
-                            autoShelf = comp.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${comp.result.lamaEdTahun * 12} Bulan`;
-                          }
-                        }
-                        setFormData(prev => ({ ...prev, batch: newBatch, expired_date: autoEd, shelf_life: autoShelf }));
-                      }}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-bold text-amber-900"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vendor Batch</label>
-                    <input
-                      type="text"
-                      value={formData.vendor_batch || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, vendor_batch: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Expired Date (YYYY-MM-DD)</label>
-                    <input
-                      type="date"
-                      value={formData.expired_date || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, expired_date: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Destination Code</label>
-                    <input
-                      type="text"
-                      value={formData.destination_code || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, destination_code: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">QC Code</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Status:</label>
                     <select
-                      value={formData.qc_code || 'QC-PASS'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, qc_code: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-800"
+                      value={formData.status || 'Ada'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold border cursor-pointer outline-none ${
+                        (formData.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                        (formData.status || '').toLowerCase() === 'beda' ? 'bg-blue-100 text-blue-900 border-blue-400 font-extrabold' :
+                        (formData.status || '').toLowerCase() === 'tidak' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                        'bg-white text-slate-800 border-slate-300'
+                      }`}
                     >
-                      <option value="QC-PASS">QC-PASS</option>
-                      <option value="QC-HOLD">QC-HOLD</option>
-                      <option value="QC-REJECT">QC-REJECT</option>
-                      <option value="Lulus">Lulus</option>
-                      <option value="Karantina">Karantina</option>
+                      <option value="Ada">Ada</option>
+                      <option value="Beda">Beda</option>
+                      <option value="Tidak">Tidak</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">User Tally</label>
-                    <input
-                      type="text"
-                      value={formData.user_tally || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, user_tally: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Shelf Life</label>
-                    <input
-                      type="text"
-                      value={formData.shelf_life || '24 Bulan'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, shelf_life: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Source / Sumber</label>
-                    <input
-                      type="text"
-                      value={formData.source || 'Stok Gudang'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
-                      className="w-full p-2 rounded-xl border border-slate-300 bg-white text-slate-800"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    Note / Catatan Perbedaan Data
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formData.note || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                    placeholder={(formData.status || '').toLowerCase() === 'beda'
+                      ? 'Wajib diisi jika status Beda: Jelaskan perbedaan data (misal: Beda batch dari SPK, selisih kuantitas fisik 2 CTN, kondisi barang rusak, dll)...'
+                      : 'Isi catatan tambahan / keterangan perbedaan data bila diperlukan...'}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium text-slate-800 text-xs focus:ring-2 focus:ring-blue-800 placeholder:text-slate-400"
+                  />
+                  {(formData.status || '').toLowerCase() === 'beda' && !formData.note?.trim() && (
+                    <p className="text-[10px] text-blue-700 font-bold mt-1">
+                      💡 Status ditandai "Beda". Mohon cantumkan rincian perbedaan data di kolom note di atas.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -2669,6 +2720,26 @@ export function PenyiapanModule() {
                   <span className="text-[10px] text-slate-400 font-bold block uppercase">Source</span>
                   <span className="font-medium text-slate-800">{selectedItem.source || 'Stok Gudang'}</span>
                 </div>
+              </div>
+
+              {/* Status & Catatan Note */}
+              <div className={`p-3 rounded-xl border ${
+                (selectedItem.status || '').toLowerCase() === 'beda' ? 'bg-blue-50/80 border-blue-200' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Status & Catatan (Note)</span>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                    (selectedItem.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800' :
+                    (selectedItem.status || '').toLowerCase() === 'beda' ? 'bg-blue-600 text-white font-black' :
+                    (selectedItem.status || '').toLowerCase() === 'tidak' ? 'bg-rose-100 text-rose-800' :
+                    'bg-slate-200 text-slate-700'
+                  }`}>
+                    {selectedItem.status || 'Ada'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 font-medium m-0">
+                  {selectedItem.note || <span className="text-slate-400 italic">Tidak ada catatan perbedaan data.</span>}
+                </p>
               </div>
 
               {/* Footer Buttons */}
