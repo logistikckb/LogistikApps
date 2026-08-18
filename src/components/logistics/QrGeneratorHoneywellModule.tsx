@@ -31,6 +31,12 @@ export interface QrLabelItem {
   title: string;
   text: string;
   dataUrl: string;
+  itemCode?: string;      // Kolom 1
+  itemName?: string;      // Kolom 2
+  lpn?: string;           // Kolom 11 (Isi QR Code)
+  batch?: string;         // Kolom 12
+  expiredDate?: string;   // Kolom 15
+  isFullLogistic?: boolean; // True jika berasal dari data 15 kolom Excel
 }
 
 export type LabelPresetSize = '80x100' | '50x30' | '70x50' | '100x50' | '100x75' | '100x150' | 'custom';
@@ -50,14 +56,15 @@ export function QrGeneratorHoneywellModule() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Ukuran Kertas / Label Honeywell PM42: Default SN (8x10 / 80x100 mm)
-  const [presetSize, setPresetSize] = useState<LabelPresetSize>('80x100');
-  const [customWidthMm, setCustomWidthMm] = useState<number>(80);
-  const [customHeightMm, setCustomHeightMm] = useState<number>(100);
-  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const [showBorder, setShowBorder] = useState<boolean>(true);
-  const [titleFontSize, setTitleFontSize] = useState<number>(13); // px base
-  const [textFontSize, setTextFontSize] = useState<number>(11); // px base
+  // Ukuran Kertas / Label Honeywell PM42: Standar SN 80x100 mm (Landscape)
+  const [presetSize] = useState<LabelPresetSize>('80x100');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('landscape');
+  const [showBorder, setShowBorder] = useState<boolean>(false);
+  const [titleFontSize, setTitleFontSize] = useState<number>(8); // 8px default standar
+  const [textFontSize, setTextFontSize] = useState<number>(8); // 8px default standar
+  const [qrSizeMm, setQrSizeMm] = useState<number>(40); // 40mm barcode size standar PM42
+  const [topMarginMm, setTopMarginMm] = useState<number>(10); // 10mm margin atas default
+  const [leftMarginMm, setLeftMarginMm] = useState<number>(2); // 2mm margin kiri awal mulai judul
   const [qrCorrectionLevel, setQrCorrectionLevel] = useState<'L' | 'M' | 'Q' | 'H'>('M');
 
   // Command Generator Modal / View
@@ -71,37 +78,77 @@ export function QrGeneratorHoneywellModule() {
 
   // Hitung dimensi milimeter (SN 8x10 = 80 x 100 mm)
   const getDimensions = () => {
-    switch (presetSize) {
-      case '80x100':
-        return { w: 80, h: 100 };
-      case '50x30':
-        return { w: 50, h: 30 };
-      case '70x50':
-        return { w: 70, h: 50 };
-      case '100x50':
-        return { w: 100, h: 50 };
-      case '100x75':
-        return { w: 100, h: 75 };
-      case '100x150':
-        return { w: 100, h: 150 };
-      case 'custom':
-      default:
-        return { w: Math.max(20, customWidthMm), h: Math.max(15, customHeightMm) };
-    }
+    return { w: 80, h: 100 };
   };
 
   const currentDim = getDimensions();
   const printWidthMm = orientation === 'landscape' ? Math.max(currentDim.w, currentDim.h) : Math.min(currentDim.w, currentDim.h);
   const printHeightMm = orientation === 'landscape' ? Math.min(currentDim.w, currentDim.h) : Math.max(currentDim.w, currentDim.h);
 
-  // Parser: Mengubah baris teks jadi { title, text }
+  // Parser: Mengubah baris teks dari Excel 15 kolom atau format standar menjadi QrLabelItem
   const parseLines = (text: string) => {
     const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    return rawLines.map((line, idx) => {
+    
+    // Filter header jika user tidak sengaja paste header kolom Excel
+    const dataLines = rawLines.filter((l) => {
+      const lower = l.toLowerCase();
+      // Skip jika ini adalah baris judul kolom Excel
+      if (lower.startsWith('item code') || lower.includes('lpn/serial number') || (lower.includes('item code') && lower.includes('item name'))) {
+        return false;
+      }
+      return true;
+    });
+
+    const linesToProcess = dataLines.length > 0 ? dataLines : rawLines;
+
+    return linesToProcess.map((line, idx) => {
+      // 1. Cek pemisahan tab (\t) atau delimitasi >= 11 kolom dari Excel
+      let cols: string[] = [];
+      if (line.includes('\t')) {
+        cols = line.split('\t').map(c => c.trim());
+      } else if (line.includes('|') && line.split('|').length >= 11) {
+        cols = line.split('|').map(c => c.trim());
+      } else if (line.includes(';') && line.split(';').length >= 11) {
+        cols = line.split(';').map(c => c.trim());
+      }
+
+      // Jika baris memiliki minimal 11 kolom (format Excel 15 kolom)
+      if (cols.length >= 11) {
+        // Kolom 1 (Index 0): Item Code (misal: FG10101.496.0060.C)
+        const itemCode = cols[0] || '';
+        // Kolom 2 (Index 1): Item Name (misal: ABS HYPO Y. REVITALIZE 60ML BTL -1604)
+        const itemName = cols[1] || '';
+        // Kolom 11 (Index 10): LPN/Serial Number (misal: FGKINO-250405-AD-19-6B-155) -> Dijadikan QR Code!
+        const lpn = cols[10] || '';
+        // Kolom 12 (Index 11): Batch (misal: 5AJA3413F)
+        const batch = cols[11] || '';
+        // Kolom 15 (Index 14): Expired Date (misal: 07/12/2026)
+        const expiredDate = cols.length >= 15 ? (cols[14] || '') : (cols[13] || '');
+
+        const qrValue = lpn || itemCode || `item-${idx + 1}`;
+        const titleDisplay = itemCode && itemName ? `${itemCode} - ${itemName}` : (itemCode || itemName || `Item ${idx + 1}`);
+
+        return {
+          title: titleDisplay,
+          text: qrValue,
+          itemCode,
+          itemName,
+          lpn: qrValue,
+          batch,
+          expiredDate,
+          isFullLogistic: true
+        };
+      }
+
+      // 2. Format standar / input data sebelumnya (1 atau 2 kolom biasa)
       let title = '';
       let value = '';
 
-      if (line.includes(',')) {
+      if (line.includes('\t')) {
+        const parts = line.split('\t');
+        title = parts[0].trim();
+        value = parts.slice(1).join('\t').trim();
+      } else if (line.includes(',')) {
         const parts = line.split(',');
         title = parts[0].trim();
         value = parts.slice(1).join(',').trim();
@@ -109,10 +156,6 @@ export function QrGeneratorHoneywellModule() {
         const parts = line.split(';');
         title = parts[0].trim();
         value = parts.slice(1).join(';').trim();
-      } else if (line.includes('\t')) {
-        const parts = line.split('\t');
-        title = parts[0].trim();
-        value = parts.slice(1).join('\t').trim();
       } else if (line.includes('|')) {
         const parts = line.split('|');
         title = parts[0].trim();
@@ -127,7 +170,11 @@ export function QrGeneratorHoneywellModule() {
         title = `${defaultTitlePrefix} ${idx + 1}`;
       }
 
-      return { title, text: value };
+      return { 
+        title, 
+        text: value,
+        isFullLogistic: false 
+      };
     });
   };
 
@@ -145,8 +192,10 @@ export function QrGeneratorHoneywellModule() {
 
     for (let i = 0; i < parsed.length; i++) {
       const item = parsed[i];
+      const qrDataToEncode = item.text || item.lpn || `item-${i + 1}`;
+
       try {
-        const url = await QRCode.toDataURL(item.text, {
+        const url = await QRCode.toDataURL(qrDataToEncode, {
           errorCorrectionLevel: qrCorrectionLevel,
           margin: 1,
           width: 600,
@@ -159,8 +208,14 @@ export function QrGeneratorHoneywellModule() {
         generated.push({
           id: `qr-${i + 1}-${Date.now()}`,
           title: item.title,
-          text: item.text,
-          dataUrl: url
+          text: qrDataToEncode,
+          dataUrl: url,
+          itemCode: item.itemCode,
+          itemName: item.itemName,
+          lpn: item.lpn,
+          batch: item.batch,
+          expiredDate: item.expiredDate,
+          isFullLogistic: item.isFullLogistic
         });
       } catch (err) {
         console.error('Error QR:', item, err);
@@ -170,7 +225,13 @@ export function QrGeneratorHoneywellModule() {
     setLabels(generated);
     setSelectedIds(new Set(generated.map(g => g.id)));
     setIsGenerating(false);
-    showToast('Sukses', `${generated.length} QR Code siap dicetak`, 'success');
+    
+    const countLogistic = generated.filter(g => g.isFullLogistic).length;
+    if (countLogistic > 0) {
+      showToast('Sukses', `${generated.length} Label Logistik (15 Kolom) siap dicetak`, 'success');
+    } else {
+      showToast('Sukses', `${generated.length} QR Code siap dicetak`, 'success');
+    }
   };
 
   // Re-generate if correction level changes ONLY when labels exist
@@ -180,12 +241,26 @@ export function QrGeneratorHoneywellModule() {
     }
   }, [qrCorrectionLevel]);
 
-  // Edit inline
-  const handleUpdateLabel = (id: string, field: 'title' | 'text', val: string) => {
+  // Edit inline untuk semua field
+  const handleUpdateLabel = (id: string, field: keyof QrLabelItem, val: string) => {
     setLabels(prev => prev.map(item => {
       if (item.id === id) {
-        const updated = { ...item, [field]: val };
-        if (field === 'text' && val.trim()) {
+        const updated: QrLabelItem = { ...item, [field]: val };
+        
+        // Update title otomatis jika itemCode atau itemName diedit pada data logistik
+        if (item.isFullLogistic && (field === 'itemCode' || field === 'itemName')) {
+          const code = field === 'itemCode' ? val : (item.itemCode || '');
+          const name = field === 'itemName' ? val : (item.itemName || '');
+          updated.title = code && name ? `${code} - ${name}` : (code || name || item.title);
+        }
+
+        // Regenerate QR Code jika LPN atau text diedit
+        const isQrField = field === 'lpn' || field === 'text';
+        if (isQrField && val.trim()) {
+          updated.text = val;
+          if (item.isFullLogistic) {
+            updated.lpn = val;
+          }
           QRCode.toDataURL(val, {
             errorCorrectionLevel: qrCorrectionLevel,
             margin: 1,
@@ -195,6 +270,7 @@ export function QrGeneratorHoneywellModule() {
             setLabels(inner => inner.map(x => x.id === id ? { ...x, dataUrl: url } : x));
           }).catch(console.error);
         }
+
         return updated;
       }
       return item;
@@ -270,12 +346,17 @@ export function QrGeneratorHoneywellModule() {
           const lines: string[] = [];
           data.forEach((row: any[]) => {
             if (row && row.length > 0) {
-              const col1 = String(row[0] || '').trim();
-              const col2 = String(row[1] || '').trim();
-              if (col1 && col2) {
-                lines.push(`${col1}, ${col2}`);
-              } else if (col1) {
-                lines.push(col1);
+              // Jika data memiliki >= 11 kolom (format 15 kolom dari Excel)
+              if (row.length >= 11) {
+                lines.push(row.map(c => String(c ?? '').trim()).join('\t'));
+              } else {
+                const col1 = String(row[0] || '').trim();
+                const col2 = String(row[1] || '').trim();
+                if (col1 && col2) {
+                  lines.push(`${col1}, ${col2}`);
+                } else if (col1) {
+                  lines.push(col1);
+                }
               }
             }
           });
@@ -306,11 +387,25 @@ export function QrGeneratorHoneywellModule() {
   // Export Excel
   const handleExportExcel = () => {
     if (labels.length === 0) return;
-    const exportData = labels.map((l, idx) => ({
-      No: idx + 1,
-      Judul: l.title,
-      'Teks QR': l.text
-    }));
+    const hasLogistic = labels.some(l => l.isFullLogistic);
+    const exportData = labels.map((l, idx) => {
+      if (hasLogistic) {
+        return {
+          No: idx + 1,
+          'Item Code': l.itemCode || l.title,
+          'Item Name': l.itemName || l.title,
+          'LPN / Serial Number': l.lpn || l.text,
+          'Batch': l.batch || '',
+          'Expired Date': l.expiredDate || '',
+          'Teks QR': l.text
+        };
+      }
+      return {
+        No: idx + 1,
+        Judul: l.title,
+        'Teks QR': l.text
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'QR Code');
@@ -353,35 +448,81 @@ export function QrGeneratorHoneywellModule() {
     showToast('Tersalin', 'Teks disalin', 'success');
   };
 
-  // Helper untuk menghitung ukuran font judul agar tidak terpotong meski sangat panjang
+  // Helper untuk menghitung ukuran font judul
   const getItemTitleFontSize = (titleText: string, baseSize: number) => {
+    if (baseSize <= 8) return baseSize;
     const len = (titleText || '').length;
-    if (len > 90) return Math.max(7.5, baseSize - 5);
-    if (len > 60) return Math.max(8.5, baseSize - 3.5);
-    if (len > 40) return Math.max(9.5, baseSize - 2);
-    if (len > 25) return Math.max(10.5, baseSize - 1);
+    if (len > 90) return Math.max(7, baseSize - 4);
+    if (len > 60) return Math.max(7.5, baseSize - 3);
+    if (len > 40) return Math.max(8, baseSize - 1.5);
     return baseSize;
   };
 
   const getItemTextFontSize = (codeText: string, baseSize: number) => {
+    if (baseSize <= 8) return baseSize;
     const len = (codeText || '').length;
-    if (len > 60) return Math.max(7.5, baseSize - 3);
-    if (len > 35) return Math.max(8.5, baseSize - 1.5);
+    if (len > 60) return Math.max(7, baseSize - 2);
+    if (len > 35) return Math.max(7.5, baseSize - 1);
     return baseSize;
   };
 
   // Helper untuk membuat dokumen HTML siap cetak
   const generatePrintHtml = (itemsToPrint: QrLabelItem[]) => {
+    // Sizing terukur agar QR pas di tengah dan tidak mendesak judul keluar (proporsional 100x80mm)
+    const effectiveQrSize = Math.min(qrSizeMm, printWidthMm - 16, Math.max(22, printHeightMm - 36));
+
     const labelsHtml = itemsToPrint.map((item) => {
       const dynamicTitleSize = getItemTitleFontSize(item.title, titleFontSize);
       const dynamicTextSize = getItemTextFontSize(item.text, textFontSize);
 
+      if (item.isFullLogistic) {
+        return `
+          <div class="label-page">
+            <div class="label-box ${showBorder ? 'with-border' : ''}">
+              <!-- 1. ATAS: ITEM CODE & ITEM NAME (Mepet 2mm ke kiri, 8px) -->
+              <div class="logistic-header" style="padding-left: ${leftMarginMm}mm;">
+                <div class="item-code" style="font-size: ${dynamicTitleSize}px;">
+                  <span class="lbl-tag">ITEM:</span> ${escapeHtml(item.itemCode || '')}
+                </div>
+                <div class="item-name" style="font-size: ${dynamicTitleSize}px;">
+                  ${escapeHtml(item.itemName || item.title)}
+                </div>
+                <!-- Garis tepat di bawah Item Name -->
+                <div class="header-divider"></div>
+              </div>
+
+              <!-- 2. TENGAH: QR CODE (Standard 40mm) -->
+              <div class="label-qr">
+                <img src="${item.dataUrl}" alt="QR" style="width: ${effectiveQrSize}mm; height: ${effectiveQrSize}mm;" />
+              </div>
+
+              <!-- 3. BAWAH: LPN / SERIAL NUMBER, BATCH, EXPIRED DATE (Tepat di bawah BATCH agar tidak kepotong) -->
+              <div class="logistic-footer" style="padding-left: ${leftMarginMm}mm;">
+                <div class="lpn-text" style="font-size: ${dynamicTextSize}px;">
+                  <span class="lbl-tag">SN/LPN:</span> <span class="mono-val">${escapeHtml(item.lpn || item.text)}</span>
+                </div>
+                <div class="batch-text" style="font-size: ${dynamicTextSize}px;">
+                  <span class="lbl-tag">BATCH:</span> <span class="bold-val">${escapeHtml(item.batch || '-')}</span>
+                </div>
+                <div class="exp-text" style="font-size: ${dynamicTextSize}px;">
+                  <span class="lbl-tag">EXP DATE:</span> <span class="bold-val">${escapeHtml(item.expiredDate || '-')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Format sebelumnya (standar / simple)
       return `
         <div class="label-page">
           <div class="label-box ${showBorder ? 'with-border' : ''}">
-            <div class="label-title" style="font-size: ${dynamicTitleSize}px;">${escapeHtml(item.title)}</div>
+            <div class="label-title" style="font-size: ${dynamicTitleSize}px; padding-left: ${leftMarginMm}mm;">
+              ${escapeHtml(item.title)}
+              <div class="header-divider"></div>
+            </div>
             <div class="label-qr">
-              <img src="${item.dataUrl}" alt="QR" />
+              <img src="${item.dataUrl}" alt="QR" style="width: ${effectiveQrSize}mm; height: ${effectiveQrSize}mm;" />
             </div>
             <div class="label-text" style="font-size: ${dynamicTextSize}px;">${escapeHtml(item.text)}</div>
           </div>
@@ -410,7 +551,7 @@ export function QrGeneratorHoneywellModule() {
             margin: 0;
             padding: 0;
             background: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: #000000;
             width: ${printWidthMm}mm;
           }
@@ -420,9 +561,9 @@ export function QrGeneratorHoneywellModule() {
             page-break-after: always;
             break-after: page;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1.5mm;
+            align-items: stretch;
+            justify-content: flex-start;
+            padding: ${topMarginMm}mm 2mm 2mm 2mm;
             overflow: hidden;
             background: #ffffff;
             box-sizing: border-box;
@@ -436,10 +577,8 @@ export function QrGeneratorHoneywellModule() {
             height: 100%;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
             justify-content: space-between;
-            text-align: center;
-            padding: 1.5mm 2mm;
             background: #ffffff;
             box-sizing: border-box;
             overflow: hidden;
@@ -448,56 +587,138 @@ export function QrGeneratorHoneywellModule() {
             border: 1px solid #000000;
             border-radius: 1mm;
           }
-          /* JUDUL DI ATAS - Huruf normal/kecil, wrapping penuh, judul panjang tidak pernah terpotong */
-          .label-title {
+
+          /* LOGISTIC HEADER (KOLOM 1 & 2) */
+          .logistic-header {
             width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5mm;
+            text-align: left;
+            padding-right: 2mm;
+            flex-shrink: 0;
+          }
+          .item-code {
+            font-weight: 800;
+            color: #000000 !important;
+            line-height: 1.2;
+            word-break: break-all;
+            letter-spacing: 0.2px;
+          }
+          .item-name {
             font-weight: 700;
-            color: #000000;
-            line-height: 1.15;
+            color: #000000 !important;
+            line-height: 1.2;
+            text-transform: uppercase;
             word-break: break-word;
             overflow-wrap: anywhere;
-            white-space: normal;
-            text-align: center;
-            margin-bottom: 1mm;
-            padding: 0 0.5mm;
-            flex-shrink: 0;
-            max-width: 100%;
           }
-          /* QR CODE DI TENGAH - Menyesuaikan sisa ruang secara fleksibel */
+          .lbl-tag {
+            font-weight: 800;
+            color: #000000 !important;
+            margin-right: 1mm;
+          }
+          .header-divider {
+            width: 100%;
+            height: 0;
+            border-bottom: 1px solid #000000;
+            margin-top: 0.8mm;
+            margin-bottom: 0.5mm;
+          }
+
+          /* QR CODE DI TENGAH */
           .label-qr {
-            flex: 1 1 auto;
-            min-height: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
+            margin: auto 0;
             padding: 0.5mm 0;
-            overflow: hidden;
+            flex-shrink: 0;
           }
           .label-qr img {
+            width: ${effectiveQrSize}mm;
+            height: ${effectiveQrSize}mm;
             max-width: 100%;
             max-height: 100%;
-            height: auto;
             aspect-ratio: 1/1;
             object-fit: contain;
             image-rendering: -webkit-optimize-contrast;
             image-rendering: pixelated;
           }
-          /* TEKS DI BAWAH - Utuh dan terbaca semua */
+
+          /* LOGISTIC FOOTER (KOLOM 11, 12, 15) - Tumpuk Vertikal */
+          .logistic-footer {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5mm;
+            text-align: left;
+            padding-right: 2mm;
+            flex-shrink: 0;
+          }
+          .lpn-text {
+            font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-weight: 700;
+            color: #000000 !important;
+            line-height: 1.2;
+            word-break: break-all;
+          }
+          .mono-val {
+            font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-weight: 800;
+          }
+          .bold-val {
+            font-weight: 800;
+          }
+          .batch-text {
+            font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-weight: 700;
+            color: #000000 !important;
+            line-height: 1.2;
+            word-break: break-all;
+          }
+          .exp-text {
+            font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-weight: 700;
+            color: #000000 !important;
+            line-height: 1.2;
+            word-break: break-all;
+          }
+
+          /* JUDUL DI ATAS (STANDAR SIMPLE) */
+          .label-title {
+            width: 100%;
+            font-weight: 700;
+            color: #000000 !important;
+            line-height: 1.2;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            white-space: normal;
+            text-align: left;
+            padding-right: 2mm;
+            margin-bottom: 1mm;
+            flex-shrink: 0;
+            max-width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+          }
+          /* TEKS DI BAWAH (STANDAR SIMPLE) */
           .label-text {
             width: 100%;
-            font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+            font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
             font-weight: 600;
-            color: #000000;
-            line-height: 1.15;
+            color: #000000 !important;
+            line-height: 1.2;
             word-break: break-word;
             overflow-wrap: anywhere;
             white-space: normal;
             text-align: center;
             margin-top: 1mm;
-            padding: 0 0.5mm;
+            padding: 0 2mm;
             flex-shrink: 0;
             max-width: 100%;
+            letter-spacing: 0.5px;
           }
           @media screen {
             body {
@@ -693,12 +914,25 @@ export function QrGeneratorHoneywellModule() {
       let dp = `CLL\nOPTIMIZE "BATCH" ON\nMEDIA TYPE "LABEL WITH GAPS"\nMEDIA SIZE ${printWidthMm * 8} DOTS, ${printHeightMm * 8} DOTS\nFEED\n\n`;
       itemsToProcess.forEach((item) => {
         dp += `CLIP ON\nDIR 1\n`;
-        dp += `FONT "Swiss 721 BT", 10, 8\n`;
-        dp += `PP 20, 20: FT "${item.title}"\n`;
-        dp += `BARCODE "QR", 5, 2, 4\n`;
-        dp += `PP 30, 80: PB "${item.text}"\n`;
         dp += `FONT "Swiss 721 BT", 8, 8\n`;
-        dp += `PP 20, ${printHeightMm * 8 - 35}: FT "${item.text}"\n`;
+        if (item.isFullLogistic) {
+          dp += `PP ${leftMarginMm * 8}, 20: FT "ITEM: ${item.itemCode || ''}"\n`;
+          dp += `PP ${leftMarginMm * 8}, 45: FT "${item.itemName || item.title}"\n`;
+          dp += `PP ${leftMarginMm * 8}, 65: PL ${printWidthMm * 8 - (leftMarginMm * 8 + 20)}, 1\n`;
+          dp += `BARCODE "QR", 5, 2, 4\n`;
+          dp += `PP 30, 80: PB "${item.lpn || item.text}"\n`;
+          dp += `FONT "Swiss 721 BT", 8, 8\n`;
+          dp += `PP ${leftMarginMm * 8}, ${printHeightMm * 8 - 55}: FT "SN/LPN: ${item.lpn || item.text}"\n`;
+          dp += `PP ${leftMarginMm * 8}, ${printHeightMm * 8 - 36}: FT "BATCH: ${item.batch || '-'}"\n`;
+          dp += `PP ${leftMarginMm * 8}, ${printHeightMm * 8 - 18}: FT "EXP DATE: ${item.expiredDate || '-'}"\n`;
+        } else {
+          dp += `PP ${leftMarginMm * 8}, 20: FT "${item.title}"\n`;
+          dp += `PP ${leftMarginMm * 8}, 45: PL ${printWidthMm * 8 - (leftMarginMm * 8 + 20)}, 1\n`;
+          dp += `BARCODE "QR", 5, 2, 4\n`;
+          dp += `PP 30, 80: PB "${item.text}"\n`;
+          dp += `FONT "Swiss 721 BT", 8, 8\n`;
+          dp += `PP 20, ${printHeightMm * 8 - 35}: FT "${item.text}"\n`;
+        }
         dp += `PF 1\n\n`;
       });
       return dp;
@@ -710,9 +944,20 @@ export function QrGeneratorHoneywellModule() {
       if (showBorder) {
         zpl += `^FO10,10^GB${Math.round(printWidthMm * 8) - 20},${Math.round(printHeightMm * 8) - 20},2^FS\n`;
       }
-      zpl += `^FO20,25^A0N,24,24^FB${Math.round(printWidthMm * 8) - 40},2,0,C^FD${item.title}^FS\n`;
-      zpl += `^FO${Math.round((printWidthMm * 8) / 2) - 80},70^BQN,2,4^FDQA,${item.text}^FS\n`;
-      zpl += `^FO20,${Math.round(printHeightMm * 8) - 45}^A0N,18,18^FB${Math.round(printWidthMm * 8) - 40},2,0,C^FD${item.text}^FS\n`;
+      if (item.isFullLogistic) {
+        zpl += `^FO${leftMarginMm * 8},20^A0N,18,18^FDITEM: ${item.itemCode || ''}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},42^A0N,18,18^FB${Math.round(printWidthMm * 8) - 40},2,0,L^FD${item.itemName || item.title}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},62^GB${Math.round(printWidthMm * 8) - (leftMarginMm * 8 + 20)},1,1^FS\n`;
+        zpl += `^FO${Math.round((printWidthMm * 8) / 2) - 70},70^BQN,2,4^FDQA,${item.lpn || item.text}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},${Math.round(printHeightMm * 8) - 65}^A0N,16,16^FDSN/LPN: ${item.lpn || item.text}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},${Math.round(printHeightMm * 8) - 44}^A0N,16,16^FDBATCH: ${item.batch || '-'}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},${Math.round(printHeightMm * 8) - 24}^A0N,16,16^FDEXP DATE: ${item.expiredDate || '-'}^FS\n`;
+      } else {
+        zpl += `^FO${leftMarginMm * 8},25^A0N,20,20^FB${Math.round(printWidthMm * 8) - 40},2,0,L^FD${item.title}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},50^GB${Math.round(printWidthMm * 8) - (leftMarginMm * 8 + 20)},1,1^FS\n`;
+        zpl += `^FO${Math.round((printWidthMm * 8) / 2) - 70},70^BQN,2,4^FDQA,${item.text}^FS\n`;
+        zpl += `^FO20,${Math.round(printHeightMm * 8) - 45}^A0N,18,18^FB${Math.round(printWidthMm * 8) - 40},2,0,C^FD${item.text}^FS\n`;
+      }
       zpl += `^XZ\n\n`;
     });
     return zpl;
@@ -790,7 +1035,7 @@ export function QrGeneratorHoneywellModule() {
       <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
           <span className="text-xs font-bold text-slate-800">
-            Input Data (1 baris = 1 QR, format: <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">judul, teks</code> atau <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">teks</code>)
+            Input Data (Paste langsung 15 kolom Excel atau format <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">judul, teks</code>)
           </span>
 
           <div className="flex items-center gap-2">
@@ -805,14 +1050,18 @@ export function QrGeneratorHoneywellModule() {
               />
             </label>
 
-            {inputText && (
+            {(inputText || defaultTitlePrefix) && (
               <button
                 type="button"
-                onClick={() => setInputText('')}
+                onClick={() => {
+                  setInputText('');
+                  setDefaultTitlePrefix('');
+                }}
                 className="px-2 py-1 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                title="Hapus input dan prefix judul"
               >
                 <Trash2 size={12} />
-                <span>Clear</span>
+                <span>Clear All Input</span>
               </button>
             )}
           </div>
@@ -824,7 +1073,7 @@ export function QrGeneratorHoneywellModule() {
               rows={4}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Ketik baris data:&#10;lokasi rak a-01, BIN-A01-01&#10;material kino 21104501, 21104501-LOT911346&#10;po 889102, PO889102-KINO"
+              placeholder="Paste data langsung dari Excel (15 Kolom tanpa header):&#10;Contoh 15 kolom: [Col 1: Item Code] [Col 2: Item Name] ... [Col 11: LPN/Serial (QR)] [Col 12: Batch] ... [Col 15: Expired Date]&#10;&#10;Atau format standar sebelumnya:&#10;lokasi rak a-01, BIN-A01-01&#10;material kino 21104501, 21104501-LOT911346"
               className="w-full bg-slate-50 text-slate-800 border border-slate-300 rounded-xl p-2.5 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
@@ -856,75 +1105,78 @@ export function QrGeneratorHoneywellModule() {
         </div>
       </div>
 
-      {/* Pengaturan Ukuran Label */}
+      {/* Pengaturan Ukuran Label Standar Honeywell PM42 */}
       <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-            <Sliders size={14} className="text-amber-600" />
-            <span>Ukuran Kertas / Label:</span>
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+            <Sliders size={15} className="text-amber-600" />
+            <span>Standar Label Honeywell PM42:</span>
+            <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-300">
+              80 x 100 mm (SN 8x10)
+            </span>
           </div>
 
-          <span className="text-xs font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-            {printWidthMm} x {printHeightMm} mm
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 font-medium">Dimensi Cetak:</span>
+            <span className="text-xs font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+              {printWidthMm} x {printHeightMm} mm ({orientation.toUpperCase()})
+            </span>
+          </div>
         </div>
 
-        {/* Preset Chips */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2">
-          {[
-            { id: '80x100', label: '80 x 100 mm (SN 8x10)' },
-            { id: '50x30', label: '50 x 30 mm' },
-            { id: '70x50', label: '70 x 50 mm' },
-            { id: '100x50', label: '100 x 50 mm' },
-            { id: '100x75', label: '100 x 75 mm' },
-            { id: '100x150', label: '100 x 150 mm' },
-            { id: 'custom', label: 'Custom (mm)' },
-          ].map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => setPresetSize(preset.id as LabelPresetSize)}
-              className={`py-1.5 px-2 rounded-lg border text-center text-xs font-bold cursor-pointer transition-all ${
-                presetSize === preset.id
-                  ? 'bg-blue-900 text-white border-blue-950 shadow-xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Detail Penyesuaian Font */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 text-xs">
-          {presetSize === 'custom' && (
-            <>
-              <div>
-                <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">Lebar (mm):</label>
-                <input 
-                  type="number" 
-                  value={customWidthMm}
-                  onChange={(e) => setCustomWidthMm(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">Tinggi (mm):</label>
-                <input 
-                  type="number" 
-                  value={customHeightMm}
-                  onChange={(e) => setCustomHeightMm(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs"
-                />
-              </div>
-            </>
-          )}
-
+        {/* Detail Penyesuaian Slider Standar */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3 pt-1 text-xs">
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">Ukuran Huruf Judul ({titleFontSize}px):</label>
+            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+              Margin Atas ({topMarginMm}mm):
+            </label>
             <input 
               type="range" 
-              min={9} 
+              min={0} 
+              max={20} 
+              value={topMarginMm}
+              onChange={(e) => setTopMarginMm(Number(e.target.value))}
+              className="w-full accent-amber-600"
+              title="Antisipasi sensor jeda printer agar judul tercetak utuh"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+              Margin Kiri Judul ({leftMarginMm}mm):
+            </label>
+            <input 
+              type="range" 
+              min={0} 
+              max={15} 
+              value={leftMarginMm}
+              onChange={(e) => setLeftMarginMm(Number(e.target.value))}
+              className="w-full accent-amber-600"
+              title="Posisi awal mulai judul dari tepi kiri"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+              Ukuran Barcode/QR ({qrSizeMm}mm):
+            </label>
+            <input 
+              type="range" 
+              min={15} 
+              max={60} 
+              value={qrSizeMm}
+              onChange={(e) => setQrSizeMm(Number(e.target.value))}
+              className="w-full accent-amber-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+              Ukuran Judul ({titleFontSize}px):
+            </label>
+            <input 
+              type="range" 
+              min={6} 
               max={20} 
               value={titleFontSize}
               onChange={(e) => setTitleFontSize(Number(e.target.value))}
@@ -933,11 +1185,13 @@ export function QrGeneratorHoneywellModule() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">Ukuran Huruf Teks ({textFontSize}px):</label>
+            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+              Ukuran Teks Bawah ({textFontSize}px):
+            </label>
             <input 
               type="range" 
-              min={8} 
-              max={16} 
+              min={6} 
+              max={18} 
               value={textFontSize}
               onChange={(e) => setTextFontSize(Number(e.target.value))}
               className="w-full accent-blue-900"
@@ -949,10 +1203,10 @@ export function QrGeneratorHoneywellModule() {
             <select
               value={orientation}
               onChange={(e) => setOrientation(e.target.value as any)}
-              className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs"
+              className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-semibold"
             >
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
+              <option value="landscape">Landscape (100x80)</option>
+              <option value="portrait">Portrait (80x100)</option>
             </select>
           </div>
 
@@ -1110,41 +1364,120 @@ export function QrGeneratorHoneywellModule() {
                     </div>
                   </div>
 
-                  {/* KOTAK PREVIEW LABEL: HANYA JUDUL DI ATAS, QR CODE DI TENGAH, TEKS DI BAWAH */}
+                  {/* KOTAK PREVIEW LABEL: JUDUL/ITEM DI ATAS, QR CODE DI TENGAH, LPN/BATCH/EXP DI BAWAH */}
                   <div 
-                    className={`bg-white p-2 flex flex-col items-center justify-between text-center ${
+                    className={`bg-white p-2 flex flex-col justify-between text-left ${
                       showBorder ? 'border border-slate-900 rounded-sm' : ''
                     }`}
-                    style={{ minHeight: '175px' }}
+                    style={{ minHeight: '190px' }}
                   >
-                    {/* 1. JUDUL DI ATAS (Huruf kecil/normal, terbaca semua, judul panjang tetap wrap penuh tidak terpotong) */}
-                    <textarea
-                      rows={item.title.length > 25 ? 2 : 1}
-                      value={item.title}
-                      onChange={(e) => handleUpdateLabel(item.id, 'title', e.target.value)}
-                      title="Klik untuk edit judul"
-                      style={{ fontSize: `${dynamicCardTitleSize}px`, lineHeight: 1.2 }}
-                      className="w-full font-bold text-slate-900 text-center bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden pb-0.5"
-                    />
+                    {item.isFullLogistic ? (
+                      <>
+                        {/* 1. ATAS (KOLOM 1 ITEM CODE & KOLOM 2 ITEM NAME) */}
+                        <div className="w-full space-y-0.5 pb-1 border-b border-slate-900">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-black bg-slate-100 text-slate-700 px-1 py-0.2 rounded">ITEM</span>
+                            <input
+                              type="text"
+                              value={item.itemCode || ''}
+                              onChange={(e) => handleUpdateLabel(item.id, 'itemCode', e.target.value)}
+                              title="Klik untuk edit Item Code"
+                              style={{ fontSize: `${dynamicCardTitleSize}px` }}
+                              className="w-full font-extrabold text-slate-950 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none truncate"
+                            />
+                          </div>
+                          <textarea
+                            rows={item.itemName && item.itemName.length > 25 ? 2 : 1}
+                            value={item.itemName || item.title}
+                            onChange={(e) => handleUpdateLabel(item.id, 'itemName', e.target.value)}
+                            title="Klik untuk edit Item Name"
+                            style={{ fontSize: `${dynamicCardTitleSize}px`, lineHeight: 1.2 }}
+                            className="w-full font-bold uppercase text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden"
+                          />
+                        </div>
 
-                    {/* 2. QR CODE DI TENGAH */}
-                    <div className="py-1 my-auto flex items-center justify-center w-full min-h-0">
-                      <img 
-                        src={item.dataUrl} 
-                        alt="QR Code"
-                        className="w-24 h-24 max-w-full aspect-square object-contain mx-auto"
-                      />
-                    </div>
+                        {/* 2. QR CODE DI TENGAH (Standar 40mm) */}
+                        <div className="py-1 my-auto flex items-center justify-center w-full min-h-0">
+                          <img 
+                            src={item.dataUrl} 
+                            alt="QR Code"
+                            className="w-18 h-18 max-w-full aspect-square object-contain mx-auto"
+                          />
+                        </div>
 
-                    {/* 3. TEKS DI BAWAH (Terbaca semua, tanpa keterangan tambahan) */}
-                    <textarea
-                      rows={item.text.length > 25 ? 2 : 1}
-                      value={item.text}
-                      onChange={(e) => handleUpdateLabel(item.id, 'text', e.target.value)}
-                      title="Klik untuk edit teks"
-                      style={{ fontSize: `${dynamicCardTextSize}px`, lineHeight: 1.2 }}
-                      className="w-full font-mono font-semibold text-slate-900 text-center bg-transparent border-t border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden pt-0.5"
-                    />
+                        {/* 3. BAWAH (KOLOM 11 LPN, KOLOM 12 BATCH, KOLOM 15 EXP DATE TERTUMPUK) */}
+                        <div className="w-full space-y-1 border-t border-slate-100 pt-1 text-[9px]">
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-slate-500">SN/LPN:</span>
+                            <input
+                              type="text"
+                              value={item.lpn || item.text}
+                              onChange={(e) => handleUpdateLabel(item.id, 'lpn', e.target.value)}
+                              title="Klik untuk edit LPN (QR Code akan di-generate ulang)"
+                              style={{ fontSize: `${dynamicCardTextSize}px` }}
+                              className="w-full font-mono font-bold text-slate-950 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none truncate"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-slate-500">BATCH:</span>
+                            <input
+                              type="text"
+                              value={item.batch || ''}
+                              onChange={(e) => handleUpdateLabel(item.id, 'batch', e.target.value)}
+                              title="Batch"
+                              placeholder="-"
+                              style={{ fontSize: `${dynamicCardTextSize}px` }}
+                              className="w-full font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-slate-500">EXP DATE:</span>
+                            <input
+                              type="text"
+                              value={item.expiredDate || ''}
+                              onChange={(e) => handleUpdateLabel(item.id, 'expiredDate', e.target.value)}
+                              title="Expired Date"
+                              placeholder="-"
+                              style={{ fontSize: `${dynamicCardTextSize}px` }}
+                              className="w-full font-bold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* 1. JUDUL DI ATAS (Tebal, rata kiri mepet 2mm, wrapping penuh) */}
+                        <div className="w-full pb-0.5 border-b border-slate-900">
+                          <textarea
+                            rows={item.title.length > 30 ? 2 : 1}
+                            value={item.title}
+                            onChange={(e) => handleUpdateLabel(item.id, 'title', e.target.value)}
+                            title="Klik untuk edit judul"
+                            style={{ fontSize: `${dynamicCardTitleSize}px`, lineHeight: 1.25 }}
+                            className="w-full font-bold uppercase text-slate-950 text-left pl-1.5 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden pb-0.5"
+                          />
+                        </div>
+
+                        {/* 2. QR CODE DI TENGAH (Lebih kecil sedikit & proporsional) */}
+                        <div className="py-1 my-auto flex items-center justify-center w-full min-h-0">
+                          <img 
+                            src={item.dataUrl} 
+                            alt="QR Code"
+                            className="w-20 h-20 max-w-full aspect-square object-contain mx-auto"
+                          />
+                        </div>
+
+                        {/* 3. TEKS DI BAWAH (Terbaca semua, tanpa keterangan tambahan) */}
+                        <textarea
+                          rows={item.text.length > 25 ? 2 : 1}
+                          value={item.text}
+                          onChange={(e) => handleUpdateLabel(item.id, 'text', e.target.value)}
+                          title="Klik untuk edit teks"
+                          style={{ fontSize: `${dynamicCardTextSize}px`, lineHeight: 1.2 }}
+                          className="w-full font-mono font-semibold text-slate-900 text-center bg-transparent border-t border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden pt-0.5"
+                        />
+                      </>
+                    )}
                   </div>
 
                   {/* Tombol Cetak 1 Ini Saja */}
