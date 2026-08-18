@@ -171,3 +171,35 @@ export interface IncomingItem {
   created_at?: string;
   updated_at?: string;
 }
+
+// Transaksi Penyiapan Barang Outbound (Supabase table: public.data_penyiapan)
+export interface PenyiapanItem {
+  id_penyiapan: string;
+  tujuan?: string;
+  item_code: string;
+  item_name: string;
+  category?: string;
+  location?: string;
+  location_type?: string;
+  first_qty?: number;
+  last_qty?: number;
+  uom?: string;
+  qty_convert?: number;
+  uom_convert?: string;
+  lpn_serial_number?: string;
+  batch?: string;
+  vendor_batch?: string;
+  sloc?: string;
+  expired_date?: string;
+  destination_code?: string;
+  qc_code?: string;
+  user_tally?: string;
+  shelf_life?: string;
+  source?: string;
+  user_input?: string;
+  tanggal_update?: string;
+  status?: string;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}

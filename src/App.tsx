@@ -8,6 +8,7 @@ import { EdCheckerModule } from './components/logistics/EdCheckerModule';
 import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModule';
 import { IncomingModule } from './components/logistics/IncomingModule';
 import { QrGeneratorHoneywellModule } from './components/logistics/QrGeneratorHoneywellModule';
+import { PenyiapanModule } from './components/logistics/PenyiapanModule';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
@@ -202,6 +203,8 @@ export default function App() {
                   <IncomingModule />
                 ) : activeToolId === 'menu-c' ? (
                   <QrGeneratorHoneywellModule />
+                ) : activeToolId === 'menu-d' ? (
+                  <PenyiapanModule />
                 ) : (
                   <PlaceholderTool
                     id={currentTool.id}

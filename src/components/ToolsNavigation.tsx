@@ -109,18 +109,20 @@ export const TOOLS_LIST: ToolItem[] = [
   },
   {
     id: 'menu-d',
-    title: 'Menu D',
-    shortDesc: 'Modul baru kosong (Siap dibangun bertahap)',
-    category: 'Utilitas D',
-    icon: Truck,
-    isReady: false,
+    title: 'Penyiapan',
+    shortDesc: 'Manajemen Data Penyiapan Outbound (data_penyiapan), Upload Excel & Sinkron Supabase',
+    category: 'Outbound & Logistik',
+    icon: Boxes,
+    isReady: true,
+    requiresAdmin: false,
     colorBg: 'bg-sky-600',
     colorBorder: 'border-sky-500',
     colorIcon: 'text-sky-600',
     plannedFeatures: [
-      'Fitur 1 (Menunggu instruksi)',
-      'Fitur 2 (Menunggu instruksi)',
-      'Fitur 3 (Menunggu instruksi)'
+      'Manajemen Data Penyiapan Outbound (Tabel Supabase: public.data_penyiapan)',
+      'Upload File Excel Massal Khusus Role Admin (20 Kolom Standar Logistik)',
+      'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/QC',
+      'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Supabase'
     ]
   },
   {
