@@ -1424,28 +1424,13 @@ export function DatabaseMasterModule() {
         <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
           <button
             type="button"
-            onClick={() => setShowSqlSetupModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/40 border border-indigo-400/40 text-indigo-100 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
-            title="Buka panduan SQL & skema database"
-          >
-            <Terminal size={14} className="text-indigo-300" />
-            <span>Setup Database & Status</span>
-          </button>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-[11px] font-semibold text-blue-100">
-            <span className={`w-2 h-2 rounded-full ${dbSynced ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-            <span>{dbSynced ? 'Cloud Sync Aktif' : 'Cache Lokal'}</span>
-          </div>
-
-          <button
-            type="button"
             onClick={refreshAll}
             disabled={loading}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
-            title="Refresh Data dari Database"
+            className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            title="Refresh Data"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">Refresh</span>
+            <span>Refresh Data</span>
           </button>
         </div>
       </div>

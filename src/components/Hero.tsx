@@ -23,7 +23,6 @@ import {
   Lock
 } from 'lucide-react';
 import { InstallPwaButton } from './common/InstallPwaButton';
-import { SupabaseConnectionModal } from './common/SupabaseConnectionModal';
 import { AvatarPickerModal } from './profile/AvatarPickerModal';
 import { UserManagementModal } from './admin/UserManagementModal';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
@@ -331,29 +330,9 @@ export function Hero() {
               <ShieldCheck size={12} className="text-blue-700 shrink-0" />
               <span>Proteksi Sesi: 30m</span>
             </div>
-
-            {/* Tombol Status Sinkronisasi Server */}
-            <button
-              onClick={() => setShowDbModal(true)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
-                isSupabaseConfigured
-                  ? 'text-emerald-700 font-extrabold bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                  : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
-              }`}
-              title="Klik untuk melihat status sinkronisasi server"
-            >
-              <Database size={11} />
-              <span>{isSupabaseConfigured ? 'Cloud Sync Online' : 'Mode Offline-Ready'}</span>
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Modal Status Server & Sinkronisasi */}
-      <SupabaseConnectionModal 
-        isOpen={showDbModal}
-        onClose={() => setShowDbModal(false)}
-      />
     </>
   );
 }

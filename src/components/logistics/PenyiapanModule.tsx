@@ -1509,23 +1509,12 @@ export function PenyiapanModule() {
 
         {/* Right Side: Refresh & Sync Database */}
         <div className="flex items-center gap-2">
-          {/* Push/Sync All to Cloud Database */}
-          <button
-            onClick={handlePushAllToSupabase}
-            disabled={isPushing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-900 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-            title="Sinkronkan Semua Data Lokal ke Supabase (tabel data_penyiapan)"
-          >
-            <Database size={14} className={isPushing ? 'animate-spin' : ''} />
-            <span className="hidden md:inline">{isPushing ? 'Menyinkronkan...' : 'Sinkron Supabase'}</span>
-          </button>
-
           {/* Refresh Live */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer disabled:opacity-50"
-            title="Refresh Data dari Cloud"
+            title="Refresh Data"
           >
             <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
           </button>

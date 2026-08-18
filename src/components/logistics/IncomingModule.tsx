@@ -1692,15 +1692,9 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-amber-600 shrink-0" />
             <div>
-              <span className="font-bold">Peringatan Database:</span> {lastSupabaseError}
+              <span className="font-bold">Peringatan:</span> {lastSupabaseError}
             </div>
           </div>
-          <button
-            onClick={() => setShowSqlSetupModal(true)}
-            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-[11px] shrink-0 cursor-pointer shadow-2xs"
-          >
-            Lihat SQL Setup
-          </button>
         </div>
       )}
 
