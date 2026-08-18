@@ -9,7 +9,8 @@ import {
   Truck,
   Settings,
   Grid,
-  ShieldCheck
+  ShieldCheck,
+  QrCode
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -90,18 +91,20 @@ export const TOOLS_LIST: ToolItem[] = [
   },
   {
     id: 'menu-c',
-    title: 'Menu C',
-    shortDesc: 'Modul baru kosong (Siap dibangun bertahap)',
-    category: 'Utilitas C',
-    icon: FileText,
-    isReady: false,
+    title: 'Generator QR & Print PM42',
+    shortDesc: 'Generator Multi QR Code & Direct Thermal Label Print Honeywell PM42 (Autosense Ready)',
+    category: 'Label & Barcode',
+    icon: QrCode,
+    isReady: true,
+    requiresAdmin: false,
     colorBg: 'bg-amber-600',
     colorBorder: 'border-amber-500',
     colorIcon: 'text-amber-600',
     plannedFeatures: [
-      'Fitur 1 (Menunggu instruksi)',
-      'Fitur 2 (Menunggu instruksi)',
-      'Fitur 3 (Menunggu instruksi)'
+      'Generate QR Massal dari banyak baris teks (Judul + QR Code + Teks)',
+      'Direct Thermal Label Print khusus Honeywell PM42 (Autosense 0-Margin)',
+      'Bypass software LARGO & Dukungan Raw Direct Protocol / ZSim ZPL',
+      'Unduh ZIP gambar QR, Ekspor Excel, dan Custom Dimensi Label'
     ]
   },
   {

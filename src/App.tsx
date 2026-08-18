@@ -7,6 +7,7 @@ import { ToolsGridMenu, ToolId, TOOLS_LIST } from './components/ToolsNavigation'
 import { EdCheckerModule } from './components/logistics/EdCheckerModule';
 import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModule';
 import { IncomingModule } from './components/logistics/IncomingModule';
+import { QrGeneratorHoneywellModule } from './components/logistics/QrGeneratorHoneywellModule';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
@@ -199,6 +200,8 @@ export default function App() {
                   <DatabaseMasterModule />
                 ) : activeToolId === 'menu-b' ? (
                   <IncomingModule />
+                ) : activeToolId === 'menu-c' ? (
+                  <QrGeneratorHoneywellModule />
                 ) : (
                   <PlaceholderTool
                     id={currentTool.id}

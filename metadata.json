@@ -1,6 +1,6 @@
 {
   "name": "LogistikApps",
-  "description": "Aplikasi Logistik Terintegrasi: Cek Expired Date (ED Checker), Master Database Barang & Distributor, dan Kedatangan (Incoming/Inbound)",
+  "description": "Aplikasi Logistik Terintegrasi: Cek Expired Date (ED Checker), Master Database Barang & Distributor, Kedatangan (Incoming/Inbound), dan Generator QR Code dengan Direct Print Label Honeywell PM42 (Autosense Ready)",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
