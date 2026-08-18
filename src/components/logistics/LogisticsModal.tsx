@@ -1,4 +1,5 @@
 import React, { lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Calendar, Layers, Barcode, ArrowRightLeft, PackageCheck, FileText } from 'lucide-react';
 import { LazyFallback } from '../common/LazyFallback';
 
@@ -67,7 +68,7 @@ export function LogisticsModal({ isOpen, onClose, initialTab = 'ed-checker' }: L
 
   const currentTool = toolConfig[initialTab] || toolConfig['ed-checker'];
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
       <div className="glass-box !bg-white/95 p-5 sm:p-7 rounded-3xl max-w-5xl w-full shadow-2xl border border-blue-300 relative max-h-[92vh] flex flex-col overflow-hidden text-left">
         {/* Header - Dedicated to Selected Tool */}
@@ -98,5 +99,5 @@ export function LogisticsModal({ isOpen, onClose, initialTab = 'ed-checker' }: L
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

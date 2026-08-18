@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
   Boxes,
@@ -40,17 +41,21 @@ import {
   Send,
   Building2,
   Archive,
-  QrCode
+  QrCode,
+  RotateCcw,
+  Zap
 } from 'lucide-react';
+import Fuse from 'fuse.js';
 import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PenyiapanItem, DataBarang } from '../../types';
 import { getEdIsoDateString } from '../../utils/logisticsCalculations';
+import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 export function PenyiapanModule() {
   const { currentUser, isAdmin } = useAuth();
-  const { showToast } = useNotification();
+  const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
 
   // Primary Data State
@@ -468,14 +473,24 @@ export function PenyiapanModule() {
     }
   }, [isSpeechSupported, isListeningBarang, showToast]);
 
-  // Filtered Master Barang for Autocomplete
+  // Filtered Master Barang for Autocomplete with Fuse.js Fuzzy Matching
   const filteredBarangList = useMemo(() => {
-    if (!barangSearchText.trim()) return barangList;
-    const tokens = barangSearchText.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    return barangList.filter(b => {
+    const clean = barangSearchText.trim();
+    if (!clean) return barangList;
+
+    // 1. Direct Multi-token Substring Match
+    const tokens = clean.toLowerCase().split(/\s+/).filter(Boolean);
+    const directMatches = barangList.filter(b => {
       const combined = `${b.item_code || ''} ${b.item_name || ''} ${b.barcode || ''} ${b.category || ''} ${b.uom || ''}`.toLowerCase();
       return tokens.every(t => combined.includes(t));
     });
+
+    if (directMatches.length > 0) {
+      return directMatches;
+    }
+
+    // 2. Fuse.js Fuzzy Match fallback (especially powerful for voice speech input typos)
+    return fuzzySearchDataBarang(barangList, clean, 0.38);
   }, [barangList, barangSearchText]);
 
   // Dynamic filter options
@@ -550,12 +565,47 @@ export function PenyiapanModule() {
     };
   }, [penyiapanList]);
 
-  // Filtered & Sorted Penyiapan Data
+  // Filtered & Sorted Penyiapan Data with Fuse.js Intelligent Fuzzy Match
   const filteredPenyiapan = useMemo(() => {
-    return penyiapanList.filter(item => {
-      // 1. Search query
-      if (searchQuery.trim()) {
-        const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    // 1. Initial category/QC/SLoc/Status/Location baseline filtering
+    let baseList = penyiapanList.filter(item => {
+      // Category
+      if (categoryFilter !== 'ALL' && (item.category || '').trim().toLowerCase() !== categoryFilter.toLowerCase()) {
+        return false;
+      }
+
+      // QC Code
+      if (qcFilter !== 'ALL' && (item.qc_code || '').trim().toLowerCase() !== qcFilter.toLowerCase()) {
+        return false;
+      }
+
+      // SLoc
+      if (slocFilter !== 'ALL' && (item.sloc || '').trim().toLowerCase() !== slocFilter.toLowerCase()) {
+        return false;
+      }
+
+      // Status
+      if (statusFilter !== 'ALL' && (item.status || '').trim().toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+
+      // Location
+      if (locationFilter && !(item.location || '').toLowerCase().includes(locationFilter.toLowerCase())) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // 2. Search Query Filtering (Multi-token Substring with Fuse.js Fuzzy Fallback)
+    const cleanSearch = searchQuery.trim();
+    let searchedList = baseList;
+
+    if (cleanSearch) {
+      const tokens = cleanSearch.toLowerCase().split(/\s+/).filter(Boolean);
+      
+      // Step A: Try exact multi-token substring match
+      const exactMatches = baseList.filter(item => {
         const combined = [
           item.id_penyiapan,
           item.item_code,
@@ -577,37 +627,32 @@ export function PenyiapanModule() {
           item.tujuan
         ].filter(Boolean).join(' ').toLowerCase();
 
-        const match = tokens.every(token => combined.includes(token));
-        if (!match) return false;
-      }
+        return tokens.every(token => combined.includes(token));
+      });
 
-      // 2. Category
-      if (categoryFilter !== 'ALL' && (item.category || '').trim().toLowerCase() !== categoryFilter.toLowerCase()) {
-        return false;
+      if (exactMatches.length > 0) {
+        searchedList = exactMatches;
+      } else {
+        // Step B: Fuse.js Fuzzy Search fallback (handles voice recognition typos/accents)
+        const fuse = new Fuse(baseList, {
+          threshold: 0.38,
+          ignoreLocation: true,
+          keys: [
+            { name: 'item_name', weight: 0.4 },
+            { name: 'item_code', weight: 0.25 },
+            { name: 'location', weight: 0.15 },
+            { name: 'batch', weight: 0.1 },
+            { name: 'lpn_serial_number', weight: 0.05 },
+            { name: 'user_tally', weight: 0.05 }
+          ]
+        });
+        const results = fuse.search(cleanSearch);
+        searchedList = results.map(r => r.item);
       }
+    }
 
-      // 3. QC Code
-      if (qcFilter !== 'ALL' && (item.qc_code || '').trim().toLowerCase() !== qcFilter.toLowerCase()) {
-        return false;
-      }
-
-      // 4. SLoc
-      if (slocFilter !== 'ALL' && (item.sloc || '').trim().toLowerCase() !== slocFilter.toLowerCase()) {
-        return false;
-      }
-
-      // 5. Status
-      if (statusFilter !== 'ALL' && (item.status || '').trim().toLowerCase() !== statusFilter.toLowerCase()) {
-        return false;
-      }
-
-      // 6. Location
-      if (locationFilter && !(item.location || '').toLowerCase().includes(locationFilter.toLowerCase())) {
-        return false;
-      }
-
-      return true;
-    }).sort((a, b) => {
+    // 3. Sorting
+    return searchedList.sort((a, b) => {
       const valA = a[sortField] ?? '';
       const valB = b[sortField] ?? '';
 
@@ -629,6 +674,37 @@ export function PenyiapanModule() {
   }, [filteredPenyiapan, currentPage, rowsPerPage]);
 
   const totalPages = rowsPerPage === 'ALL' ? 1 : Math.max(1, Math.ceil(filteredPenyiapan.length / rowsPerPage));
+
+  // Check if location is filtered via location filter input or via search query matching a location
+  const isLocationFiltered = useMemo(() => {
+    if (locationFilter.trim() !== '') return true;
+    if (!searchQuery.trim()) return false;
+    const q = searchQuery.trim().toLowerCase();
+    return uniqueLocationsList.some(
+      loc => loc.toLowerCase() === q || (q.length >= 3 && loc.toLowerCase().includes(q))
+    );
+  }, [locationFilter, searchQuery, uniqueLocationsList]);
+
+  // Check if any filters are currently active
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    locationFilter.trim() ||
+    categoryFilter !== 'ALL' ||
+    qcFilter !== 'ALL' ||
+    slocFilter !== 'ALL' ||
+    statusFilter !== 'ALL'
+  );
+
+  // Clear all filters
+  const handleClearAllFilters = () => {
+    setSearchQuery('');
+    setLocationFilter('');
+    setCategoryFilter('ALL');
+    setQcFilter('ALL');
+    setSlocFilter('ALL');
+    setStatusFilter('ALL');
+    setCurrentPage(1);
+  };
 
   // Sort Toggle
   const handleSort = (field: keyof PenyiapanItem) => {
@@ -907,28 +983,34 @@ export function PenyiapanModule() {
 
   // Clear All Data
   const handleClearAllData = async () => {
-    const confirmDelete = window.confirm("Apakah Anda yakin ingin menghapus SEMUA data penyiapan? Tindakan ini tidak dapat dibatalkan.");
-    if (!confirmDelete) return;
+    showConfirm({
+      title: 'Hapus Semua Data',
+      message: 'Apakah Anda yakin ingin menghapus SEMUA data penyiapan? Tindakan ini tidak dapat dibatalkan.',
+      confirmText: 'Ya, Hapus Semua',
+      cancelText: 'Batal',
+      type: 'danger',
+      onConfirm: async () => {
+        if (isSupabaseConfigured) {
+          try {
+            const { error } = await supabase
+              .from('data_penyiapan')
+              .delete()
+              .neq('id_penyiapan', 'some_dummy_value'); // Delete all rows
 
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from('data_penyiapan')
-          .delete()
-          .neq('id_penyiapan', 'some_dummy_value'); // Delete all rows
-
-        if (error) {
-          showToast('Error Database', error.message, 'danger');
-          return;
+            if (error) {
+              showToast('Error Database', error.message, 'danger');
+              return;
+            }
+          } catch (err: any) {
+            showToast('Error Database', 'Gagal menghapus data di database', 'danger');
+            return;
+          }
         }
-      } catch (err: any) {
-        showToast('Error Database', 'Gagal menghapus data di database', 'danger');
-        return;
+        setPenyiapanList([]);
+        localStorage.removeItem('penyiapan_cache_v1');
+        showToast('Terhapus', 'Semua data penyiapan berhasil dihapus', 'success');
       }
-    }
-    setPenyiapanList([]);
-    localStorage.removeItem('penyiapan_cache_v1');
-    showToast('Terhapus', 'Semua data penyiapan berhasil dihapus', 'success');
+    });
   };
 
   // Download Excel Template (Exact columns from user request & image)
@@ -1478,16 +1560,31 @@ export function PenyiapanModule() {
           {/* Filter Lokasi (Ketik & Dropdown) */}
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Lokasi</label>
-            <input
-              list="location-options"
-              value={locationFilter}
-              onChange={(e) => {
-                setLocationFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Cari Lokasi..."
-              className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold text-slate-700"
-            />
+            <div className="relative flex items-center">
+              <input
+                list="location-options"
+                value={locationFilter}
+                onChange={(e) => {
+                  setLocationFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Cari Lokasi..."
+                className="w-full p-2 pr-7 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold text-slate-700"
+              />
+              {locationFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocationFilter('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                  title="Clear Filter Lokasi"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
             <datalist id="location-options">
               {uniqueLocationsList.map(loc => (
                 <option key={loc} value={loc} />
@@ -1549,6 +1646,125 @@ export function PenyiapanModule() {
             </select>
           </div>
         </div>
+
+        {/* Active Filter Badges & Clear Filters */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+              <Filter size={12} className="text-blue-900" />
+              Filter Aktif:
+            </span>
+
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold">
+                <span>Cari: "{searchQuery}"</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-blue-700 cursor-pointer"
+                  title="Hapus filter pencarian"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {locationFilter && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 text-[11px] font-bold border border-indigo-200">
+                <MapPin size={11} />
+                <span>Lokasi: {locationFilter}</span>
+                <span className="text-[9px] bg-indigo-200/80 px-1 py-0.2 rounded text-indigo-800 font-semibold">(Kolom Disembunyikan)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocationFilter('');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-indigo-700 cursor-pointer"
+                  title="Hapus filter lokasi"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {categoryFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-bold">
+                <span>Kategori: {categoryFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-slate-900 cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {qcFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-bold">
+                <span>QC: {qcFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQcFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-emerald-700 cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {slocFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold">
+                <span>SLOC: {slocFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlocFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-amber-700 cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 text-[11px] font-bold">
+                <span>Status: {statusFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-purple-700 cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="ml-auto inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200"
+            >
+              <RotateCcw size={11} />
+              Reset Semua Filter
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -1558,10 +1774,30 @@ export function PenyiapanModule() {
         
         {/* Table Top Status Bar */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Boxes size={15} className="text-blue-900" />
             <span>Daftar Data Penyiapan ({filteredPenyiapan.length} item)</span>
-            {searchQuery && (
+            {isLocationFiltered && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-900 text-[10px] font-extrabold border border-indigo-200">
+                <MapPin size={11} />
+                <span>Lokasi Terwakili: {locationFilter || searchQuery} (Kolom Disembunyikan)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocationFilter('');
+                    if (uniqueLocationsList.some(loc => loc.toLowerCase() === searchQuery.toLowerCase().trim() || (searchQuery.trim().length >= 3 && loc.toLowerCase().includes(searchQuery.toLowerCase().trim())))) {
+                      setSearchQuery('');
+                    }
+                    setCurrentPage(1);
+                  }}
+                  className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 text-indigo-800 cursor-pointer"
+                  title="Tampilkan kembali kolom lokasi (Reset filter lokasi)"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+            {searchQuery && !isLocationFiltered && (
               <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-[10px]">
                 Filter aktif: "{searchQuery}"
               </span>
@@ -1594,12 +1830,14 @@ export function PenyiapanModule() {
                 <th className="p-3 text-center w-12">No</th>
                 <th className="p-3 text-center sticky left-0 bg-slate-100 z-10 w-28">Status</th>
                 <th className="p-3 text-center w-24">Aksi</th>
-                <th onClick={() => handleSort('location')} className="p-3 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                  <div className="flex items-center gap-1">
-                    <span>Location</span>
-                    <ArrowUpDown size={12} className="text-slate-400" />
-                  </div>
-                </th>
+                {!isLocationFiltered && (
+                  <th onClick={() => handleSort('location')} className="p-3 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                    <div className="flex items-center gap-1">
+                      <span>Location</span>
+                      <ArrowUpDown size={12} className="text-slate-400" />
+                    </div>
+                  </th>
+                )}
                 <th onClick={() => handleSort('item_name')} className="p-3 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Item Name</span>
@@ -1624,7 +1862,7 @@ export function PenyiapanModule() {
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-8 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={18} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -1633,12 +1871,12 @@ export function PenyiapanModule() {
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-8 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Boxes size={32} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700">Belum Ada Data Penyiapan</span>
                       <p className="text-xs text-slate-400 max-w-md m-0">
-                        {searchQuery
+                        {searchQuery || locationFilter
                           ? 'Tidak ditemukan data yang cocok dengan kriteria pencarian.'
                           : 'Klik tombol "Tambah Data" atau "Upload Excel" (Admin) untuk mengisi data penyiapan.'}
                       </p>
@@ -1716,13 +1954,15 @@ export function PenyiapanModule() {
                         </div>
                       </td>
 
-                      {/* Location */}
-                      <td className="p-3 font-bold text-slate-700">
-                        <div className="flex items-center gap-1">
-                          <MapPin size={12} className="text-slate-400" />
-                          <span>{item.location || '-'}</span>
-                        </div>
-                      </td>
+                      {/* Location (Hidden when location is filtered) */}
+                      {!isLocationFiltered && (
+                        <td className="p-3 font-bold text-slate-700">
+                          <div className="flex items-center gap-1">
+                            <MapPin size={12} className="text-slate-400" />
+                            <span>{item.location || '-'}</span>
+                          </div>
+                        </td>
+                      )}
 
                       {/* Item Name */}
                       <td className="p-3 font-extrabold text-slate-800 max-w-xs truncate" title={item.item_name}>
@@ -1788,8 +2028,8 @@ export function PenyiapanModule() {
       {/* ========================================================================= */}
       {/* MODAL 1: FORM TAMBAH / EDIT PENYIAPAN */}
       {/* ========================================================================= */}
-      {showFormModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+      {showFormModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
             
             {/* Modal Header */}
@@ -2160,13 +2400,13 @@ export function PenyiapanModule() {
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* MODAL 2: UPLOAD EXCEL MODAL (ROLE ADMIN PRIVILEGE) */}
       {/* ========================================================================= */}
-      {showExcelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+      {showExcelModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
             
             <div className="p-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
@@ -2313,13 +2553,13 @@ export function PenyiapanModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* MODAL 3: VIEW DETAIL MODAL */}
       {/* ========================================================================= */}
-      {showDetailModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+      {showDetailModal && selectedItem && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
             
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
@@ -2444,13 +2684,13 @@ export function PenyiapanModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* MODAL 4: DELETE CONFIRMATION MODAL */}
       {/* ========================================================================= */}
-      {showDeleteModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+      {showDeleteModal && selectedItem && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-5 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 size={24} />
@@ -2481,7 +2721,7 @@ export function PenyiapanModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
     </div>
   );

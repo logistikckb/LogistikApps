@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { Heart, Volume2, X, Reply, Sparkles, Send } from 'lucide-react';
 import { BroadcastMessage } from '../../types';
@@ -43,7 +44,7 @@ export function FloatingRobotBroadcast({
     minute: '2-digit'
   });
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div 
       className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/45 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
@@ -199,5 +200,5 @@ export function FloatingRobotBroadcast({
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

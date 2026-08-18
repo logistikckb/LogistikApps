@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import { 
   Server, 
@@ -58,7 +59,7 @@ export function SupabaseConnectionModal({ isOpen, onClose }: SupabaseConnectionM
 
   if (!isOpen) return null;
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div 
       className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/75 backdrop-blur-md p-4 animate-fade-in"
       onClick={onClose}
@@ -243,5 +244,5 @@ export function SupabaseConnectionModal({ isOpen, onClose }: SupabaseConnectionM
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

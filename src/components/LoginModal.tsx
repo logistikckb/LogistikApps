@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState } from 'react';
 import { Lock } from 'lucide-react';
 import { useAuth } from '../hooks/useSupabase';
@@ -33,7 +34,7 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
     }
   };
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div className="fixed inset-0 z-[1055] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="glass-box rounded-3xl w-full max-w-sm overflow-hidden flex flex-col">
         <div className="border-b border-white/50 px-6 py-5 bg-white/40 flex justify-between items-center">
@@ -70,5 +71,5 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { UserProfile, UserRole, UserStatus } from '../../types';
@@ -594,7 +595,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
         {/* ========================================================================= */}
         {/* SUB-MODAL: TAMBAH / EDIT PENGGUNA (CRUD FORM) */}
         {/* ========================================================================= */}
-        {showAddEditModal && (
+        {showAddEditModal && typeof document !== "undefined" && createPortal(
           <div 
             className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in"
             onClick={() => setShowAddEditModal(false)}
@@ -859,7 +860,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
               </form>
             </div>
           </div>
-        )}
+        , document.body)}
 
         {/* ========================================================================= */}
         {/* SUB-MODAL: QUICK RESET PIN */}

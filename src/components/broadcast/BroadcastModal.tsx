@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useState, useEffect, FormEvent } from 'react';
 import { 
   Send, 
@@ -172,7 +173,7 @@ export function BroadcastModal({
     });
   };
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div 
       className="fixed inset-0 z-[800] flex items-center justify-center p-3 sm:p-4 bg-slate-950/40 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={onClose}
@@ -475,5 +476,5 @@ export function BroadcastModal({
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
@@ -1499,7 +1500,7 @@ export function QrGeneratorHoneywellModule() {
       {/* ========================================================================= */}
       {/* MODAL DIALOG OPSI PRINT KE PRINTER */}
       {/* ========================================================================= */}
-      {showPrintModal && (
+      {showPrintModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150 border border-slate-200">
             {/* Header Modal */}
@@ -1593,10 +1594,10 @@ export function QrGeneratorHoneywellModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Modal Raw Code (DP & ZPL) */}
-      {showCommandModal && (
+      {showCommandModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -1662,7 +1663,7 @@ export function QrGeneratorHoneywellModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
     </div>
   );

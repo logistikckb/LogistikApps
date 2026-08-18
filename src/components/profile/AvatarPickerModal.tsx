@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -50,7 +51,7 @@ export function AvatarPickerModal({ isOpen, onClose }: AvatarPickerModalProps) {
     }
   };
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div 
       className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/75 backdrop-blur-md p-4 animate-fade-in"
       onClick={onClose}
@@ -203,5 +204,5 @@ export function AvatarPickerModal({ isOpen, onClose }: AvatarPickerModalProps) {
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

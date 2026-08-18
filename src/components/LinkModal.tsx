@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState, useEffect } from 'react';
 import { Edit, PlusCircle } from 'lucide-react';
 import { LinkData } from '../types';
@@ -77,7 +78,7 @@ export function LinkModal({ link, existingCategories, onClose, onSave }: LinkMod
 
   const filteredIcons = ICON_LIST.filter(i => i.includes(iconSearch.toLowerCase()));
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div className="fixed inset-0 z-[1055] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="glass-box rounded-3xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
         
@@ -183,5 +184,5 @@ export function LinkModal({ link, existingCategories, onClose, onSave }: LinkMod
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

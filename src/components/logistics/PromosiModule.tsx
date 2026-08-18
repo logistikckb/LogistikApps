@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { 
   PackageCheck, Save, RefreshCw, Download, Upload, Trash2, Edit, 
@@ -32,6 +33,7 @@ export function PromosiModule() {
   // Preview state for Excel import before saving to database
   const [previewItems, setPreviewItems] = useState<PromosiData[] | null>(null);
   const [savingBatch, setSavingBatch] = useState<boolean>(false);
+  const [showFormModal, setShowFormModal] = useState<boolean>(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -339,8 +341,7 @@ export function PromosiModule() {
       jumlah_pcs: item.jumlah_pcs ?? '',
       keterangan: item.keterangan || ''
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    showToast('Mode Edit', `Mengedit data penerimaan nomor ${item.nomor}`, 'info');
+    setShowFormModal(true);
   };
 
   const handleDelete = (id: string) => {
@@ -641,26 +642,27 @@ export function PromosiModule() {
         </div>
       )}
 
-      {/* FORM INPUT SECTION (CARD SECTION) */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h2 className="text-base font-extrabold text-slate-900 uppercase m-0 flex items-center gap-2">
-            <Edit size={18} className="text-blue-600" />
-            <span>{editingId ? 'Edit Penerimaan Barang Promosi' : 'Form Penerimaan Barang Promosi'}</span>
-          </h2>
-          {editingId && (
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-            >
-              <X size={14} />
-              <span>Batal Edit</span>
-            </button>
-          )}
-        </div>
+      {/* FORM INPUT SECTION (MODAL) */}
+      {showFormModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white">
+                <h2 className="text-base font-extrabold uppercase m-0 flex items-center gap-2">
+                  <Edit size={18} className="text-blue-300" />
+                  <span>{editingId ? 'Edit Penerimaan Barang Promosi' : 'Form Penerimaan Barang Promosi'}</span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => { handleCancelEdit(); setShowFormModal(false); }}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="p-4 sm:p-6 overflow-y-auto">
+                <form onSubmit={handleSubmit} className="space-y-4">
           {/* ROW 1: GRID 3 COLS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div>
@@ -819,7 +821,11 @@ export function PromosiModule() {
             </button>
           </div>
         </form>
-      </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      , document.body)}
 
       {/* TABLE DATA SECTION (CARD SECTION) */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-xs space-y-4">
@@ -835,6 +841,13 @@ export function PromosiModule() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => { resetForm(); setShowFormModal(true); }}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+              title="Tambah Data Baru"
+            >
+              <span>+ Tambah Data</span>
+            </button>
             <button
               onClick={fetchPromosiData}
               disabled={loading}

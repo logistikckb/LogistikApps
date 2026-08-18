@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { 
   FileText, Plus, Search, Printer, Edit, Trash2, Save, Download, Upload, 
@@ -2249,7 +2250,7 @@ export function SuratJalanModule() {
       )}
 
       {/* Modal Tambah/Edit Jenis SJ */}
-      {showJenisModal && (
+      {showJenisModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
@@ -2311,10 +2312,10 @@ export function SuratJalanModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Modal Tambah/Edit Master Tujuan */}
-      {showTujuanModal && (
+      {showTujuanModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
@@ -2417,12 +2418,12 @@ export function SuratJalanModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ==================================================================== */}
       {/* MODAL SIMPAN REKAPAN TO DATABASE */}
       {/* ==================================================================== */}
-      {showSaveModal && (
+      {showSaveModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -2493,7 +2494,7 @@ export function SuratJalanModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ==================================================================== */}
       {/* MODAL DETAIL REKAPAN TER SIMPAN */}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ListTodo, X, Plus, RefreshCw, Trash2, BellRing, Volume2, ChevronLeft, Edit2, CheckCircle2, Clock, Circle, Save, Flame, Zap, AlertCircle, Sparkles } from 'lucide-react';
 import { TodoData, TodoPriority } from '../types';
 import { useNotification } from '../context/NotificationContext';
@@ -669,7 +670,7 @@ export function Sidebar({ todos, loading, isAdmin, isOpen, onToggle, onAddTodo, 
       )}
 
       {/* Modal Form Tambah Tugas Baru */}
-      {showFormModal && (
+      {showFormModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[210] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="glass-box !bg-white/95 p-6 sm:p-7 rounded-3xl max-w-md w-full shadow-2xl border border-orange-400 relative overflow-hidden text-left">
             <button 
@@ -809,10 +810,10 @@ export function Sidebar({ todos, loading, isAdmin, isOpen, onToggle, onAddTodo, 
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Modal Pengingat Todo Aktif dari Lonceng */}
-      {showReminderModal && (
+      {showReminderModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="glass-box !bg-white/95 p-6 sm:p-7 rounded-3xl max-w-lg w-full shadow-2xl border border-orange-400 relative overflow-hidden text-left">
             <button 
@@ -916,7 +917,7 @@ export function Sidebar({ todos, loading, isAdmin, isOpen, onToggle, onAddTodo, 
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       <div 
         className={`fixed top-3 sm:top-4 right-0 z-[95] transition-all duration-300 ${isOpen ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0'}`}

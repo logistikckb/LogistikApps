@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
 import { Download, Printer, Trash2, Search, Copy, Check, QrCode, ExternalLink, Settings, X, Tag } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
@@ -259,7 +260,7 @@ export function BatchQrSection({ items, onClear, onOpenModal }: BatchQrSectionPr
       </div>
 
       {/* HONEYWELL PM42 PRINT OPTION MODAL */}
-      {showPrintModal && (
+      {showPrintModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[230] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="glass-box !bg-white/95 p-6 rounded-3xl max-w-xl w-full shadow-2xl border border-emerald-300 relative text-left">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -441,7 +442,7 @@ export function BatchQrSection({ items, onClear, onOpenModal }: BatchQrSectionPr
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* PRINT-ONLY AREA FOR HONEYWELL PM42 THERMAL PRINTER */}
       <div id="printable-thermal-area" className="hidden print:block">

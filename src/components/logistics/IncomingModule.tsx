@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
   Truck,
@@ -40,11 +41,13 @@ import {
   Volume2,
   Radio
 } from 'lucide-react';
+import Fuse from 'fuse.js';
 import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
 import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult } from '../../utils/logisticsCalculations';
+import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 export function IncomingModule() {
   const { currentUser, isAdmin } = useAuth();
@@ -345,33 +348,45 @@ export function IncomingModule() {
     }
   }, [isSpeechSupported, isListeningSearch, showToast]);
 
-  // Multi-token intelligent filtered master lists displaying ALL matching items
+  // Multi-token intelligent filtered master lists with Fuse.js Fuzzy Search fallback
   const filteredDistributors = useMemo(() => {
-    if (!distributorSearchText.trim()) return distributorList;
-    const tokens = distributorSearchText
-      .toLowerCase()
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
+    const clean = distributorSearchText.trim();
+    if (!clean) return distributorList;
 
-    return distributorList.filter(d => {
+    const tokens = clean.toLowerCase().split(/\s+/).filter(Boolean);
+    const directMatches = distributorList.filter(d => {
       const combined = `${d.kode_ld || ''} ${d.nama_distributor || ''} ${d.status || ''}`.toLowerCase();
       return tokens.every(token => combined.includes(token));
     });
+
+    if (directMatches.length > 0) return directMatches;
+
+    // Fuse.js fuzzy search fallback for distributor
+    const fuse = new Fuse(distributorList, {
+      threshold: 0.38,
+      ignoreLocation: true,
+      keys: [
+        { name: 'nama_distributor', weight: 0.7 },
+        { name: 'kode_ld', weight: 0.3 }
+      ]
+    });
+    return fuse.search(clean).map(r => r.item);
   }, [distributorList, distributorSearchText]);
 
   const filteredBarangList = useMemo(() => {
-    if (!barangSearchText.trim()) return barangList;
-    const tokens = barangSearchText
-      .toLowerCase()
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
+    const clean = barangSearchText.trim();
+    if (!clean) return barangList;
 
-    return barangList.filter(b => {
+    const tokens = clean.toLowerCase().split(/\s+/).filter(Boolean);
+    const directMatches = barangList.filter(b => {
       const combined = `${b.item_code || ''} ${b.item_name || ''} ${b.barcode || ''} ${b.category || ''} ${b.uom || ''}`.toLowerCase();
       return tokens.every(token => combined.includes(token));
     });
+
+    if (directMatches.length > 0) return directMatches;
+
+    // Fuse.js fuzzy search fallback for barang (voice & typo tolerant)
+    return fuzzySearchDataBarang(barangList, clean, 0.38);
   }, [barangList, barangSearchText]);
 
   // Helper formatting Tanggal Input for table & filtering
@@ -1469,26 +1484,11 @@ export function IncomingModule() {
   };
 
   // =========================================================================
-  // FILTERING, SORTING & STATS
+  // FILTERING, SORTING & STATS (with Fuse.js Fuzzy Matching)
   // =========================================================================
   const filteredIncoming = useMemo(() => {
-    return incomingList.filter(item => {
-      // Search text
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchSearch =
-          item.id_incoming.toLowerCase().includes(q) ||
-          item.item_code.toLowerCase().includes(q) ||
-          item.item_name.toLowerCase().includes(q) ||
-          (item.distributor && item.distributor.toLowerCase().includes(q)) ||
-          (item.id_distributor && item.id_distributor.toLowerCase().includes(q)) ||
-          (item.batch && item.batch.toLowerCase().includes(q)) ||
-          (item.location && item.location.toLowerCase().includes(q)) ||
-          (item.user_tally && item.user_tally.toLowerCase().includes(q)) ||
-          (item.lpn_serial_number && item.lpn_serial_number.toLowerCase().includes(q));
-        if (!matchSearch) return false;
-      }
-
+    // 1. Base filter by Date, QC, Jenis, and Status Proses
+    const baseList = incomingList.filter(item => {
       // Tanggal Input filter
       if (dateFilter !== 'ALL') {
         const itemDate = getItemDateFormatted(item);
@@ -1521,16 +1521,57 @@ export function IncomingModule() {
       if (prosesFilter !== 'ALL') {
         const itemStatus = (item.status || 'OPEN').trim().toUpperCase();
         if (prosesFilter === 'OPEN') {
-          // Hanya tampilkan yang OPEN (apapun selain CLOSE)
           if (itemStatus === 'CLOSE') return false;
         } else if (prosesFilter === 'CLOSE') {
-          // Hanya tampilkan yang CLOSE
           if (itemStatus !== 'CLOSE') return false;
         }
       }
 
       return true;
-    }).sort((a, b) => {
+    });
+
+    // 2. Search Query Filtering with Fuse.js fallback
+    const cleanSearch = searchQuery.trim();
+    let searchedList = baseList;
+
+    if (cleanSearch) {
+      const q = cleanSearch.toLowerCase();
+      const directMatches = baseList.filter(item => {
+        return (
+          item.id_incoming.toLowerCase().includes(q) ||
+          item.item_code.toLowerCase().includes(q) ||
+          item.item_name.toLowerCase().includes(q) ||
+          (item.distributor && item.distributor.toLowerCase().includes(q)) ||
+          (item.id_distributor && item.id_distributor.toLowerCase().includes(q)) ||
+          (item.batch && item.batch.toLowerCase().includes(q)) ||
+          (item.location && item.location.toLowerCase().includes(q)) ||
+          (item.user_tally && item.user_tally.toLowerCase().includes(q)) ||
+          (item.lpn_serial_number && item.lpn_serial_number.toLowerCase().includes(q))
+        );
+      });
+
+      if (directMatches.length > 0) {
+        searchedList = directMatches;
+      } else {
+        // Fuse.js fuzzy fallback
+        const fuse = new Fuse(baseList, {
+          threshold: 0.38,
+          ignoreLocation: true,
+          keys: [
+            { name: 'item_name', weight: 0.4 },
+            { name: 'item_code', weight: 0.25 },
+            { name: 'distributor', weight: 0.15 },
+            { name: 'location', weight: 0.1 },
+            { name: 'batch', weight: 0.05 },
+            { name: 'user_tally', weight: 0.05 }
+          ]
+        });
+        searchedList = fuse.search(cleanSearch).map(r => r.item);
+      }
+    }
+
+    // 3. Sorting
+    return searchedList.sort((a, b) => {
       let valA = a[sortField] || '';
       let valB = b[sortField] || '';
 
@@ -1544,7 +1585,7 @@ export function IncomingModule() {
       if (strA > strB) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [incomingList, searchQuery, dateFilter, qcFilter, jenisFilter, sortField, sortOrder, getItemDateFormatted]);
+  }, [incomingList, searchQuery, dateFilter, qcFilter, jenisFilter, prosesFilter, sortField, sortOrder, getItemDateFormatted]);
 
   // Statistics KPI
   const stats = useMemo(() => {
@@ -2297,7 +2338,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
       {/* ========================================================================= */}
       {/* 4. MODAL: INPUT / EDIT KEDATANGAN BARANG */}
       {/* ========================================================================= */}
-      {showFormModal && (
+      {showFormModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-8">
             <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
@@ -2962,12 +3003,12 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* 5. MODAL: DETAIL TRANSAKSI KEDATANGAN */}
       {/* ========================================================================= */}
-      {showDetailModal && selectedItem && (
+      {showDetailModal && selectedItem && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden my-8">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
@@ -3082,12 +3123,12 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* 6. MODAL: UPLOAD EXCEL BATCH IMPORT */}
       {/* ========================================================================= */}
-      {showExcelModal && (
+      {showExcelModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-8">
             <div className="p-4 sm:p-5 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex items-center justify-between">
@@ -3218,13 +3259,13 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* 7. MODAL: DELETE CONFIRMATION */}
       {/* ========================================================================= */}
-      {showDeleteModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+      {showDeleteModal && selectedItem && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-6 text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto shadow-2xs">
               <Trash2 size={24} />
@@ -3251,12 +3292,12 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* 8. MODAL: SQL SETUP HELPER */}
       {/* ========================================================================= */}
-      {showSqlSetupModal && (
+      {showSqlSetupModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-8">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
@@ -3308,7 +3349,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

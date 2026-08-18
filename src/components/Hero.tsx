@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { isSupabaseConfigured } from '../supabase';
 import { 
@@ -85,7 +86,7 @@ export function Hero() {
       )}
 
       {/* Modal Detail Developer & Kontak */}
-      {showPhotoModal && (
+      {showPhotoModal && typeof document !== "undefined" && createPortal(
         <div 
           className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/75 backdrop-blur-md p-4 animate-fade-in"
           onClick={() => setShowPhotoModal(false)}
@@ -187,7 +188,7 @@ export function Hero() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Main Header Box */}
       <div className="glass-box p-0 flex flex-col md:flex-row items-stretch justify-between relative overflow-hidden mb-6">

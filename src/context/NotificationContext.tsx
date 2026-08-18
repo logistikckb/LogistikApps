@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Info, X, Trash2, HelpCircle, Bell } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -181,89 +182,96 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       </div>
 
       {/* Alert Modal Dialog */}
-      {alertDialog.isOpen && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="glass-box max-w-md w-full p-6 sm:p-7 rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-            <div
-              className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-md ${
-                alertDialog.type === 'error'
-                  ? 'bg-red-500/15 text-red-600 border border-red-500/30'
-                  : alertDialog.type === 'success'
-                  ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30'
-                  : alertDialog.type === 'warning'
-                  ? 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
-                  : 'bg-blue-900/15 text-blue-900 border border-blue-900/30'
-              }`}
-            >
-              {alertDialog.type === 'error' && <AlertTriangle size={28} />}
-              {alertDialog.type === 'success' && <CheckCircle2 size={28} />}
-              {alertDialog.type === 'warning' && <AlertTriangle size={28} />}
-              {(!alertDialog.type || alertDialog.type === 'info') && <Bell size={28} />}
-            </div>
-
-            <h3 className="text-base sm:text-lg font-black text-slate-800 m-0 mb-2 uppercase tracking-wide">
-              {alertDialog.title}
-            </h3>
-
-            {alertDialog.message && (
-              <p className="text-xs sm:text-sm font-semibold text-slate-600 m-0 mb-6 leading-relaxed whitespace-pre-line">
-                {alertDialog.message}
-              </p>
-            )}
-
-            <button
-              onClick={() => setAlertDialog(prev => ({ ...prev, isOpen: false }))}
-              className="w-full py-3 px-6 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-blue-900 hover:bg-blue-950 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 cursor-pointer"
-            >
-              Mengerti & Tutup
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm Modal Dialog */}
-      {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="glass-box max-w-md w-full p-6 sm:p-7 rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-            <div
-              className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-md ${
-                confirmDialog.type === 'danger'
-                  ? 'bg-red-500/15 text-red-600 border border-red-500/30'
-                  : 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
-              }`}
-            >
-              {confirmDialog.type === 'danger' ? <Trash2 size={28} /> : <HelpCircle size={28} />}
-            </div>
-
-            <h3 className="text-base sm:text-lg font-black text-slate-800 m-0 mb-2 uppercase tracking-wide">
-              {confirmDialog.title}
-            </h3>
-
-            <p className="text-xs sm:text-sm font-semibold text-slate-600 m-0 mb-6 leading-relaxed whitespace-pre-line">
-              {confirmDialog.message}
-            </p>
-
-            <div className="flex items-center gap-3 w-full">
-              <button
-                onClick={confirmDialog.onCancel}
-                className="flex-1 py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-all duration-200 active:scale-95 cursor-pointer"
-              >
-                {confirmDialog.cancelText}
-              </button>
-              <button
-                onClick={confirmDialog.onConfirm}
-                className={`flex-1 py-3 px-4 rounded-2xl font-extrabold text-xs uppercase tracking-wider text-white shadow-lg transition-all duration-200 active:scale-95 cursor-pointer ${
-                  confirmDialog.type === 'danger'
-                    ? 'bg-red-600 hover:bg-red-700 shadow-red-500/30'
-                    : 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/30'
+      {alertDialog.isOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="glass-box max-w-md w-full p-6 sm:p-7 rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-md ${
+                  alertDialog.type === 'error'
+                    ? 'bg-red-500/15 text-red-600 border border-red-500/30'
+                    : alertDialog.type === 'success'
+                    ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30'
+                    : alertDialog.type === 'warning'
+                    ? 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
+                    : 'bg-blue-900/15 text-blue-900 border border-blue-900/30'
                 }`}
               >
-                {confirmDialog.confirmText}
+                {alertDialog.type === 'error' && <AlertTriangle size={28} />}
+                {alertDialog.type === 'success' && <CheckCircle2 size={28} />}
+                {alertDialog.type === 'warning' && <AlertTriangle size={28} />}
+                {(!alertDialog.type || alertDialog.type === 'info') && <Bell size={28} />}
+              </div>
+
+              <h3 className="text-base sm:text-lg font-black text-slate-800 m-0 mb-2 uppercase tracking-wide">
+                {alertDialog.title}
+              </h3>
+
+              {alertDialog.message && (
+                <p className="text-xs sm:text-sm font-semibold text-slate-600 m-0 mb-6 leading-relaxed whitespace-pre-line">
+                  {alertDialog.message}
+                </p>
+              )}
+
+              <button
+                onClick={() => setAlertDialog(prev => ({ ...prev, isOpen: false }))}
+                className="w-full py-3 px-6 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-blue-900 hover:bg-blue-950 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              >
+                Mengerti & Tutup
               </button>
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
+
+      {/* Confirm Modal Dialog */}
+      {confirmDialog.isOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="glass-box max-w-md w-full p-6 sm:p-7 rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-md ${
+                  confirmDialog.type === 'danger'
+                    ? 'bg-red-500/15 text-red-600 border border-red-500/30'
+                    : 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
+                }`}
+              >
+                {confirmDialog.type === 'danger' ? <Trash2 size={28} /> : <HelpCircle size={28} />}
+              </div>
+
+              <h3 className="text-base sm:text-lg font-black text-slate-800 m-0 mb-2 uppercase tracking-wide">
+                {confirmDialog.title}
+              </h3>
+
+              <p className="text-xs sm:text-sm font-semibold text-slate-600 m-0 mb-6 leading-relaxed whitespace-pre-line">
+                {confirmDialog.message}
+              </p>
+
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={confirmDialog.onCancel}
+                  className="flex-1 py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-all duration-200 active:scale-95 cursor-pointer"
+                >
+                  {confirmDialog.cancelText}
+                </button>
+                <button
+                  onClick={() => {
+                    confirmDialog.onConfirm();
+                    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-2xl font-extrabold text-xs uppercase tracking-wider text-white shadow-lg transition-all duration-200 active:scale-95 cursor-pointer ${
+                    confirmDialog.type === 'danger'
+                      ? 'bg-red-600 hover:bg-red-700 shadow-red-500/30'
+                      : 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/30'
+                  }`}
+                >
+                  {confirmDialog.confirmText}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      , document.body)}
     </NotificationContext.Provider>
   );
 }

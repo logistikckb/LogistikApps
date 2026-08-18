@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { QrCode, Download, Upload, X, Copy, Check, Layers, RefreshCw, Eye, Eraser, Trash2 } from 'lucide-react';
@@ -217,7 +218,7 @@ export function QrGeneratorModal({ isOpen, onClose, onSetBatchItems, existingBat
     reader.readAsText(file);
   };
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
       <div className="glass-box !bg-white/95 p-5 sm:p-7 rounded-3xl max-w-3xl w-full shadow-2xl border border-blue-300 relative max-h-[92vh] flex flex-col overflow-hidden text-left">
         {/* Header */}
@@ -539,5 +540,5 @@ export function QrGeneratorModal({ isOpen, onClose, onSetBatchItems, existingBat
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

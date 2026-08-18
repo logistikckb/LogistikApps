@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldAlert, Clock, RefreshCw, LogOut, Lock, Smartphone } from 'lucide-react';
@@ -28,7 +29,7 @@ export function InactivityWarningModal() {
   const totalWarningSeconds = 120;
   const progressPercent = Math.min(100, Math.max(0, (seconds / totalWarningSeconds) * 100));
 
-  return (
+  return typeof document !== "undefined" ? createPortal(
     <div 
       id="inactivity-warning-backdrop"
       className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in"
@@ -112,5 +113,5 @@ export function InactivityWarningModal() {
         </div>
       </div>
     </div>
-  );
+  , document.body) : null;
 }

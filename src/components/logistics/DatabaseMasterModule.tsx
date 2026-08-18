@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { 
   Database, Package, Truck, Search, Plus, Upload, Download, RefreshCw, 
@@ -2195,7 +2196,7 @@ export function DatabaseMasterModule() {
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / EDIT DATA BARANG */}
       {/* ========================================================================= */}
-      {showBarangModal && (
+      {showBarangModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/80">
@@ -2297,12 +2298,12 @@ export function DatabaseMasterModule() {
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / EDIT DATA DISTRIBUTOR */}
       {/* ========================================================================= */}
-      {showDistributorModal && (
+      {showDistributorModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-scale-up">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/80">
@@ -2391,12 +2392,12 @@ export function DatabaseMasterModule() {
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* MODAL: UPLOAD / IMPORT EXCEL (.xlsx) DENGAN PREVIEW */}
       {/* ========================================================================= */}
-      {showExcelModal && (
+      {showExcelModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
             {/* Modal Header */}
@@ -2578,12 +2579,12 @@ export function DatabaseMasterModule() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ========================================================================= */}
       {/* MODAL: SQL SETUP & DIAGNOSTIC */}
       {/* ========================================================================= */}
-      {showSqlSetupModal && (
+      {showSqlSetupModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
             {/* Header */}
@@ -2762,7 +2763,7 @@ GRANT ALL ON TABLE public.data_barang TO anon, authenticated, service_role;`}
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
