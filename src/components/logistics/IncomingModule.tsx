@@ -34,7 +34,11 @@ import {
   ShieldCheck,
   Sparkles,
   AlertCircle,
-  Copy
+  Copy,
+  Mic,
+  MicOff,
+  Volume2,
+  Radio
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -144,6 +148,201 @@ export function IncomingModule() {
   const [isDistributorDropdownOpen, setIsDistributorDropdownOpen] = useState(false);
   const [barangSearchText, setBarangSearchText] = useState('');
   const [isBarangDropdownOpen, setIsBarangDropdownOpen] = useState(false);
+
+  // Speech-to-Text Voice Recognition States
+  const [isListeningBarang, setIsListeningBarang] = useState(false);
+  const [speechFeedbackBarang, setSpeechFeedbackBarang] = useState<string | null>(null);
+  const barangRecognitionRef = useRef<any>(null);
+
+  const [isListeningSearch, setIsListeningSearch] = useState(false);
+  const [speechFeedbackSearch, setSpeechFeedbackSearch] = useState<string | null>(null);
+  const searchRecognitionRef = useRef<any>(null);
+
+  // Check if browser supports Web Speech API
+  const isSpeechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (barangRecognitionRef.current) {
+        try {
+          barangRecognitionRef.current.abort();
+        } catch {}
+      }
+      if (searchRecognitionRef.current) {
+        try {
+          searchRecognitionRef.current.abort();
+        } catch {}
+      }
+    };
+  }, []);
+
+  // Voice handler for Produk Search in Form
+  const toggleSpeechToTextBarang = useCallback(() => {
+    if (!isSpeechSupported) {
+      showToast(
+        'Fitur Tidak Didukung',
+        'Browser Anda belum mendukung Web Speech Recognition. Gunakan browser modern seperti Google Chrome atau Microsoft Edge.',
+        'warning'
+      );
+      return;
+    }
+
+    if (isListeningBarang) {
+      if (barangRecognitionRef.current) {
+        try {
+          barangRecognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListeningBarang(false);
+      setSpeechFeedbackBarang(null);
+      return;
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 3;
+
+      recognition.onstart = () => {
+        setIsListeningBarang(true);
+        setIsBarangDropdownOpen(true);
+        setSpeechFeedbackBarang('Mendengarkan suara... Sebutkan nama produk atau kode barang');
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const spoken = (finalTranscript || interimTranscript).trim();
+        if (spoken) {
+          setBarangSearchText(spoken);
+          setIsBarangDropdownOpen(true);
+          setSpeechFeedbackBarang(`Terdeteksi: "${spoken}"`);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event.error);
+        setIsListeningBarang(false);
+        if (event.error === 'not-allowed') {
+          showToast(
+            'Izin Mikrofon Diperlukan',
+            'Izinkan akses mikrofon di browser untuk menggunakan fitur pencarian suara (Speech to Text).',
+            'danger'
+          );
+        } else if (event.error === 'no-speech') {
+          setSpeechFeedbackBarang('Tidak ada suara terdeteksi. Silakan coba klik mikrofon lagi.');
+          setTimeout(() => setSpeechFeedbackBarang(null), 2500);
+        } else {
+          showToast('Info Mikrofon', `Status suara: ${event.error}`, 'info');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListeningBarang(false);
+        setTimeout(() => {
+          setSpeechFeedbackBarang(null);
+        }, 3000);
+      };
+
+      barangRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListeningBarang(false);
+      showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
+    }
+  }, [isSpeechSupported, isListeningBarang, showToast]);
+
+  // Voice handler for Main Table Search
+  const toggleSpeechToTextSearch = useCallback(() => {
+    if (!isSpeechSupported) {
+      showToast(
+        'Fitur Tidak Didukung',
+        'Browser ini belum mendukung Web Speech Recognition. Gunakan Chrome atau browser modern.',
+        'warning'
+      );
+      return;
+    }
+
+    if (isListeningSearch) {
+      if (searchRecognitionRef.current) {
+        try {
+          searchRecognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListeningSearch(false);
+      setSpeechFeedbackSearch(null);
+      return;
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsListeningSearch(true);
+        setSpeechFeedbackSearch('Mendengarkan... Sebutkan kata kunci pencarian');
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const spoken = (finalTranscript || interimTranscript).trim();
+        if (spoken) {
+          setSearchQuery(spoken);
+          setCurrentPage(1);
+          setSpeechFeedbackSearch(`Mencari: "${spoken}"`);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech search error:', event.error);
+        setIsListeningSearch(false);
+        if (event.error === 'not-allowed') {
+          showToast('Izin Mikrofon Ditolak', 'Izinkan akses mikrofon pada browser Anda.', 'danger');
+        }
+        setSpeechFeedbackSearch(null);
+      };
+
+      recognition.onend = () => {
+        setIsListeningSearch(false);
+        setTimeout(() => setSpeechFeedbackSearch(null), 3000);
+      };
+
+      searchRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error('Failed to start speech search:', err);
+      setIsListeningSearch(false);
+    }
+  }, [isSpeechSupported, isListeningSearch, showToast]);
 
   // Multi-token intelligent filtered master lists displaying ALL matching items
   const filteredDistributors = useMemo(() => {
@@ -1422,16 +1621,35 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 setCurrentPage(1);
               }}
               placeholder="Cari ID Incoming, Item Code, Nama Barang, Batch, Distributor, Tally..."
-              className="w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-800 text-xs pl-9 pr-8 py-2.5 rounded-xl border border-slate-300/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-2xs"
+              className={`w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-800 text-xs pl-9 pr-16 py-2.5 rounded-xl border focus:ring-2 outline-none transition-all shadow-2xs ${
+                isListeningSearch
+                  ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
+                  : 'border-slate-300/80 focus:border-blue-500 focus:ring-blue-100'
+              }`}
             />
-            {searchQuery && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 cursor-pointer"
+                  title="Hapus pencarian"
+                >
+                  <X size={13} />
+                </button>
+              )}
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                type="button"
+                onClick={toggleSpeechToTextSearch}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  isListeningSearch
+                    ? 'bg-rose-500 text-white shadow-xs animate-pulse'
+                    : 'text-slate-500 hover:text-blue-900 hover:bg-slate-200/60'
+                }`}
+                title={isListeningSearch ? 'Berhenti mendengarkan' : 'Pencarian Suara (Speech to Text)'}
               >
-                <X size={13} />
+                <Mic size={14} />
               </button>
-            )}
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -2171,11 +2389,54 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 )}
               </div>
 
-              {/* Row 3: Produk (Pencarian Interaktif Tanpa Field SKU / Nama Terpisah) */}
+              {/* Row 3: Produk (Pencarian Interaktif dengan Suara / Speech-to-Text) */}
               <div className="relative">
-                <label className="block text-slate-700 font-bold mb-1">
-                  Produk
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-bold">
+                    Produk *
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {/* Speech to text indicator / button */}
+                    <button
+                      type="button"
+                      onClick={toggleSpeechToTextBarang}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
+                        isListeningBarang
+                          ? 'bg-rose-500 text-white animate-pulse ring-2 ring-rose-300'
+                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
+                      }`}
+                      title={isListeningBarang ? 'Klik untuk menghentikan pendengaran suara' : 'Klik untuk berbicara (Speech to Text) mencari produk'}
+                    >
+                      {isListeningBarang ? (
+                        <>
+                          <Radio size={12} className="animate-spin text-white" />
+                          <span>Mendengarkan Suara...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic size={12} className="text-emerald-700" />
+                          <span>Bicara / Suara</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Speech feedback banner when listening or just detected */}
+                {speechFeedbackBarang && (
+                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-2 text-xs animate-fade-in shadow-2xs">
+                    <div className="flex items-center gap-2 text-emerald-900 font-bold overflow-hidden">
+                      <Volume2 size={14} className={`shrink-0 ${isListeningBarang ? 'animate-bounce text-emerald-600' : 'text-emerald-600'}`} />
+                      <span className="truncate">{speechFeedbackBarang}</span>
+                    </div>
+                    {isListeningBarang && (
+                      <span className="flex h-2 w-2 relative shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {formData.item_name && formData.item_code ? (
                   <div className="p-3 bg-emerald-50/80 border border-emerald-300 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
@@ -2225,21 +2486,40 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           fetchMasterData();
                           setIsBarangDropdownOpen(true);
                         }}
-                        placeholder="Ketik kode SKU, barcode, atau nama barang..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-8.5 pr-8 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-xs shadow-2xs"
+                        placeholder="Ketik atau klik mikrofon untuk sebutkan nama produk..."
+                        className={`w-full bg-white text-slate-800 border rounded-xl pl-8.5 pr-16 py-2.5 outline-none focus:ring-2 font-semibold text-xs shadow-2xs transition-all ${
+                          isListeningBarang
+                            ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
+                            : 'border-slate-300 focus:ring-emerald-500'
+                        }`}
                       />
-                      {barangSearchText && (
+                      <div className="absolute right-2 flex items-center gap-1">
+                        {barangSearchText && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBarangSearchText('');
+                              setIsBarangDropdownOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                            title="Hapus teks"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => {
-                            setBarangSearchText('');
-                            setIsBarangDropdownOpen(true);
-                          }}
-                          className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                          onClick={toggleSpeechToTextBarang}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                            isListeningBarang
+                              ? 'bg-rose-500 text-white shadow-xs animate-pulse'
+                              : 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900'
+                          }`}
+                          title={isListeningBarang ? 'Berhenti mendengarkan' : 'Pencarian Suara (Speech to Text)'}
                         >
-                          <X size={13} />
+                          <Mic size={14} />
                         </button>
-                      )}
+                      </div>
                     </div>
 
                     {isBarangDropdownOpen && (
