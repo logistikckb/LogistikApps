@@ -697,15 +697,22 @@ export function IncomingModule() {
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
 
-    // Ambil data Rak dan Tujuan terakhir yang pernah diisi jika ada, atau kosongkan
+    // Ambil data Distributor, Rak, dan Tujuan terakhir yang pernah diisi user jika ada
+    const lastItemWithDist = incomingList.find(i => i.distributor && i.distributor !== '-' && i.distributor.trim() !== '');
+    const lastDistributorName = lastItemWithDist?.distributor?.trim() || '';
+    const lastDistributorId = lastItemWithDist?.id_distributor?.trim() || '';
+
     const lastLocation = incomingList.find(i => i.location && i.location !== '-' && i.location.trim() !== '')?.location || '';
     const lastTujuan = incomingList.find(i => i.tujuan && i.tujuan !== '-' && i.tujuan.trim() !== '')?.tujuan || '';
+
+    setDistributorSearchText(lastDistributorName);
+    setIsDistributorDropdownOpen(false);
 
     setFormData({
       id_incoming: generateIncomingId(),
       jenis: 'ADMK',
-      id_distributor: '',
-      distributor: '',
+      id_distributor: lastDistributorId,
+      distributor: lastDistributorName,
       item_code: '',
       item_name: '',
       category: '-',
@@ -2231,9 +2238,17 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
 
               {/* Row 2: Distributor (Pencarian Interaktif Tanpa Field Nama Terpisah) */}
               <div className="relative">
-                <label className="block text-slate-700 font-bold mb-1">
-                  Distributor
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-bold">
+                    Distributor *
+                  </label>
+                  {!isEditMode && formData.distributor && (
+                    <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200 flex items-center gap-1">
+                      <Clock size={10} />
+                      Otomatis dari baris terakhir
+                    </span>
+                  )}
+                </div>
 
                 {formData.distributor ? (
                   <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
