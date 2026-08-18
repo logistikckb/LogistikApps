@@ -124,6 +124,7 @@ export function IncomingModule() {
   const [dateFilter, setDateFilter] = useState<string>('ALL');
   const [qcFilter, setQcFilter] = useState<string>('ALL');
   const [jenisFilter, setJenisFilter] = useState<string>('ALL');
+  const [prosesFilter, setProsesFilter] = useState<string>('OPEN'); // Standard default is OPEN (data CLOSE hanya tampil jika dipilih ALL atau CLOSE)
   const [sortField, setSortField] = useState<keyof IncomingItem>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -697,13 +698,12 @@ export function IncomingModule() {
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
 
-    // Ambil data Distributor, Rak, dan Tujuan terakhir yang pernah diisi user jika ada
+    // Ambil data Distributor dan Rak terakhir yang pernah diisi user jika ada
     const lastItemWithDist = incomingList.find(i => i.distributor && i.distributor !== '-' && i.distributor.trim() !== '');
     const lastDistributorName = lastItemWithDist?.distributor?.trim() || '';
     const lastDistributorId = lastItemWithDist?.id_distributor?.trim() || '';
 
     const lastLocation = incomingList.find(i => i.location && i.location !== '-' && i.location.trim() !== '')?.location || '';
-    const lastTujuan = incomingList.find(i => i.tujuan && i.tujuan !== '-' && i.tujuan.trim() !== '')?.tujuan || '';
 
     setDistributorSearchText(lastDistributorName);
     setIsDistributorDropdownOpen(false);
@@ -734,8 +734,8 @@ export function IncomingModule() {
       shelf_life: '-',
       source: '-',
       user_input: currentUser?.nama || '-',
-      status: '-',
-      tujuan: lastTujuan
+      status: 'OPEN',
+      tujuan: '-'
     });
     setShowFormModal(true);
   };
@@ -748,8 +748,47 @@ export function IncomingModule() {
     setBarangSearchText(item.item_code ? `${item.item_code} - ${item.item_name}` : '');
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
-    setFormData({ ...item });
+    setFormData({
+      ...item,
+      status: (item.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
+      tujuan: '-'
+    });
     setShowFormModal(true);
+  };
+
+  // Quick inline update status proses (OPEN <-> CLOSE) directly from table
+  const handleUpdateProsesStatus = async (item: IncomingItem, newStatus: 'OPEN' | 'CLOSE') => {
+    const nowIso = new Date().toISOString();
+    const updatedItem: IncomingItem = {
+      ...item,
+      status: newStatus,
+      updated_at: nowIso
+    };
+
+    // 1. Update local state immediately
+    setIncomingList(prev => prev.map(i => (i.id_incoming === item.id_incoming ? updatedItem : i)));
+
+    showToast(
+      'Status Proses Diperbarui',
+      `Status kedatangan ${item.id_incoming} diubah menjadi ${newStatus}`,
+      newStatus === 'CLOSE' ? 'success' : 'info'
+    );
+
+    // 2. Persist to Supabase if connected
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('incoming')
+          .update({ status: newStatus, updated_at: nowIso })
+          .eq('id_incoming', item.id_incoming);
+
+        if (error) {
+          console.error('Error updating status in supabase:', error);
+        }
+      } catch (err) {
+        console.error('Failed to update status in supabase:', err);
+      }
+    }
   };
 
   const handleOpenDetailModal = (item: IncomingItem) => {
@@ -905,10 +944,10 @@ export function IncomingModule() {
       category: formData.category?.trim() || '-',
       location: formData.location?.trim() || '-',
       location_type: formData.location_type?.trim() || '-',
-      first_qty: cleanQty,
+      first_qty: 0,
       last_qty: cleanQty,
       uom: formData.uom?.trim() || 'CTN',
-      qty_convert: cleanQty,
+      qty_convert: 0,
       uom_convert: formData.uom_convert?.trim() || '-',
       lpn_serial_number: formData.lpn_serial_number?.trim() || '-',
       batch: cleanBatch,
@@ -922,8 +961,8 @@ export function IncomingModule() {
       source: formData.source?.trim() || '-',
       user_input: currentUser?.nama || formData.user_input?.trim() || '-',
       tanggal_update: nowIso,
-      status: formData.status?.trim() || '-',
-      tujuan: formData.tujuan?.trim() || '-',
+      status: (formData.status || 'OPEN').trim().toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
+      tujuan: '-',
       created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso,
       updated_at: nowIso
     };
@@ -1478,6 +1517,18 @@ export function IncomingModule() {
         if (itemJenis !== targetJenis) return false;
       }
 
+      // Status Proses filter (OPEN / CLOSE / ALL - Default: OPEN)
+      if (prosesFilter !== 'ALL') {
+        const itemStatus = (item.status || 'OPEN').trim().toUpperCase();
+        if (prosesFilter === 'OPEN') {
+          // Hanya tampilkan yang OPEN (apapun selain CLOSE)
+          if (itemStatus === 'CLOSE') return false;
+        } else if (prosesFilter === 'CLOSE') {
+          // Hanya tampilkan yang CLOSE
+          if (itemStatus !== 'CLOSE') return false;
+        }
+      }
+
       return true;
     }).sort((a, b) => {
       let valA = a[sortField] || '';
@@ -1731,7 +1782,28 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             <Filter size={12} /> Filter:
           </div>
 
-          {/* 1. Filter Tanggal Input (Dinamis dari Isi Kolom Tabel) */}
+          {/* 1. Filter Status Proses (OPEN / CLOSE / ALL - Default OPEN) */}
+          <select
+            value={prosesFilter}
+            onChange={e => {
+              setProsesFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className={`text-[11px] font-extrabold px-3 py-1.5 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all ${
+              prosesFilter === 'OPEN'
+                ? 'bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-200'
+                : prosesFilter === 'CLOSE'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-300 ring-1 ring-emerald-200'
+                : 'bg-white text-slate-700 border-slate-300'
+            }`}
+            title="Filter data kedatangan berdasarkan status proses OPEN atau CLOSE"
+          >
+            <option value="OPEN">⚡ Status Proses: OPEN (Aktif)</option>
+            <option value="CLOSE">✓ Status Proses: CLOSE (Selesai)</option>
+            <option value="ALL">📋 Status Proses: Tampilkan Semua</option>
+          </select>
+
+          {/* 2. Filter Tanggal Input (Dinamis dari Isi Kolom Tabel) */}
           <select
             value={dateFilter}
             onChange={e => {
@@ -1748,7 +1820,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             ))}
           </select>
 
-          {/* 2. Filter Status QC (Dinamis dari Isi Kolom Tabel) */}
+          {/* 3. Filter Status QC (Dinamis dari Isi Kolom Tabel) */}
           <select
             value={qcFilter}
             onChange={e => {
@@ -1765,7 +1837,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             ))}
           </select>
 
-          {/* 3. Filter Jenis (Dinamis dari Isi Kolom Tabel) */}
+          {/* 4. Filter Jenis (Dinamis dari Isi Kolom Tabel) */}
           <select
             value={jenisFilter}
             onChange={e => {
@@ -1783,12 +1855,13 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
           </select>
 
           {/* Reset Filters */}
-          {(dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL' || searchQuery) && (
+          {(dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL' || prosesFilter !== 'OPEN' || searchQuery) && (
             <button
               onClick={() => {
                 setDateFilter('ALL');
                 setQcFilter('ALL');
                 setJenisFilter('ALL');
+                setProsesFilter('OPEN');
                 setSearchQuery('');
                 setCurrentPage(1);
               }}
@@ -2004,7 +2077,19 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 12. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
+                  {/* 12. Kolom Status Proses (Sebelum Kolom Aksi) */}
+                  <th
+                    onClick={() => handleSort('status')}
+                    className="py-3 px-3 text-center cursor-pointer hover:text-blue-900 min-w-[110px]"
+                    title="Urutkan Status Proses (OPEN / CLOSE)"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Proses</span>
+                      <ArrowUpDown size={11} className="opacity-60" />
+                    </div>
+                  </th>
+
+                  {/* 13. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
                   <th className="py-3 px-3 text-center w-24 bg-slate-100/95">Aksi</th>
                 </tr>
               </thead>
@@ -2021,8 +2106,20 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   else if (qc === 'REPACK' || qc === 'QC-REJECT' || qc === 'REJECT') qcBadgeClass = 'bg-orange-50 text-orange-800 border-orange-300';
                   else if (qc === 'PENDING') qcBadgeClass = 'bg-blue-50 text-blue-800 border-blue-200';
 
+                  const isClosed = (item.status || '').trim().toUpperCase() === 'CLOSE';
+                  const rowStatus = isClosed ? 'CLOSE' : 'OPEN';
+
                   return (
-                    <tr key={item.id_incoming} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={item.id_incoming}
+                      onClick={() => handleOpenDetailModal(item)}
+                      title="Klik baris untuk melihat detail transaksi"
+                      className={`cursor-pointer transition-colors ${
+                        isClosed
+                          ? 'bg-emerald-50/70 hover:bg-emerald-100/90 border-l-4 border-l-emerald-500'
+                          : 'hover:bg-blue-50/70'
+                      }`}
+                    >
                       {/* 1. No */}
                       <td className="py-2.5 px-3 text-center font-mono text-slate-500 font-bold text-[11px] bg-white/95">{rowNum}</td>
 
@@ -2090,25 +2187,41 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : (item.tanggal_update || '-')}
                       </td>
 
-                      {/* 12. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
-                      <td className="py-2.5 px-3 text-center bg-white/95">
+                      {/* 12. Kolom Status Proses (Dropdown OPEN / CLOSE) */}
+                      <td className="py-2.5 px-3 text-center" onClick={e => e.stopPropagation()}>
+                        <select
+                          value={rowStatus}
+                          onChange={e => handleUpdateProsesStatus(item, e.target.value as 'OPEN' | 'CLOSE')}
+                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
+                            isClosed
+                              ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                              : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                          }`}
+                          title="Klik untuk mengubah status proses (OPEN / CLOSE)"
+                        >
+                          <option value="OPEN" className="bg-white text-slate-800 font-bold">OPEN</option>
+                          <option value="CLOSE" className="bg-white text-slate-800 font-bold">CLOSE</option>
+                        </select>
+                      </td>
+
+                      {/* 13. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
+                      <td className="py-2.5 px-3 text-center bg-white/95" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => handleOpenDetailModal(item)}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-blue-900 hover:bg-blue-50 transition-colors cursor-pointer"
-                            title="Lihat Detail Transaksi"
-                          >
-                            <Eye size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(item)}
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleOpenEditModal(item);
+                            }}
                             className="p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
                             title="Edit Transaksi"
                           >
                             <Edit2 size={13} />
                           </button>
                           <button
-                            onClick={() => handleOpenDeleteModal(item)}
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleOpenDeleteModal(item);
+                            }}
                             className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
                             title="Hapus Transaksi"
                           >
@@ -2754,7 +2867,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     onChange={e => {
                       const raw = e.target.value;
                       const val = raw === '' ? 0 : parseFloat(raw) || 0;
-                      setFormData({ ...formData, last_qty: val, first_qty: val, qty_convert: val });
+                      setFormData({ ...formData, last_qty: val, first_qty: 0, qty_convert: 0 });
                     }}
                     placeholder="0"
                     className="w-full bg-white text-emerald-900 font-black border border-emerald-400 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
@@ -2804,6 +2917,30 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     )}
                   </select>
                 </div>
+              </div>
+
+              {/* Row 7: Status Proses (OPEN / CLOSE - Standar: OPEN) */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <label className="block text-slate-800 font-bold text-xs">
+                    Status Proses
+                  </label>
+                  <p className="text-[11px] text-slate-500 m-0">
+                    Standar berstatus OPEN. Ubah ke CLOSE bila penerimaan sudah selesai.
+                  </p>
+                </div>
+                <select
+                  value={(formData.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN'}
+                  onChange={e => setFormData({ ...formData, status: e.target.value })}
+                  className={`text-xs font-black px-4 py-2 rounded-xl border outline-none cursor-pointer font-mono shadow-2xs transition-all shrink-0 ${
+                    (formData.status || 'OPEN').toUpperCase() === 'CLOSE'
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-amber-100 text-amber-900 border-amber-300'
+                  }`}
+                >
+                  <option value="OPEN">OPEN (Aktif)</option>
+                  <option value="CLOSE">CLOSE (Selesai)</option>
+                </select>
               </div>
 
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
@@ -2908,8 +3045,14 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   <span className="font-mono text-slate-800">{selectedItem.lpn_serial_number || '-'}</span>
                 </div>
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 text-[10px] block">Tujuan:</span>
-                  <span className="font-bold text-slate-800">{selectedItem.tujuan || '-'}</span>
+                  <span className="text-slate-400 text-[10px] block">Status Proses:</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border uppercase font-mono ${
+                    (selectedItem.status || '').trim().toUpperCase() === 'CLOSE'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-100 text-amber-900 border-amber-300'
+                  }`}>
+                    {(selectedItem.status || '').trim().toUpperCase() === 'CLOSE' ? 'CLOSE (Selesai)' : 'OPEN (Aktif)'}
+                  </span>
                 </div>
               </div>
 
