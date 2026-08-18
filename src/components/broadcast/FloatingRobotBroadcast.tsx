@@ -23,17 +23,17 @@ export function FloatingRobotBroadcast({
 
     setAutoCloseTimer(25);
     const interval = setInterval(() => {
-      setAutoCloseTimer(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          onClose();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setAutoCloseTimer(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
-    return () => clearInterval(interval);
+    const timeout = setTimeout(() => {
+      onClose();
+    }, 25000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [broadcast, onClose]);
 
   if (!broadcast) return null;

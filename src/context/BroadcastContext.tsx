@@ -461,14 +461,14 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const dismissIncomingBroadcast = () => {
+  const dismissIncomingBroadcast = useCallback(() => {
     setIncomingBroadcast(null);
     stopTabAlert();
-  };
+  }, []);
 
-  const toggleSound = () => {
+  const toggleSound = useCallback(() => {
     setSoundEnabled(prev => !prev);
-  };
+  }, []);
 
   return (
     <BroadcastContext.Provider
