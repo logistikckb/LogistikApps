@@ -272,50 +272,50 @@ export function BatchCheckerModule() {
   const countByStatus = (st: string) => compareResults.filter(r => r.status === st).length;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2 sm:space-y-2.5">
       {/* Upload Section Box */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {/* Largo Box */}
-        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-900 flex items-center justify-center font-black text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-900 flex items-center justify-center font-black text-xs">
                 1
               </div>
               <span className="text-xs font-bold text-slate-800">
-                Data Excel LARGO ({largoRows.length} baris)
+                Excel LARGO ({largoRows.length})
               </span>
             </div>
-            <label className="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs transition-all active:scale-95">
-              <Upload size={13} />
+            <label className="px-2.5 py-1 bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-2xs transition-all active:scale-95">
+              <Upload size={12} />
               <span>{largoRows.length > 0 ? 'Ganti LARGO' : 'Upload LARGO'}</span>
               <input type="file" accept=".xlsx, .xls" onChange={handleLargoFileUpload} className="hidden" />
             </label>
           </div>
-          <p className="text-[11px] text-slate-500 m-0">
-            Kolom didukung: <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">SLOC</code>, <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">Item / Material</code>, <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">Batch</code>, <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">Qty / Stok</code>
+          <p className="text-[10px] text-slate-500 m-0">
+            Kolom: <code className="text-blue-900 bg-blue-50 px-1 py-0.2 rounded">SLOC</code>, <code className="text-blue-900 bg-blue-50 px-1 py-0.2 rounded">Item</code>, <code className="text-blue-900 bg-blue-50 px-1 py-0.2 rounded">Batch</code>, <code className="text-blue-900 bg-blue-50 px-1 py-0.2 rounded">Qty</code>
           </p>
         </div>
 
         {/* SAP Box */}
-        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xs">
                 2
               </div>
               <span className="text-xs font-bold text-slate-800">
-                Data Excel SAP MB52 ({sapRows.length} baris)
+                Excel SAP MB52 ({sapRows.length})
               </span>
             </div>
-            <label className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs transition-all active:scale-95">
-              <Upload size={13} />
+            <label className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-2xs transition-all active:scale-95">
+              <Upload size={12} />
               <span>{sapRows.length > 0 ? 'Ganti SAP' : 'Upload SAP'}</span>
               <input type="file" accept=".xlsx, .xls" onChange={handleSapFileUpload} className="hidden" />
             </label>
           </div>
-          <p className="text-[11px] text-slate-500 m-0">
-            Kolom didukung: <code className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Storage Loc / SLOC</code>, <code className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Material</code>, <code className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Batch / Charg</code>, <code className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Unrestricted / Qty</code>
+          <p className="text-[10px] text-slate-500 m-0">
+            Kolom: <code className="text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded">SLOC</code>, <code className="text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded">Material</code>, <code className="text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded">Batch/Charg</code>, <code className="text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded">Unrestricted</code>
           </p>
         </div>
       </div>
@@ -326,115 +326,115 @@ export function BatchCheckerModule() {
           type="button"
           onClick={handleRunComparison}
           disabled={isProcessing || largoRows.length === 0 || sapRows.length === 0}
-          className="px-6 py-2.5 bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 hover:from-blue-950 hover:to-indigo-950 text-white text-xs font-bold rounded-2xl shadow-md disabled:opacity-40 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2"
+          className="px-4 py-2 bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 hover:from-blue-950 hover:to-indigo-950 text-white text-xs font-bold rounded-xl shadow-2xs disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1.5"
         >
-          <ArrowRightLeft size={16} className={isProcessing ? 'animate-spin' : ''} />
+          <ArrowRightLeft size={14} className={isProcessing ? 'animate-spin' : ''} />
           <span>{isProcessing ? 'Sedang Membandingkan...' : 'Bandingkan LARGO vs SAP & Pemetaan Batch'}</span>
         </button>
       </div>
 
       {/* Comparison Output */}
       {compareResults.length > 0 && (
-        <div className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
           
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5">
             <button
               type="button"
               onClick={() => setFilterStatus('all')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 filterStatus === 'all'
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
                   : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
               }`}
             >
-              <div className="text-[10px] font-bold opacity-80 uppercase tracking-wider">Total Data</div>
-              <div className="text-base font-black mt-0.5">{compareResults.length}</div>
+              <div className="text-[9px] font-bold opacity-80 uppercase tracking-wider">Total</div>
+              <div className="text-sm font-black mt-0.5">{compareResults.length}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterStatus('MATCH')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 filterStatus === 'MATCH'
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                   : 'bg-emerald-50/70 hover:bg-emerald-100/70 border-emerald-200 text-emerald-900'
               }`}
             >
-              <div className="text-[10px] font-bold opacity-80 uppercase tracking-wider">MATCH</div>
-              <div className="text-base font-black mt-0.5">{countByStatus('MATCH')}</div>
+              <div className="text-[9px] font-bold opacity-80 uppercase tracking-wider">MATCH</div>
+              <div className="text-sm font-black mt-0.5">{countByStatus('MATCH')}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterStatus('REPLACE')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 filterStatus === 'REPLACE'
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                   : 'bg-indigo-50/70 hover:bg-indigo-100/70 border-indigo-200 text-indigo-900'
               }`}
             >
-              <div className="text-[10px] font-bold opacity-80 uppercase tracking-wider">PEMETAAN (REPLACE)</div>
-              <div className="text-base font-black mt-0.5">{countByStatus('REPLACE')}</div>
+              <div className="text-[9px] font-bold opacity-80 uppercase tracking-wider">REPLACE</div>
+              <div className="text-sm font-black mt-0.5">{countByStatus('REPLACE')}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterStatus('QTY_DIFF')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 filterStatus === 'QTY_DIFF'
-                  ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
                   : 'bg-amber-50/70 hover:bg-amber-100/70 border-amber-200 text-amber-900'
               }`}
             >
-              <div className="text-[10px] font-bold opacity-80 uppercase tracking-wider">SELISIH QTY</div>
-              <div className="text-base font-black mt-0.5">{countByStatus('QTY_DIFF')}</div>
+              <div className="text-[9px] font-bold opacity-80 uppercase tracking-wider">SELISIH QTY</div>
+              <div className="text-sm font-black mt-0.5">{countByStatus('QTY_DIFF')}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterStatus('NO_CANDIDATE')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 filterStatus === 'NO_CANDIDATE'
-                  ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                  ? 'bg-red-600 text-white border-red-600 shadow-2xs'
                   : 'bg-red-50/70 hover:bg-red-100/70 border-red-200 text-red-900'
               }`}
             >
-              <div className="text-[10px] font-bold opacity-80 uppercase tracking-wider">HANYA DI SAP</div>
-              <div className="text-base font-black mt-0.5">{countByStatus('NO_CANDIDATE')}</div>
+              <div className="text-[9px] font-bold opacity-80 uppercase tracking-wider">HANYA SAP</div>
+              <div className="text-sm font-black mt-0.5">{countByStatus('NO_CANDIDATE')}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterStatus('LARGO_ONLY')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 filterStatus === 'LARGO_ONLY'
-                  ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                  ? 'bg-slate-700 text-white border-slate-700 shadow-2xs'
                   : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-900'
               }`}
             >
-              <div className="text-[10px] font-bold opacity-80 uppercase tracking-wider">HANYA DI LARGO</div>
-              <div className="text-base font-black mt-0.5">{countByStatus('LARGO_ONLY')}</div>
+              <div className="text-[9px] font-bold opacity-80 uppercase tracking-wider">HANYA LARGO</div>
+              <div className="text-sm font-black mt-0.5">{countByStatus('LARGO_ONLY')}</div>
             </button>
           </div>
 
           {/* Search & Export Toolbar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-0.5">
             {/* Search input */}
             <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Cari Item, Material, Batch, SLOC, atau Rekomendasi..."
-                className="w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-900/20 focus:border-blue-900 outline-none"
+                placeholder="Cari Item, Material, Batch, SLOC..."
+                className="w-full pl-8 pr-6 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-900/20 focus:border-blue-900 outline-none"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
                 >
                   ✕
                 </button>
@@ -442,88 +442,88 @@ export function BatchCheckerModule() {
             </div>
 
             {/* Export Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={handleExportFiltered}
-                className="px-3.5 py-2 bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                className="px-2.5 py-1.5 bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
                 title="Download sesuai filter & pencarian yang sedang tampil di layar"
               >
-                <Download size={13} />
-                <span>Export Tampilan ({filteredResults.length})</span>
+                <Download size={12} />
+                <span>Export ({filteredResults.length})</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleExportMultiSheet}
-                className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
-                title="Download Excel lengkap dengan sheet terpisah untuk setiap status dan pemetaan batch"
+                className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+                title="Download Excel lengkap dengan sheet terpisah"
               >
-                <FileSpreadsheet size={13} />
-                <span>Export Multi-Sheet Lengkap</span>
+                <FileSpreadsheet size={12} />
+                <span>Multi-Sheet Lengkap</span>
               </button>
             </div>
           </div>
 
-          {/* Webapp Table (100% synchronized with Excel data) */}
-          <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-[440px] overflow-y-auto">
+          {/* Webapp Table */}
+          <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-[440px] overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 z-10 shadow-2xs">
+              <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 z-10 text-[10px] uppercase tracking-wider">
                 <tr>
-                  <th className="p-2.5 border-b border-slate-200 text-center w-12">No</th>
-                  <th className="p-2.5 border-b border-slate-200">SLOC</th>
-                  <th className="p-2.5 border-b border-slate-200">Item Code</th>
-                  <th className="p-2.5 border-b border-slate-200">Deskripsi Material</th>
-                  <th className="p-2.5 border-b border-slate-200">Batch LARGO</th>
-                  <th className="p-2.5 border-b border-slate-200">Batch SAP</th>
-                  <th className="p-2.5 border-b border-slate-200 text-right">Qty LARGO</th>
-                  <th className="p-2.5 border-b border-slate-200 text-right">Qty SAP</th>
-                  <th className="p-2.5 border-b border-slate-200 text-right">Selisih</th>
-                  <th className="p-2.5 border-b border-slate-200">Status</th>
-                  <th className="p-2.5 border-b border-slate-200">Rekomendasi Pemetaan</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200 text-center w-10">No</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">SLOC</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">Item Code</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">Deskripsi Material</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">Batch LARGO</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">Batch SAP</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200 text-right">Qty LARGO</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200 text-right">Qty SAP</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200 text-right">Selisih</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">Status</th>
+                  <th className="py-2 px-2.5 border-b border-slate-200">Rekomendasi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                 {filteredResults.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="p-8 text-center text-slate-400 font-semibold">
+                    <td colSpan={11} className="py-6 px-4 text-center text-slate-400 font-semibold">
                       Tidak ada data yang sesuai dengan filter atau pencarian "{searchTerm}".
                     </td>
                   </tr>
                 ) : (
                   filteredResults.map((r, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">
+                      <td className="py-1.5 px-2.5 text-center text-slate-400 font-mono text-[10px]">
                         {idx + 1}
                       </td>
-                      <td className="p-2.5 font-bold font-mono text-blue-900">
+                      <td className="py-1.5 px-2.5 font-bold font-mono text-blue-900">
                         {r.sloc}
                       </td>
-                      <td className="p-2.5 font-mono font-semibold text-slate-900">
+                      <td className="py-1.5 px-2.5 font-mono font-semibold text-slate-900">
                         {r.item}
                       </td>
-                      <td className="p-2.5 truncate max-w-[200px]" title={r.desc}>
+                      <td className="py-1.5 px-2.5 truncate max-w-[180px]" title={r.desc}>
                         {r.desc}
                       </td>
-                      <td className="p-2.5 font-mono font-bold text-slate-800">
+                      <td className="py-1.5 px-2.5 font-mono font-bold text-slate-800">
                         {r.bLargo || '-'}
                       </td>
-                      <td className="p-2.5 font-mono font-bold text-slate-800">
+                      <td className="py-1.5 px-2.5 font-mono font-bold text-slate-800">
                         {r.bSap || '-'}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-semibold">
+                      <td className="py-1.5 px-2.5 text-right font-mono font-semibold">
                         {r.qLargo.toLocaleString('id-ID')}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-semibold">
+                      <td className="py-1.5 px-2.5 text-right font-mono font-semibold">
                         {r.qSap.toLocaleString('id-ID')}
                       </td>
-                      <td className={`p-2.5 text-right font-mono font-bold ${
+                      <td className={`py-1.5 px-2.5 text-right font-mono font-bold ${
                         r.diff === 0 ? 'text-slate-400' : r.diff > 0 ? 'text-amber-600' : 'text-red-600'
                       }`}>
                         {r.diff > 0 ? `+${r.diff.toLocaleString('id-ID')}` : r.diff.toLocaleString('id-ID')}
                       </td>
-                      <td className="p-2.5">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold whitespace-nowrap ${
+                      <td className="py-1.5 px-2.5">
+                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold whitespace-nowrap ${
                           r.status === 'MATCH' ? 'bg-emerald-100 text-emerald-800' :
                           r.status === 'REPLACE' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
                           r.status === 'QTY_DIFF' ? 'bg-amber-100 text-amber-800' :
@@ -533,7 +533,7 @@ export function BatchCheckerModule() {
                           {r.status}
                         </span>
                       </td>
-                      <td className="p-2.5 font-semibold text-slate-700 text-[11px]">
+                      <td className="py-1.5 px-2.5 font-semibold text-slate-700 text-[10px]">
                         {r.rec}
                       </td>
                     </tr>
@@ -543,9 +543,9 @@ export function BatchCheckerModule() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold px-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold px-1">
             <span>Menampilkan {filteredResults.length} dari total {compareResults.length} baris terekonsiliasi</span>
-            <span>Semua format data di webapp dan export Excel 100% sinkron</span>
+            <span>Format webapp & Excel sinkron</span>
           </div>
         </div>
       )}

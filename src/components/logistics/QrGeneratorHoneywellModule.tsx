@@ -983,49 +983,49 @@ export function QrGeneratorHoneywellModule() {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2 sm:space-y-2.5">
       
       {/* Header Bar Singkat & Rapi */}
-      <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-            <QrCode size={20} />
+      <div className="p-2.5 sm:p-3 bg-slate-900 text-white rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+            <QrCode size={16} />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-white m-0">QR Code Generator & Print PM42</h2>
-            <p className="text-xs text-slate-300 m-0">
+            <h2 className="text-xs sm:text-sm font-bold text-white m-0">QR Code Generator & Print PM42</h2>
+            <p className="text-[10px] text-slate-300 m-0">
               Format: <span className="text-amber-400 font-semibold">Judul (atas)</span> &bull; <span className="text-white font-semibold">QR Code (tengah)</span> &bull; <span className="text-amber-400 font-semibold">Teks (bawah)</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowGuide(!showGuide)}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1 cursor-pointer"
           >
-            <Info size={13} className="text-amber-400" />
-            <span>{showGuide ? 'Tutup Petunjuk' : 'Petunjuk PM42'}</span>
-            {showGuide ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            <Info size={12} className="text-amber-400" />
+            <span>{showGuide ? 'Tutup' : 'Petunjuk PM42'}</span>
+            {showGuide ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
 
           <button
             type="button"
             onClick={() => setShowCommandModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold flex items-center gap-1 cursor-pointer"
           >
-            <FileCode size={13} />
-            <span>Raw Code (DP/ZPL)</span>
+            <FileCode size={12} />
+            <span>Raw Code</span>
           </button>
         </div>
       </div>
 
       {/* Petunjuk Singkat */}
       {showGuide && (
-        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-slate-800 space-y-1.5 animate-in fade-in duration-150">
-          <div className="font-bold text-amber-950">Cara Print Langsung ke Honeywell PM42 Tanpa LARGO:</div>
-          <ul className="list-disc list-inside space-y-1 text-slate-700 pl-1">
+        <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-slate-800 space-y-1 animate-in fade-in duration-150">
+          <div className="font-bold text-amber-950 text-[11px]">Cara Print Langsung ke Honeywell PM42 Tanpa LARGO:</div>
+          <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1 text-[11px]">
             <li><strong>Autosense:</strong> Di LCD printer PM42: <em>Settings &gt; Printing &gt; Media &gt; Media Type</em> pilih <code>Label w/ Gaps</code> atau <code>Autosense</code>.</li>
             <li><strong>Dialog Print Browser:</strong> Pilih printer <strong>Honeywell PM42</strong>, atur Paper Size sesuai ukuran stiker, <strong>Margin: None / Nol</strong>, dan centang Background Graphics.</li>
           </ul>
@@ -1033,16 +1033,16 @@ export function QrGeneratorHoneywellModule() {
       )}
 
       {/* Input Data Teks */}
-      <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
+      <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1.5 border-b border-slate-100">
           <span className="text-xs font-bold text-slate-800">
-            Input Data (Paste langsung 15 kolom Excel atau format <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded">judul, teks</code>)
+            Input Data (Paste langsung 15 kolom Excel atau format <code className="text-blue-900 bg-blue-50 px-1 py-0.2 rounded text-[10px]">judul, teks</code>)
           </span>
 
-          <div className="flex items-center gap-2">
-            <label className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <label className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer flex items-center gap-1">
               <Upload size={12} />
-              <span>Import TXT / Excel</span>
+              <span>Import File</span>
               <input 
                 type="file" 
                 accept=".txt,.csv,.xlsx,.xls" 
@@ -1062,26 +1062,26 @@ export function QrGeneratorHoneywellModule() {
                 title="Hapus input dan prefix judul"
               >
                 <Trash2 size={12} />
-                <span>Clear All Input</span>
+                <span>Clear</span>
               </button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <div className="md:col-span-3">
             <textarea
-              rows={4}
+              rows={3}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Paste data langsung dari Excel (15 Kolom tanpa header):&#10;Contoh 15 kolom: [Col 1: Item Code] [Col 2: Item Name] ... [Col 11: LPN/Serial (QR)] [Col 12: Batch] ... [Col 15: Expired Date]&#10;&#10;Atau format standar sebelumnya:&#10;lokasi rak a-01, BIN-A01-01&#10;material kino 21104501, 21104501-LOT911346"
-              className="w-full bg-slate-50 text-slate-800 border border-slate-300 rounded-xl p-2.5 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Paste data langsung dari Excel (15 Kolom tanpa header):&#10;Contoh: [Col 1: Item Code] [Col 2: Item Name] ... [Col 11: LPN/Serial (QR)] [Col 12: Batch] ... [Col 15: Expired Date]"
+              className="w-full bg-slate-50 text-slate-800 border border-slate-300 rounded-lg p-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
 
-          <div className="space-y-2 flex flex-col justify-between">
+          <div className="space-y-1.5 flex flex-col justify-between">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">
                 Prefix Judul Otomatis:
               </label>
               <input 
@@ -1097,9 +1097,9 @@ export function QrGeneratorHoneywellModule() {
               type="button"
               onClick={handleGenerateQRs}
               disabled={isGenerating}
-              className="w-full py-2 px-3 rounded-xl bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="w-full py-1.5 px-2.5 rounded-lg bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw size={13} className={isGenerating ? 'animate-spin' : ''} />
+              <RefreshCw size={12} className={isGenerating ? 'animate-spin' : ''} />
               <span>{isGenerating ? 'Memproses...' : 'Generate QR Code'}</span>
             </button>
           </div>
@@ -1107,28 +1107,28 @@ export function QrGeneratorHoneywellModule() {
       </div>
 
       {/* Pengaturan Ukuran Label Standar Honeywell PM42 */}
-      <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-            <Sliders size={15} className="text-amber-600" />
+      <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1.5 border-b border-slate-100">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+            <Sliders size={14} className="text-amber-600" />
             <span>Standar Label Honeywell PM42:</span>
-            <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-300">
+            <span className="bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded text-[10px] border border-amber-300">
               80 x 100 mm (SN 8x10)
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 font-medium">Dimensi Cetak:</span>
-            <span className="text-xs font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-500 font-medium">Dimensi Cetak:</span>
+            <span className="text-[11px] font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
               {printWidthMm} x {printHeightMm} mm ({orientation.toUpperCase()})
             </span>
           </div>
         </div>
 
         {/* Detail Penyesuaian Slider Standar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3 pt-1 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2 pt-0.5 text-xs">
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+            <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">
               Margin Atas ({topMarginMm}mm):
             </label>
             <input 
@@ -1143,7 +1143,7 @@ export function QrGeneratorHoneywellModule() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+            <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">
               Margin Kiri Judul ({leftMarginMm}mm):
             </label>
             <input 
@@ -1158,7 +1158,7 @@ export function QrGeneratorHoneywellModule() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+            <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">
               Ukuran Barcode/QR ({qrSizeMm}mm):
             </label>
             <input 
@@ -1172,7 +1172,7 @@ export function QrGeneratorHoneywellModule() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+            <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">
               Ukuran Judul ({titleFontSize}px):
             </label>
             <input 
@@ -1186,7 +1186,7 @@ export function QrGeneratorHoneywellModule() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">
+            <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">
               Ukuran Teks Bawah ({textFontSize}px):
             </label>
             <input 
@@ -1200,26 +1200,26 @@ export function QrGeneratorHoneywellModule() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-600 font-semibold mb-0.5">Orientasi:</label>
+            <label className="block text-[10px] text-slate-600 font-semibold mb-0.5">Orientasi:</label>
             <select
               value={orientation}
               onChange={(e) => setOrientation(e.target.value as any)}
-              className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-semibold"
+              className="w-full bg-slate-50 border border-slate-300 rounded px-1.5 py-1 text-xs font-semibold"
             >
               <option value="landscape">Landscape (100x80)</option>
               <option value="portrait">Portrait (80x100)</option>
             </select>
           </div>
 
-          <div className="flex items-center gap-2 pt-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
+          <div className="flex items-center gap-1.5 pt-2">
+            <label className="flex items-center gap-1 cursor-pointer">
               <input 
                 type="checkbox" 
                 checked={showBorder} 
                 onChange={(e) => setShowBorder(e.target.checked)}
                 className="w-3.5 h-3.5 rounded text-blue-900 accent-blue-900"
               />
-              <span className="text-xs font-semibold text-slate-700">Border Garis</span>
+              <span className="text-xs font-semibold text-slate-700">Border</span>
             </label>
           </div>
         </div>
@@ -1227,22 +1227,21 @@ export function QrGeneratorHoneywellModule() {
 
       {/* ========================================================================= */}
       {/* HASIL GENERATE: HANYA JUDUL (ATAS), QR CODE (TENGAH), TEKS (BAWAH) */}
-      {/* TANPA KETERANGAN TAMBAHAN APAPUN */}
       {/* ========================================================================= */}
-      <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Layers size={16} className="text-emerald-700" />
+      <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-1.5 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-1.5">
+            <Layers size={15} className="text-emerald-700" />
             <h3 className="text-xs font-bold text-slate-800 m-0">
               Hasil Generate ({labels.length} Label)
             </h3>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
               onClick={handleAddNewRow}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
               <Plus size={12} />
               <span>Tambah Baris</span>
@@ -1252,7 +1251,7 @@ export function QrGeneratorHoneywellModule() {
               type="button"
               onClick={handleExportExcel}
               disabled={labels.length === 0}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40"
             >
               <Download size={12} />
               <span>Excel</span>
@@ -1262,7 +1261,7 @@ export function QrGeneratorHoneywellModule() {
               type="button"
               onClick={handleDownloadZip}
               disabled={labels.length === 0 || isZipping}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40"
+              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40"
             >
               <Download size={12} />
               <span>{isZipping ? 'Membuat ZIP...' : 'Unduh ZIP'}</span>
@@ -1273,16 +1272,16 @@ export function QrGeneratorHoneywellModule() {
               type="button"
               onClick={() => openPrintOptionsDialog()}
               disabled={labels.length === 0}
-              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-98 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-98 text-white text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
             >
-              <Printer size={15} />
+              <Printer size={13} />
               <span>PRINT PM42 ({selectedIds.size > 0 ? selectedIds.size : labels.length})</span>
             </button>
           </div>
         </div>
 
         {/* Filter & Pilih Semua */}
-        <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div className="flex items-center justify-between flex-wrap gap-1.5 text-xs">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -1308,22 +1307,22 @@ export function QrGeneratorHoneywellModule() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Cari..."
-              className="pl-6 pr-2.5 py-1 bg-slate-50 border border-slate-300 rounded text-xs outline-none w-44"
+              className="pl-6 pr-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs outline-none w-44"
             />
           </div>
         </div>
 
         {/* GRID TAMPILAN LABEL (HANYA: JUDUL, QR CODE, TEKS) */}
         {filteredLabels.length === 0 ? (
-          <div className="py-12 px-6 text-center text-slate-500 text-xs border border-dashed border-slate-300 rounded-2xl bg-slate-50/70 space-y-2">
-            <QrCode className="mx-auto text-slate-400" size={32} />
+          <div className="py-8 px-4 text-center text-slate-500 text-xs border border-dashed border-slate-300 rounded-xl bg-slate-50/70 space-y-1.5">
+            <QrCode className="mx-auto text-slate-400" size={28} />
             <p className="font-semibold text-slate-700 m-0">Area Hasil Generate Masih Kosong</p>
-            <p className="text-[11px] text-slate-400 m-0 max-w-md mx-auto">
+            <p className="text-[10px] text-slate-400 m-0 max-w-md mx-auto">
               Silakan ketik baris data di area input teks di atas atau unggah file Excel/TXT, lalu klik tombol <strong className="text-blue-900">Generate QR Code</strong>.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-slate-100/70 border border-slate-200 rounded-xl max-h-[600px] overflow-y-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 p-2.5 bg-slate-100/70 border border-slate-200 rounded-xl max-h-[600px] overflow-y-auto">
             {filteredLabels.map((item) => {
               const isSelected = selectedIds.has(item.id);
               const dynamicCardTitleSize = getItemTitleFontSize(item.title, titleFontSize);
@@ -1332,7 +1331,7 @@ export function QrGeneratorHoneywellModule() {
               return (
                 <div
                   key={item.id}
-                  className={`bg-white rounded-xl p-2.5 border transition-all flex flex-col justify-between relative group shadow-2xs ${
+                  className={`bg-white rounded-xl p-2 border transition-all flex flex-col justify-between relative group shadow-2xs ${
                     isSelected ? 'border-amber-500 ring-2 ring-amber-400/40' : 'border-slate-300 hover:border-slate-400'
                   }`}
                 >
@@ -1367,17 +1366,17 @@ export function QrGeneratorHoneywellModule() {
 
                   {/* KOTAK PREVIEW LABEL: JUDUL/ITEM DI ATAS, QR CODE DI TENGAH, LPN/BATCH/EXP DI BAWAH */}
                   <div 
-                    className={`bg-white p-2 flex flex-col justify-between text-left ${
+                    className={`bg-white p-1.5 flex flex-col justify-between text-left ${
                       showBorder ? 'border border-slate-900 rounded-sm' : ''
                     }`}
-                    style={{ minHeight: '190px' }}
+                    style={{ minHeight: '180px' }}
                   >
                     {item.isFullLogistic ? (
                       <>
                         {/* 1. ATAS (KOLOM 1 ITEM CODE & KOLOM 2 ITEM NAME) */}
                         <div className="w-full space-y-0.5 pb-1 border-b border-slate-900">
                           <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-black bg-slate-100 text-slate-700 px-1 py-0.2 rounded">ITEM</span>
+                            <span className="text-[8px] font-black bg-slate-100 text-slate-700 px-1 py-0.2 rounded">ITEM</span>
                             <input
                               type="text"
                               value={item.itemCode || ''}
@@ -1402,25 +1401,25 @@ export function QrGeneratorHoneywellModule() {
                           <img 
                             src={item.dataUrl} 
                             alt="QR Code"
-                            className="w-18 h-18 max-w-full aspect-square object-contain mx-auto"
+                            className="w-16 h-16 max-w-full aspect-square object-contain mx-auto"
                           />
                         </div>
 
                         {/* 3. BAWAH (KOLOM 11 LPN, KOLOM 12 BATCH, KOLOM 15 EXP DATE TERTUMPUK) */}
-                        <div className="w-full space-y-1 border-t border-slate-100 pt-1 text-[9px]">
+                        <div className="w-full space-y-0.5 border-t border-slate-100 pt-1 text-[9px]">
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-slate-500">SN/LPN:</span>
+                            <span className="font-bold text-slate-500 text-[8px]">SN/LPN:</span>
                             <input
                               type="text"
                               value={item.lpn || item.text}
                               onChange={(e) => handleUpdateLabel(item.id, 'lpn', e.target.value)}
-                              title="Klik untuk edit LPN (QR Code akan di-generate ulang)"
+                              title="Klik untuk edit LPN"
                               style={{ fontSize: `${dynamicCardTextSize}px` }}
                               className="w-full font-mono font-bold text-slate-950 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none truncate"
                             />
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-slate-500">BATCH:</span>
+                            <span className="font-bold text-slate-500 text-[8px]">BATCH:</span>
                             <input
                               type="text"
                               value={item.batch || ''}
@@ -1432,7 +1431,7 @@ export function QrGeneratorHoneywellModule() {
                             />
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-slate-500">EXP DATE:</span>
+                            <span className="font-bold text-slate-500 text-[8px]">EXP DATE:</span>
                             <input
                               type="text"
                               value={item.expiredDate || ''}
@@ -1455,20 +1454,20 @@ export function QrGeneratorHoneywellModule() {
                             onChange={(e) => handleUpdateLabel(item.id, 'title', e.target.value)}
                             title="Klik untuk edit judul"
                             style={{ fontSize: `${dynamicCardTitleSize}px`, lineHeight: 1.25 }}
-                            className="w-full font-bold uppercase text-slate-950 text-left pl-1.5 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden pb-0.5"
+                            className="w-full font-bold uppercase text-slate-950 text-left pl-1 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none resize-none overflow-hidden pb-0.5"
                           />
                         </div>
 
-                        {/* 2. QR CODE DI TENGAH (Lebih kecil sedikit & proporsional) */}
+                        {/* 2. QR CODE DI TENGAH */}
                         <div className="py-1 my-auto flex items-center justify-center w-full min-h-0">
                           <img 
                             src={item.dataUrl} 
                             alt="QR Code"
-                            className="w-20 h-20 max-w-full aspect-square object-contain mx-auto"
+                            className="w-18 h-18 max-w-full aspect-square object-contain mx-auto"
                           />
                         </div>
 
-                        {/* 3. TEKS DI BAWAH (Terbaca semua, tanpa keterangan tambahan) */}
+                        {/* 3. TEKS DI BAWAH */}
                         <textarea
                           rows={item.text.length > 25 ? 2 : 1}
                           value={item.text}
@@ -1485,10 +1484,10 @@ export function QrGeneratorHoneywellModule() {
                   <button
                     type="button"
                     onClick={() => openPrintOptionsDialog([item.id])}
-                    className="w-full mt-2 py-1 bg-slate-50 hover:bg-amber-50 hover:text-amber-800 text-slate-600 rounded text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors border border-slate-200"
+                    className="w-full mt-1.5 py-1 bg-slate-50 hover:bg-amber-50 hover:text-amber-800 text-slate-600 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors border border-slate-200"
                   >
                     <Printer size={11} />
-                    <span>Print Label Ini</span>
+                    <span>Print Ini</span>
                   </button>
                 </div>
               );

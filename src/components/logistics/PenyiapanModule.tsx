@@ -1448,39 +1448,39 @@ export function PenyiapanModule() {
   };
 
   return (
-    <div className="space-y-5 animate-fade-in text-slate-800">
+    <div className="space-y-2 sm:space-y-2.5 animate-fade-in text-slate-800">
       
       {/* ========================================================================= */}
       {/* ACTION TOOLBAR BUTTONS */}
       {/* ========================================================================= */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-2.5">
+      <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-1.5">
         
         {/* Left Side: CRUD & Import Actions */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Tambah Penyiapan Manual */}
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-md hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-0.5"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all cursor-pointer"
             title="Tambah Data Penyiapan Manual"
           >
-            <Plus size={15} />
+            <Plus size={14} />
             <span>Tambah Data</span>
           </button>
 
           {/* Upload Excel Button (Admin role privileged) */}
           <button
             onClick={handleOpenExcelModal}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
               isSuperAdmin
-                ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-md hover:shadow-lg'
+                ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-2xs hover:shadow-xs'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300'
             }`}
             title={isSuperAdmin ? 'Upload Data Excel (data_penyiapan)' : 'Upload Excel Khusus Admin'}
           >
-            <Upload size={14} />
+            <Upload size={13} />
             <span>Upload Excel</span>
             {isSuperAdmin && (
-              <span className="px-1.5 py-0.2 rounded bg-emerald-800 text-[9px] font-extrabold uppercase text-white">
+              <span className="px-1 py-0.2 rounded bg-emerald-800 text-[8px] font-extrabold uppercase text-white">
                 Admin
               </span>
             )}
@@ -1489,44 +1489,44 @@ export function PenyiapanModule() {
           {/* Download Template Excel */}
           <button
             onClick={downloadExcelTemplate}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
             title="Download Template Format Excel Sesuai Kolom"
           >
-            <FileSpreadsheet size={14} className="text-emerald-700" />
-            <span className="hidden sm:inline">Template Excel</span>
+            <FileSpreadsheet size={13} className="text-emerald-700" />
+            <span>Template Excel</span>
           </button>
 
           {/* Export Excel Data */}
           <button
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
             title="Ekspor Data Penyiapan ke File Excel (.xlsx)"
           >
-            <Download size={14} className="text-blue-700" />
+            <Download size={13} className="text-blue-700" />
             <span className="hidden sm:inline">Export Excel</span>
           </button>
         </div>
 
         {/* Right Side: Refresh & Sync Database */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Refresh Live */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer disabled:opacity-50"
+            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer disabled:opacity-50"
             title="Refresh Data"
           >
-            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
 
           {/* Clear All Data */}
           {isSuperAdmin && (
             <button
               onClick={handleClearAllData}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 text-rose-700 text-xs font-bold transition-all cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 text-rose-700 text-xs font-bold transition-all cursor-pointer"
               title="Hapus Semua Data Penyiapan"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               <span className="hidden sm:inline">Clear All Data</span>
             </button>
           )}
@@ -1536,10 +1536,10 @@ export function PenyiapanModule() {
       {/* ========================================================================= */}
       {/* SEARCH BAR & DYNAMIC FILTERS */}
       {/* ========================================================================= */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm space-y-3">
+      <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5">
         {/* Search Input with Voice Search Recognition */}
         <div className="relative flex items-center">
-          <Search size={16} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+          <Search size={14} className="absolute left-2.5 text-slate-400 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
@@ -1547,18 +1547,18 @@ export function PenyiapanModule() {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
             }}
-            placeholder="Cari Item Code, Item Name, Batch, LPN, Lokasi, SLOC, Petugas Tally, QC Code..."
-            className="w-full pl-10 pr-24 py-2.5 rounded-xl border border-slate-300 bg-slate-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-800 text-xs sm:text-sm font-medium transition-all"
+            placeholder="Cari Item Code, Item Name, Batch, LPN, Lokasi, SLOC, Petugas Tally..."
+            className="w-full pl-8 pr-20 py-1.5 rounded-lg border border-slate-300 bg-slate-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-800 text-xs font-medium transition-all"
           />
 
-          <div className="absolute right-2 flex items-center gap-1">
+          <div className="absolute right-1.5 flex items-center gap-1">
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
                 title="Hapus pencarian"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
 
@@ -1566,38 +1566,38 @@ export function PenyiapanModule() {
             <button
               type="button"
               onClick={toggleSpeechToTextSearch}
-              className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+              className={`p-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                 isListeningSearch
                   ? 'bg-rose-500 text-white animate-pulse'
                   : 'bg-blue-50 text-blue-900 hover:bg-blue-100'
               }`}
               title="Pencarian Suara (Speech to Text)"
             >
-              {isListeningSearch ? <MicOff size={14} /> : <Mic size={14} />}
+              {isListeningSearch ? <MicOff size={13} /> : <Mic size={13} />}
             </button>
           </div>
         </div>
 
         {/* Speech Recognition Feedback Banner */}
         {speechFeedbackSearch && (
-          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-fade-in">
-            <Radio size={14} className="text-rose-600 animate-pulse" />
-            <span className="font-semibold">{speechFeedbackSearch}</span>
+          <div className="p-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-fade-in">
+            <Radio size={13} className="text-rose-600 animate-pulse" />
+            <span className="font-semibold text-xs">{speechFeedbackSearch}</span>
           </div>
         )}
 
         {/* Filter Dropdowns */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-xs">
           {/* Filter Kategori */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kategori</label>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Kategori</label>
             <select
               value={categoryFilter}
               onChange={(e) => {
                 setCategoryFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
+              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
             >
               <option value="ALL">Semua ({penyiapanList.length})</option>
               {uniqueCategories.map(c => (
@@ -1608,7 +1608,7 @@ export function PenyiapanModule() {
 
           {/* Filter Lokasi (Ketik & Dropdown) */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Lokasi</label>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Lokasi</label>
             <div className="relative flex items-center">
               <input
                 list="location-options"
@@ -1618,7 +1618,7 @@ export function PenyiapanModule() {
                   setCurrentPage(1);
                 }}
                 placeholder="Cari Lokasi..."
-                className="w-full p-2 pr-7 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold text-slate-700"
+                className="w-full p-1.5 pr-6 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold text-slate-700"
               />
               {locationFilter && (
                 <button
@@ -1627,10 +1627,10 @@ export function PenyiapanModule() {
                     setLocationFilter('');
                     setCurrentPage(1);
                   }}
-                  className="absolute right-2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                  className="absolute right-1.5 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
                   title="Clear Filter Lokasi"
                 >
-                  <X size={13} />
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -1643,14 +1643,14 @@ export function PenyiapanModule() {
 
           {/* Filter QC Code */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status QC</label>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Status QC</label>
             <select
               value={qcFilter}
               onChange={(e) => {
                 setQcFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
+              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
             >
               <option value="ALL">Semua Status QC</option>
               {uniqueQcCodes.map(qc => (
@@ -1661,14 +1661,14 @@ export function PenyiapanModule() {
 
           {/* Filter SLOC */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SLOC</label>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">SLOC</label>
             <select
               value={slocFilter}
               onChange={(e) => {
                 setSlocFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
+              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
             >
               <option value="ALL">Semua SLOC</option>
               {uniqueSlocs.map(s => (
@@ -1679,14 +1679,14 @@ export function PenyiapanModule() {
 
           {/* Filter Status */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Status Penyiapan</label>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Status Penyiapan</label>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
+              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
             >
               <option value="ALL">Semua Status</option>
               {uniqueStatuses.map(st => (
@@ -1819,16 +1819,16 @@ export function PenyiapanModule() {
       {/* ========================================================================= */}
       {/* DATA TABLE (APPSHEET STYLE) */}
       {/* ========================================================================= */}
-      <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md overflow-hidden">
+      <div className="rounded-xl bg-white border border-slate-200/80 shadow-2xs overflow-hidden">
         
         {/* Table Top Status Bar */}
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Boxes size={15} className="text-blue-900" />
+        <div className="p-2 sm:p-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-1.5 text-xs font-bold text-slate-600">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Boxes size={14} className="text-blue-900" />
             <span>Daftar Data Penyiapan ({filteredPenyiapan.length} item)</span>
             {isLocationFiltered && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-900 text-[10px] font-extrabold border border-indigo-200">
-                <MapPin size={11} />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-900 text-[9px] font-extrabold border border-indigo-200">
+                <MapPin size={10} />
                 <span>Lokasi Terwakili: {locationFilter || searchQuery} (Kolom Disembunyikan)</span>
                 <button
                   type="button"
@@ -1842,26 +1842,26 @@ export function PenyiapanModule() {
                   className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 text-indigo-800 cursor-pointer"
                   title="Tampilkan kembali kolom lokasi (Reset filter lokasi)"
                 >
-                  <X size={11} />
+                  <X size={10} />
                 </button>
               </span>
             )}
             {searchQuery && !isLocationFiltered && (
-              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-[10px]">
-                Filter aktif: "{searchQuery}"
+              <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-900 text-[9px]">
+                Filter: "{searchQuery}"
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500">Tampilkan:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-500">Tampilkan:</span>
             <select
               value={rowsPerPage}
               onChange={(e) => {
                 setRowsPerPage(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700"
+              className="px-1.5 py-0.5 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-700"
             >
               <option value="ALL">Semua (Semua Baris)</option>
               <option value={25}>25 Baris</option>
@@ -1872,38 +1872,38 @@ export function PenyiapanModule() {
         </div>
 
         {/* Responsive Table Wrapper with Horizontal Scroll */}
-        <div className="overflow-x-auto min-h-[300px]">
+        <div className="overflow-x-auto min-h-[250px]">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
             <thead>
-              <tr className="bg-slate-100/90 text-slate-700 font-extrabold uppercase tracking-tight text-[11px] border-b border-slate-200 select-none">
-                <th className="p-3 text-center w-12">No</th>
-                <th className="p-3 text-center sticky left-0 bg-slate-100 z-10 w-28">Status</th>
-                <th className="p-3 text-center w-24">Aksi</th>
+              <tr className="bg-slate-100/90 text-slate-700 font-extrabold uppercase tracking-tight text-[10px] border-b border-slate-200 select-none">
+                <th className="px-2 py-1.5 text-center w-10">No</th>
+                <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
+                <th className="px-2 py-1.5 text-center w-20">Aksi</th>
                 {!isLocationFiltered && (
-                  <th onClick={() => handleSort('location')} className="p-3 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <th onClick={() => handleSort('location')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                     <div className="flex items-center gap-1">
                       <span>Location</span>
-                      <ArrowUpDown size={12} className="text-slate-400" />
+                      <ArrowUpDown size={11} className="text-slate-400" />
                     </div>
                   </th>
                 )}
-                <th onClick={() => handleSort('item_name')} className="p-3 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('item_name')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Item Name</span>
-                    <ArrowUpDown size={12} className="text-slate-400" />
+                    <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
-                <th onClick={() => handleSort('last_qty')} className="p-3 text-right cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('last_qty')} className="px-2.5 py-1.5 text-right cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center justify-end gap-1">
                     <span>Last Qty</span>
-                    <ArrowUpDown size={12} className="text-slate-400" />
+                    <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
-                <th className="p-3">Uom</th>
-                <th onClick={() => handleSort('expired_date')} className="p-3 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th className="px-2.5 py-1.5">Uom</th>
+                <th onClick={() => handleSort('expired_date')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Expired Date</span>
-                    <ArrowUpDown size={12} className="text-slate-400" />
+                    <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
               </tr>
@@ -1911,20 +1911,20 @@ export function PenyiapanModule() {
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-8 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
-                      <RefreshCw size={18} className="animate-spin text-blue-900" />
+                      <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
                     </div>
                   </td>
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-8 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Boxes size={32} className="text-slate-300" />
-                      <span className="font-extrabold text-slate-700">Belum Ada Data Penyiapan</span>
-                      <p className="text-xs text-slate-400 max-w-md m-0">
+                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-6 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <Boxes size={28} className="text-slate-300" />
+                      <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
+                      <p className="text-[11px] text-slate-400 max-w-md m-0">
                         {searchQuery || locationFilter
                           ? 'Tidak ditemukan data yang cocok dengan kriteria pencarian.'
                           : 'Klik tombol "Tambah Data" atau "Upload Excel" (Admin) untuk mengisi data penyiapan.'}
@@ -1945,16 +1945,16 @@ export function PenyiapanModule() {
                       className="hover:bg-blue-50/50 transition-colors group"
                     >
                       {/* No */}
-                      <td className="p-3 text-center text-slate-400 font-mono text-[11px]">
+                      <td className="px-2 py-1.5 text-center text-slate-400 font-mono text-[10px]">
                         {rowNumber}
                       </td>
 
                       {/* Status Sticky Column */}
-                      <td className="p-2 text-center sticky left-0 bg-white group-hover:bg-blue-50/90 transition-colors z-10 shadow-xs border-r border-slate-100">
+                      <td className="px-1.5 py-1 text-center sticky left-0 bg-white group-hover:bg-blue-50/90 transition-colors z-10 shadow-2xs border-r border-slate-100">
                         <select
                           value={item.status || ''}
                           onChange={(e) => handleUpdateStatus(item, e.target.value)}
-                          className={`px-2 py-1.5 rounded-md text-[10px] font-bold border outline-none cursor-pointer text-center appearance-none w-full ${
+                          className={`px-1.5 py-1 rounded text-[10px] font-bold border outline-none cursor-pointer text-center appearance-none w-full ${
                             (item.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
                             (item.status || '').toLowerCase() === 'beda' ? 'bg-blue-100 text-blue-800 border-blue-300' :
                             (item.status || '').toLowerCase() === 'tidak' ? 'bg-rose-100 text-rose-800 border-rose-300' :
@@ -1969,14 +1969,14 @@ export function PenyiapanModule() {
                       </td>
 
                       {/* Aksi */}
-                      <td className="p-2 text-center">
+                      <td className="px-1.5 py-1 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleOpenEditModal(item)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
+                            className="p-1 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
                             title="Edit / Lihat Data"
                           >
-                            <Edit2 size={13} />
+                            <Edit2 size={12} />
                           </button>
 
                           {/* Aksi Hapus khusus Admin */}
@@ -1986,10 +1986,10 @@ export function PenyiapanModule() {
                                 setSelectedItem(item);
                                 setShowDeleteModal(true);
                               }}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer"
+                              className="p-1 rounded-md bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer"
                               title="Hapus Data (Khusus Admin)"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={12} />
                             </button>
                           )}
                         </div>
@@ -1997,42 +1997,42 @@ export function PenyiapanModule() {
 
                       {/* Location (Hidden when location is filtered) */}
                       {!isLocationFiltered && (
-                        <td className="p-3 font-bold text-slate-700">
+                        <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs">
                           <div className="flex items-center gap-1">
-                            <MapPin size={12} className="text-slate-400" />
+                            <MapPin size={11} className="text-slate-400" />
                             <span>{item.location || '-'}</span>
                           </div>
                         </td>
                       )}
 
                       {/* Item Name & Note */}
-                      <td className="p-3 max-w-xs" title={item.item_name}>
-                        <div className="font-extrabold text-slate-800 truncate">
+                      <td className="px-2.5 py-1.5 max-w-xs" title={item.item_name}>
+                        <div className="font-extrabold text-slate-800 text-xs truncate">
                           {item.item_name}
                         </div>
                         {item.note && (
                           <div
-                            className="text-[10px] text-blue-800 font-semibold flex items-center gap-1 mt-0.5 max-w-xs truncate bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200"
+                            className="text-[9px] text-blue-800 font-semibold flex items-center gap-1 mt-0.5 max-w-xs truncate bg-blue-50 px-1 py-0.2 rounded border border-blue-200"
                             title={`Catatan: ${item.note}`}
                           >
-                            <MessageSquare size={10} className="shrink-0 text-blue-600" />
+                            <MessageSquare size={9} className="shrink-0 text-blue-600" />
                             <span className="truncate">{item.note}</span>
                           </div>
                         )}
                       </td>
 
                       {/* Last Qty */}
-                      <td className="p-3 text-right font-mono font-black text-emerald-800 bg-emerald-50/40">
+                      <td className="px-2.5 py-1.5 text-right font-mono font-black text-emerald-800 bg-emerald-50/40 text-xs">
                         {item.last_qty !== undefined && item.last_qty !== null ? Number(item.last_qty).toLocaleString('id-ID') : '-'}
                       </td>
 
                       {/* Uom */}
-                      <td className="p-3 font-bold text-slate-700">
+                      <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs">
                         {item.uom || 'CTN'}
                       </td>
 
                       {/* Expired Date */}
-                      <td className="p-3 font-mono font-bold text-slate-700">
+                      <td className="px-2.5 py-1.5 font-mono font-bold text-slate-700 text-xs">
                         {item.expired_date || '-'}
                       </td>
                     </tr>
@@ -2045,8 +2045,8 @@ export function PenyiapanModule() {
 
         {/* Pagination Controls */}
         {rowsPerPage !== 'ALL' && totalPages > 1 && (
-          <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 text-xs">
-            <span className="text-slate-500 font-medium">
+          <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 text-xs">
+            <span className="text-slate-500 font-medium text-[11px]">
               Halaman {currentPage} dari {totalPages} ({filteredPenyiapan.length} total baris)
             </span>
 

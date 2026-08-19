@@ -611,12 +611,38 @@ export function IncomingModule() {
     }
   }, [incomingList]);
 
-  const handleRefresh = () => {
+  // Unified Sync & Refresh handler: syncs local dirty state to DB and re-fetches latest cloud rows
+  const handleSyncAndRefresh = async () => {
     setIsRefreshing(true);
-    fetchMasterData();
-    fetchIncomingData();
-    showToast('Memperbarui Data', 'Mengambil data kedatangan terbaru dari database...', 'info');
+    setIsPushing(true);
+    showToast('Sinkronisasi Data', 'Menyinkronkan data lokal dan memuat data terbaru dari cloud...', 'info');
+
+    try {
+      if (isSupabaseConfigured) {
+        if (incomingList.length > 0) {
+          const payload = incomingList.map(item => ({
+            ...item,
+            tujuan: item.tujuan || item.note || '-',
+            updated_at: new Date().toISOString()
+          }));
+          await safeBatchUpsert('incoming', payload, 'id_incoming', 50);
+        }
+        await Promise.all([fetchMasterData(), fetchIncomingData()]);
+        showToast('Sinkron & Refresh Sukses', 'Semua data kedatangan telah tersinkronkan dan dimuat dari database cloud!', 'success');
+      } else {
+        await fetchMasterData();
+        showToast('Data Diperbarui', 'Data kedatangan lokal berhasil dimuat ulang.', 'info');
+      }
+    } catch (err: any) {
+      console.error('Sync & Refresh error:', err);
+      showToast('Peringatan', 'Gagal memuat ulang data terbaru.', 'warning');
+    } finally {
+      setIsRefreshing(false);
+      setIsPushing(false);
+    }
   };
+
+  const handleRefresh = handleSyncAndRefresh;
 
   // =========================================================================
   // HELPER: GENERATE UNIQUE ID INCOMING
@@ -750,7 +776,8 @@ export function IncomingModule() {
       source: '-',
       user_input: currentUser?.nama || '-',
       status: 'OPEN',
-      tujuan: '-'
+      tujuan: '',
+      note: ''
     });
     setShowFormModal(true);
   };
@@ -763,10 +790,12 @@ export function IncomingModule() {
     setBarangSearchText(item.item_code ? `${item.item_code} - ${item.item_name}` : '');
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
+    const itemNote = item.note || (item.tujuan && item.tujuan !== '-' ? item.tujuan : '');
     setFormData({
       ...item,
       status: (item.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
-      tujuan: '-'
+      tujuan: itemNote,
+      note: itemNote
     });
     setShowFormModal(true);
   };
@@ -977,7 +1006,8 @@ export function IncomingModule() {
       user_input: currentUser?.nama || formData.user_input?.trim() || '-',
       tanggal_update: nowIso,
       status: (formData.status || 'OPEN').trim().toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
-      tujuan: '-',
+      tujuan: (formData.note?.trim() || formData.tujuan?.trim() || '-'),
+      note: (formData.note?.trim() || formData.tujuan?.trim() || '-'),
       created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso,
       updated_at: nowIso
     };
@@ -1685,12 +1715,12 @@ CREATE INDEX IF NOT EXISTS idx_incoming_status ON public.incoming(status);
 CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at DESC);`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2 sm:space-y-2.5">
       {/* Warning banner if table is not found or error occurred */}
       {lastSupabaseError && (
-        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900">
+        <div className="p-2 sm:p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-900">
           <div className="flex items-center gap-2">
-            <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+            <AlertTriangle size={14} className="text-amber-600 shrink-0" />
             <div>
               <span className="font-bold">Peringatan:</span> {lastSupabaseError}
             </div>
@@ -1701,11 +1731,11 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
       {/* ========================================================================= */}
       {/* 2. ACTION CONTROLS & SEARCH BAR */}
       {/* ========================================================================= */}
-      <div className="glass-box p-4 bg-white/90 border border-slate-200/90 shadow-sm rounded-2xl space-y-3.5">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-wrap">
+      <div className="glass-box p-2 sm:p-2.5 bg-white/90 border border-slate-200/90 shadow-2xs rounded-xl space-y-1.5">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-1.5 flex-wrap">
           {/* Search Box */}
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input
               type="text"
               value={searchQuery}
@@ -1714,107 +1744,96 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 setCurrentPage(1);
               }}
               placeholder="Cari ID Incoming, Item Code, Nama Barang, Batch, Distributor, Tally..."
-              className={`w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-800 text-xs pl-9 pr-16 py-2.5 rounded-xl border focus:ring-2 outline-none transition-all shadow-2xs ${
+              className={`w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-800 text-xs pl-8 pr-16 py-1.5 rounded-lg border focus:ring-2 outline-none transition-all shadow-2xs ${
                 isListeningSearch
                   ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
                   : 'border-slate-300/80 focus:border-blue-500 focus:ring-blue-100'
               }`}
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 cursor-pointer"
                   title="Hapus pencarian"
                 >
-                  <X size={13} />
+                  <X size={12} />
                 </button>
               )}
               <button
                 type="button"
                 onClick={toggleSpeechToTextSearch}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`p-1 rounded-md transition-all cursor-pointer ${
                   isListeningSearch
                     ? 'bg-rose-500 text-white shadow-xs animate-pulse'
                     : 'text-slate-500 hover:text-blue-900 hover:bg-slate-200/60'
                 }`}
                 title={isListeningSearch ? 'Berhenti mendengarkan' : 'Pencarian Suara (Speech to Text)'}
               >
-                <Mic size={14} />
+                <Mic size={13} />
               </button>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {/* Tombol Tambah Manual */}
             <button
               onClick={handleOpenAddModal}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Plus size={15} />
+              <Plus size={14} />
               <span>Input Kedatangan</span>
             </button>
 
             {/* Tombol Download Template Excel (Tampil hanya di Desktop) */}
             <button
               onClick={downloadExcelTemplate}
-              className="hidden lg:flex px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300/80 transition-all items-center gap-1.5 cursor-pointer"
+              className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300/80 transition-all items-center gap-1 cursor-pointer"
               title="Download Template Excel (.xlsx) Standar"
             >
-              <FileDown size={14} className="text-emerald-600" />
+              <FileDown size={13} className="text-emerald-600" />
               <span>Template Excel</span>
             </button>
 
             {/* Tombol Upload Excel (Tampil hanya di Desktop) */}
             <button
               onClick={handleOpenExcelModal}
-              className="hidden lg:flex px-3.5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-sm hover:shadow transition-all items-center gap-1.5 cursor-pointer"
+              className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-2xs hover:shadow-xs transition-all items-center gap-1 cursor-pointer"
               title="Upload & Import Excel Masal"
             >
-              <Upload size={14} />
+              <Upload size={13} />
               <span>Upload Excel</span>
             </button>
 
             {/* Tombol Export / Download Excel (Tampil hanya di Desktop) */}
             <button
               onClick={handleExportExcel}
-              className="hidden lg:flex px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all items-center gap-1.5 cursor-pointer"
+              className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs transition-all items-center gap-1 cursor-pointer"
               title="Download Seluruh Data Hasil Filter ke Excel"
             >
-              <Download size={14} />
+              <Download size={13} />
               <span>Download Excel</span>
             </button>
 
-            {/* Tombol Sinkronkan ke Database */}
-            <button
-              onClick={handlePushAllToSupabase}
-              disabled={isPushing}
-              className="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title="Kirim dan sinkronkan seluruh data lokal ke database cloud"
-            >
-              <RefreshCw size={13} className={isPushing ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
-              <span className="hidden md:inline">{isPushing ? 'Syncing...' : 'Sinkron Database'}</span>
-            </button>
-
-            {/* Tombol Refresh Data */}
+            {/* Tombol Sinkron & Refresh Data (Tunggal & Terpadu) */}
             <button
               type="button"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300/80 transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Refresh Data dari Database"
+              onClick={handleSyncAndRefresh}
+              disabled={isRefreshing || isPushing}
+              className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-900 border border-indigo-200 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Sinkronkan data lokal ke cloud dan muat ulang data terbaru dari database"
             >
-              <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-emerald-600' : 'text-slate-600'} />
-              <span className="hidden lg:inline">Refresh</span>
+              <RefreshCw size={13} className={isRefreshing || isPushing ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
+              <span className="hidden sm:inline">{isRefreshing || isPushing ? 'Menyinkronkan...' : 'Sinkron & Refresh'}</span>
             </button>
           </div>
         </div>
 
         {/* Quick Filter Badges Bar */}
-        <div className="flex items-center gap-2 pt-1 overflow-x-auto pb-1 text-xs no-scrollbar">
-          <div className="flex items-center gap-1 text-slate-500 font-bold text-[11px] shrink-0 mr-1">
-            <Filter size={12} /> Filter:
+        <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto pb-0.5 text-xs no-scrollbar">
+          <div className="flex items-center gap-1 text-slate-500 font-bold text-[10px] shrink-0 mr-1">
+            <Filter size={11} /> Filter:
           </div>
 
           {/* 1. Filter Status Proses (OPEN / CLOSE / ALL - Default OPEN) */}
@@ -1824,7 +1843,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               setProsesFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className={`text-[11px] font-extrabold px-3 py-1.5 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all ${
+            className={`text-[10px] font-extrabold px-2 py-1 rounded-lg border outline-none cursor-pointer shadow-2xs transition-all ${
               prosesFilter === 'OPEN'
                 ? 'bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-200'
                 : prosesFilter === 'CLOSE'
@@ -1833,9 +1852,9 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             }`}
             title="Filter data kedatangan berdasarkan status proses OPEN atau CLOSE"
           >
-            <option value="OPEN">⚡ Status Proses: OPEN (Aktif)</option>
-            <option value="CLOSE">✓ Status Proses: CLOSE (Selesai)</option>
-            <option value="ALL">📋 Status Proses: Tampilkan Semua</option>
+            <option value="OPEN">⚡ Proses: OPEN (Aktif)</option>
+            <option value="CLOSE">✓ Proses: CLOSE (Selesai)</option>
+            <option value="ALL">📋 Proses: Semua</option>
           </select>
 
           {/* 2. Filter Tanggal Input (Dinamis dari Isi Kolom Tabel) */}
@@ -1845,9 +1864,9 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               setDateFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="bg-white text-slate-700 text-[11px] font-bold px-2.5 py-1.5 rounded-xl border border-slate-300 outline-none cursor-pointer hover:border-slate-400"
+            className="bg-white text-slate-700 text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 outline-none cursor-pointer hover:border-slate-400"
           >
-            <option value="ALL">Tanggal Input: Semua</option>
+            <option value="ALL">Tanggal: Semua</option>
             {uniqueDates.map(dateStr => (
               <option key={dateStr} value={dateStr}>
                 Tanggal: {dateStr}
@@ -2100,7 +2119,19 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 11. Tanggal Input */}
+                  {/* 11. Note / Tujuan */}
+                  <th
+                    onClick={() => handleSort('tujuan')}
+                    className="py-3 px-3 cursor-pointer hover:text-blue-900 min-w-[120px]"
+                    title="Urutkan Catatan / Tujuan"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Note / Tujuan</span>
+                      <ArrowUpDown size={11} className="opacity-60" />
+                    </div>
+                  </th>
+
+                  {/* 12. Tanggal Input */}
                   <th
                     onClick={() => handleSort('created_at')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2217,7 +2248,12 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         </span>
                       </td>
 
-                      {/* 11. Tanggal Input */}
+                      {/* 11. Note / Tujuan */}
+                      <td className="py-2.5 px-3 text-slate-700 text-xs font-semibold max-w-[180px] truncate" title={item.note || item.tujuan || '-'}>
+                        {item.note || (item.tujuan && item.tujuan !== '-' ? item.tujuan : '-')}
+                      </td>
+
+                      {/* 12. Tanggal Input */}
                       <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600 font-semibold">
                         {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : (item.tanggal_update || '-')}
                       </td>
@@ -2978,6 +3014,28 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 </select>
               </div>
 
+              {/* Row 8: Catatan / Note (Dimasukkan ke kolom Tujuan pada database incoming) */}
+              <div className="space-y-1 bg-slate-50/80 p-3 rounded-2xl border border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                  <label className="block text-slate-800 font-bold text-xs">
+                    Note / Catatan Tambahan
+                  </label>
+                  <span className="text-[10px] text-blue-900 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    ℹ️ Note ini otomatis tersimpan ke kolom 'tujuan' di tabel database incoming
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={formData.note !== undefined ? formData.note : (formData.tujuan && formData.tujuan !== '-' ? formData.tujuan : '')}
+                  onChange={e => setFormData({ ...formData, note: e.target.value, tujuan: e.target.value })}
+                  placeholder="Ketik catatan / keterangan / tujuan barang disini..."
+                  className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                />
+                <p className="text-[10px] text-slate-500 m-0">
+                  Data yang Anda ketik pada input ini akan dipetakan langsung ke kolom <strong>tujuan</strong> pada tabel database incoming.
+                </p>
+              </div>
+
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -3088,6 +3146,10 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   }`}>
                     {(selectedItem.status || '').trim().toUpperCase() === 'CLOSE' ? 'CLOSE (Selesai)' : 'OPEN (Aktif)'}
                   </span>
+                </div>
+                <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200 col-span-2 sm:col-span-3">
+                  <span className="text-blue-900 font-bold text-[10px] block mb-0.5">Note / Catatan (Kolom Tujuan Database):</span>
+                  <span className="font-semibold text-slate-800 text-xs">{selectedItem.note || (selectedItem.tujuan && selectedItem.tujuan !== '-' ? selectedItem.tujuan : '-')}</span>
                 </div>
               </div>
 

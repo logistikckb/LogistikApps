@@ -1396,40 +1396,40 @@ export function DatabaseMasterModule() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2 sm:space-y-2.5">
       {/* ========================================================================= */}
       {/* TOP STATS & SUB-NAVIGATION BAR */}
       {/* ========================================================================= */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-blue-300 shrink-0 shadow-inner">
-            <Database size={26} />
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-blue-300 shrink-0 shadow-inner">
+            <Database size={20} />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base sm:text-lg font-black tracking-tight text-white m-0">
+              <h2 className="text-sm sm:text-base font-black tracking-tight text-white m-0">
                 Database Master Barang & Distributor
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck size={11} /> Super Admin
+              <span className="px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                <ShieldCheck size={10} /> Super Admin
               </span>
             </div>
-            <p className="text-xs text-blue-200/80 font-medium m-0 mt-0.5">
+            <p className="text-[11px] text-blue-200/80 font-medium m-0">
               Kelola Master Data Barang & Distributor dengan Sinkronisasi Database Realtime
             </p>
           </div>
         </div>
 
         {/* Action Controls & Sync Status */}
-        <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
+        <div className="flex items-center gap-1.5 self-end md:self-center flex-wrap">
           <button
             type="button"
             onClick={refreshAll}
             disabled={loading}
-            className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-all cursor-pointer flex items-center gap-1 text-xs font-bold"
             title="Refresh Data"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             <span>Refresh Data</span>
           </button>
         </div>
@@ -1438,19 +1438,19 @@ export function DatabaseMasterModule() {
       {/* ========================================================================= */}
       {/* SUB-TAB SELECTOR (Data Barang vs Data Distributor) */}
       {/* ========================================================================= */}
-      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-3">
+      <div className="flex items-center gap-1.5 border-b border-slate-200/80 pb-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('barang')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-black text-xs transition-all cursor-pointer ${
             activeTab === 'barang'
-              ? 'bg-blue-900 text-white shadow-md'
+              ? 'bg-blue-900 text-white shadow-xs'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
           }`}
         >
-          <Package size={16} />
+          <Package size={14} />
           <span>1. Master Data Barang</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'barang' ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-700'}`}>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'barang' ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-700'}`}>
             {barangList.length}
           </span>
         </button>
@@ -1458,15 +1458,15 @@ export function DatabaseMasterModule() {
         <button
           type="button"
           onClick={() => setActiveTab('distributor')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-black text-xs transition-all cursor-pointer ${
             activeTab === 'distributor'
-              ? 'bg-blue-900 text-white shadow-md'
+              ? 'bg-blue-900 text-white shadow-xs'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
           }`}
         >
-          <Truck size={16} />
+          <Truck size={14} />
           <span>2. Master Data Distributor</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'distributor' ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-700'}`}>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'distributor' ? 'bg-blue-800 text-blue-200' : 'bg-slate-200 text-slate-700'}`}>
             {distributorList.length}
           </span>
         </button>
@@ -1476,13 +1476,13 @@ export function DatabaseMasterModule() {
       {/* TAB 1: MASTER DATA BARANG */}
       {/* ========================================================================= */}
       {activeTab === 'barang' && (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-2 sm:space-y-2.5 animate-fade-in">
           {/* Action Toolbar: Search, Filters, Add, Excel */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-1.5 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
             {/* Search Bar */}
-            <div className="flex-1 flex items-center gap-2 min-w-0">
+            <div className="flex-1 flex items-center gap-1.5 min-w-0">
               <div className="relative flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchBarang}
@@ -1491,15 +1491,15 @@ export function DatabaseMasterModule() {
                     setPageBarang(1);
                   }}
                   placeholder="Cari Item Code, Barcode, atau Nama Barang..."
-                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
                 />
                 {searchBarang && (
                   <button
                     type="button"
                     onClick={() => setSearchBarang('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
-                    <X size={14} />
+                    <X size={13} />
                   </button>
                 )}
               </div>
@@ -1511,7 +1511,7 @@ export function DatabaseMasterModule() {
                   setFilterStatusBarang(e.target.value as any);
                   setPageBarang(1);
                 }}
-                className="py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="py-1.5 px-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">Semua Status</option>
                 <option value="Aktif">Aktif</option>
@@ -1520,35 +1520,35 @@ export function DatabaseMasterModule() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
               <button
                 type="button"
                 onClick={handleClearAllBarang}
                 disabled={barangList.length === 0}
-                className="px-2.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 disabled:opacity-40 text-xs font-black shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 disabled:opacity-40 text-xs font-black shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
                 title="Super Admin: Kosongkan seluruh master data barang"
               >
-                <Trash2 size={13} className="text-rose-600" />
-                <span className="hidden sm:inline">Reset / Kosongkan</span>
+                <Trash2 size={12} className="text-rose-600" />
+                <span className="hidden sm:inline">Reset</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => downloadExcelTemplate('barang')}
-                className="hidden lg:flex px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black shadow-2xs transition-all items-center gap-1.5 cursor-pointer"
+                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black shadow-2xs transition-all items-center gap-1 cursor-pointer"
                 title="Download Template Format Excel untuk Import Data Barang"
               >
-                <FileDown size={14} />
+                <FileDown size={13} />
                 <span>Template Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleOpenExcelModal('barang')}
-                className="hidden lg:flex px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-xs transition-all items-center gap-1.5 cursor-pointer"
+                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-2xs transition-all items-center gap-1 cursor-pointer"
                 title="Import data barang dari file Excel"
               >
-                <Upload size={14} />
+                <Upload size={13} />
                 <span>Upload Excel</span>
               </button>
 
@@ -1556,29 +1556,29 @@ export function DatabaseMasterModule() {
                 type="button"
                 onClick={handlePushAllBarangToSupabase}
                 disabled={isPushingToSupabase || barangList.length === 0}
-                className="px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 disabled:opacity-50 text-white text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 active:bg-blue-900 disabled:opacity-50 text-white text-xs font-black shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
                 title="Kirim dan sinkronkan semua data barang di tabel ke database cloud"
               >
-                <CloudUpload size={14} className={isPushingToSupabase ? 'animate-bounce' : ''} />
+                <CloudUpload size={13} className={isPushingToSupabase ? 'animate-bounce' : ''} />
                 <span>{isPushingToSupabase ? 'Mengirim...' : 'Sinkron Database'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={exportBarangToExcel}
-                className="hidden lg:flex px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 active:bg-black text-white text-xs font-black shadow-xs transition-all items-center gap-1.5 cursor-pointer"
+                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 active:bg-black text-white text-xs font-black shadow-2xs transition-all items-center gap-1 cursor-pointer"
                 title="Download data barang ke format Excel (.xlsx)"
               >
-                <Download size={14} />
+                <Download size={13} />
                 <span>Download Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleOpenAddBarang}
-                className="px-3.5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all flex items-center gap-1 cursor-pointer"
               >
-                <Plus size={15} className="stroke-[3]" />
+                <Plus size={14} className="stroke-[3]" />
                 <span>Tambah Barang</span>
               </button>
             </div>
@@ -1586,9 +1586,9 @@ export function DatabaseMasterModule() {
 
           {/* Multi-selection Floating Action Bar for Data Barang */}
           {selectedBarangCodes.length > 0 && (
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-blue-900 text-white shadow-lg border border-blue-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 animate-fade-in">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-blue-300 shrink-0 font-black text-xs">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-blue-900 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-blue-300 shrink-0 font-black text-xs">
                   {selectedBarangCodes.length}
                 </div>
                 <div>
@@ -1604,56 +1604,53 @@ export function DatabaseMasterModule() {
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-blue-200/80 font-medium m-0">
-                    Gunakan aksi massal di bawah untuk memproses sekaligus
-                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 <button
                   type="button"
                   onClick={() => handleBatchSetStatusBarang('Aktif')}
-                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                   title="Ubah semua barang terpilih menjadi Aktif"
                 >
-                  <CheckCircle2 size={13} />
+                  <CheckCircle2 size={12} />
                   <span>Set Aktif</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleBatchSetStatusBarang('Nonaktif')}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                   title="Ubah semua barang terpilih menjadi Nonaktif"
                 >
-                  <XCircle size={13} />
+                  <XCircle size={12} />
                   <span>Set Nonaktif</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={exportSelectedBarangToExcel}
-                  className="hidden lg:flex px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:bg-white/30 text-white text-xs font-bold transition-all items-center gap-1 cursor-pointer"
+                  className="hidden lg:flex px-2 py-1 rounded-lg bg-white/15 hover:bg-white/25 active:bg-white/30 text-white text-xs font-bold transition-all items-center gap-1 cursor-pointer"
                   title="Download hanya barang terpilih ke Excel"
                 >
-                  <Download size={13} />
+                  <Download size={12} />
                   <span>Download Excel ({selectedBarangCodes.length})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleBatchDeleteBarang}
-                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-black shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={12} />
                   <span>Hapus Terpilih</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedBarangCodes([])}
-                  className="px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -1662,12 +1659,12 @@ export function DatabaseMasterModule() {
           )}
 
           {/* Table Data Barang */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50/90 border-b border-slate-200/80 text-slate-700 font-extrabold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-3 w-10 text-center">
+                  <tr className="bg-slate-50/90 border-b border-slate-200/80 text-slate-700 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="py-2 px-2.5 w-8 text-center">
                       <input
                         type="checkbox"
                         checked={selectedBarangCodes.length > 0 && selectedBarangCodes.length === paginatedBarang.length}
@@ -1675,12 +1672,12 @@ export function DatabaseMasterModule() {
                         className="rounded border-slate-300 text-blue-900 focus:ring-blue-500 cursor-pointer"
                       />
                     </th>
-                    <th className="py-3 px-3 w-12 text-center">No</th>
-                    <th className="py-3 px-3">Item Code</th>
-                    <th className="py-3 px-3">Barcode</th>
-                    <th className="py-3 px-4">Nama Barang</th>
-                    <th className="py-3 px-3 text-center">Status</th>
-                    <th className="py-3 px-3 text-right">Aksi</th>
+                    <th className="py-2 px-2.5 w-10 text-center">No</th>
+                    <th className="py-2 px-2.5">Item Code</th>
+                    <th className="py-2 px-2.5">Barcode</th>
+                    <th className="py-2 px-3">Nama Barang</th>
+                    <th className="py-2 px-2.5 text-center">Status</th>
+                    <th className="py-2 px-2.5 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -1694,7 +1691,7 @@ export function DatabaseMasterModule() {
                           key={item.item_code}
                           className={`hover:bg-blue-50/40 transition-colors ${isSelected ? 'bg-blue-50/60' : ''}`}
                         >
-                          <td className="py-3 px-3 text-center">
+                          <td className="py-1.5 px-2.5 text-center">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -1702,10 +1699,10 @@ export function DatabaseMasterModule() {
                               className="rounded border-slate-300 text-blue-900 focus:ring-blue-500 cursor-pointer"
                             />
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-slate-400">
+                          <td className="py-1.5 px-2.5 text-center font-bold text-slate-400">
                             {rowNumber}
                           </td>
-                          <td className="py-3 px-3 font-mono font-extrabold text-blue-900 whitespace-nowrap">
+                          <td className="py-1.5 px-2.5 font-mono font-extrabold text-blue-900 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <span>{item.item_code}</span>
                               <button
@@ -1714,36 +1711,36 @@ export function DatabaseMasterModule() {
                                 className="text-slate-400 hover:text-blue-700 p-0.5 cursor-pointer"
                                 title="Salin Item Code"
                               >
-                                <Copy size={12} />
+                                <Copy size={11} />
                               </button>
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-mono text-slate-600 whitespace-nowrap">
+                          <td className="py-1.5 px-2.5 font-mono text-slate-600 whitespace-nowrap">
                             {item.barcode ? (
                               <div className="flex items-center gap-1.5">
-                                <Barcode size={14} className="text-slate-400" />
+                                <Barcode size={13} className="text-slate-400" />
                                 <span>{item.barcode}</span>
                               </div>
                             ) : (
-                              <span className="text-slate-400 italic text-[11px]">-</span>
+                              <span className="text-slate-400 italic text-[10px]">-</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 font-bold text-slate-900">
+                          <td className="py-1.5 px-3 font-bold text-slate-900">
                             {item.item_name}
                           </td>
-                          <td className="py-3 px-3 text-center">
+                          <td className="py-1.5 px-2.5 text-center">
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider ${
                                 item.status === 'Aktif'
                                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                   : 'bg-slate-100 text-slate-600 border border-slate-300'
                               }`}
                             >
-                              {item.status === 'Aktif' ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                              {item.status === 'Aktif' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                               <span>{item.status}</span>
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <td className="py-1.5 px-2.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
@@ -1836,12 +1833,12 @@ export function DatabaseMasterModule() {
       {/* TAB 2: MASTER DATA DISTRIBUTOR */}
       {/* ========================================================================= */}
       {activeTab === 'distributor' && (
-        <div className="space-y-4 animate-fade-in">
+        <div className="space-y-2 sm:space-y-2.5 animate-fade-in">
           {/* Action Toolbar */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <div className="flex-1 flex items-center gap-2 min-w-0">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-1.5 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+            <div className="flex-1 flex items-center gap-1.5 min-w-0">
               <div className="relative flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchDistributor}
@@ -1850,15 +1847,15 @@ export function DatabaseMasterModule() {
                     setPageDistributor(1);
                   }}
                   placeholder="Cari Kode LD atau Nama Distributor..."
-                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
                 />
                 {searchDistributor && (
                   <button
                     type="button"
                     onClick={() => setSearchDistributor('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
-                    <X size={14} />
+                    <X size={13} />
                   </button>
                 )}
               </div>
@@ -1869,7 +1866,7 @@ export function DatabaseMasterModule() {
                   setFilterStatusDistributor(e.target.value as any);
                   setPageDistributor(1);
                 }}
-                className="py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="py-1.5 px-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">Semua Status</option>
                 <option value="Aktif">Aktif</option>
@@ -1877,35 +1874,35 @@ export function DatabaseMasterModule() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
               <button
                 type="button"
                 onClick={handleClearAllDistributor}
                 disabled={distributorList.length === 0}
-                className="px-2.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 disabled:opacity-40 text-xs font-black shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 disabled:opacity-40 text-xs font-black shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
                 title="Super Admin: Kosongkan seluruh master data distributor"
               >
-                <Trash2 size={13} className="text-rose-600" />
-                <span className="hidden sm:inline">Reset / Kosongkan</span>
+                <Trash2 size={12} className="text-rose-600" />
+                <span className="hidden sm:inline">Reset</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => downloadExcelTemplate('distributor')}
-                className="hidden lg:flex px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black shadow-2xs transition-all items-center gap-1.5 cursor-pointer"
+                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black shadow-2xs transition-all items-center gap-1 cursor-pointer"
                 title="Download Template Format Excel untuk Import Data Distributor"
               >
-                <FileDown size={14} />
+                <FileDown size={13} />
                 <span>Template Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleOpenExcelModal('distributor')}
-                className="hidden lg:flex px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-xs transition-all items-center gap-1.5 cursor-pointer"
+                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-2xs transition-all items-center gap-1 cursor-pointer"
                 title="Import data distributor dari file Excel"
               >
-                <Upload size={14} />
+                <Upload size={13} />
                 <span>Upload Excel</span>
               </button>
 
@@ -1913,29 +1910,29 @@ export function DatabaseMasterModule() {
                 type="button"
                 onClick={handlePushAllDistributorToSupabase}
                 disabled={isPushingToSupabase || distributorList.length === 0}
-                className="px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 active:bg-blue-900 disabled:opacity-50 text-white text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 active:bg-blue-900 disabled:opacity-50 text-white text-xs font-black shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
                 title="Kirim dan sinkronkan semua data distributor di tabel ke database cloud"
               >
-                <CloudUpload size={14} className={isPushingToSupabase ? 'animate-bounce' : ''} />
+                <CloudUpload size={13} className={isPushingToSupabase ? 'animate-bounce' : ''} />
                 <span>{isPushingToSupabase ? 'Mengirim...' : 'Sinkron Database'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={exportDistributorToExcel}
-                className="hidden lg:flex px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 active:bg-black text-white text-xs font-black shadow-xs transition-all items-center gap-1.5 cursor-pointer"
+                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 active:bg-black text-white text-xs font-black shadow-2xs transition-all items-center gap-1 cursor-pointer"
                 title="Download data distributor ke format Excel (.xlsx)"
               >
-                <Download size={14} />
+                <Download size={13} />
                 <span>Download Excel</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleOpenAddDistributor}
-                className="px-3.5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all flex items-center gap-1 cursor-pointer"
               >
-                <Plus size={15} className="stroke-[3]" />
+                <Plus size={14} className="stroke-[3]" />
                 <span>Tambah Distributor</span>
               </button>
             </div>
@@ -1943,9 +1940,9 @@ export function DatabaseMasterModule() {
 
           {/* Multi-selection Floating Action Bar for Data Distributor */}
           {selectedDistributorCodes.length > 0 && (
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-blue-900 text-white shadow-lg border border-blue-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 animate-fade-in">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-blue-300 shrink-0 font-black text-xs">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-blue-900 text-white shadow-md border border-blue-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-blue-300 shrink-0 font-black text-xs">
                   {selectedDistributorCodes.length}
                 </div>
                 <div>
@@ -1961,56 +1958,53 @@ export function DatabaseMasterModule() {
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-blue-200/80 font-medium m-0">
-                    Gunakan aksi massal di bawah untuk memproses sekaligus
-                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 <button
                   type="button"
                   onClick={() => handleBatchSetStatusDistributor('Aktif')}
-                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                   title="Ubah semua distributor terpilih menjadi Aktif"
                 >
-                  <CheckCircle2 size={13} />
+                  <CheckCircle2 size={12} />
                   <span>Set Aktif</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleBatchSetStatusDistributor('Nonaktif')}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                   title="Ubah semua distributor terpilih menjadi Nonaktif"
                 >
-                  <XCircle size={13} />
+                  <XCircle size={12} />
                   <span>Set Nonaktif</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={exportSelectedDistributorToExcel}
-                  className="hidden lg:flex px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:bg-white/30 text-white text-xs font-bold transition-all items-center gap-1 cursor-pointer"
+                  className="hidden lg:flex px-2 py-1 rounded-lg bg-white/15 hover:bg-white/25 active:bg-white/30 text-white text-xs font-bold transition-all items-center gap-1 cursor-pointer"
                   title="Download hanya distributor terpilih ke Excel"
                 >
-                  <Download size={13} />
+                  <Download size={12} />
                   <span>Download Excel ({selectedDistributorCodes.length})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleBatchDeleteDistributor}
-                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-black shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={12} />
                   <span>Hapus Terpilih</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedDistributorCodes([])}
-                  className="px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -2019,12 +2013,12 @@ export function DatabaseMasterModule() {
           )}
 
           {/* Table Data Distributor */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50/90 border-b border-slate-200/80 text-slate-700 font-extrabold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-3 w-10 text-center">
+                  <tr className="bg-slate-50/90 border-b border-slate-200/80 text-slate-700 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="py-2 px-2.5 w-8 text-center">
                       <input
                         type="checkbox"
                         checked={selectedDistributorCodes.length > 0 && selectedDistributorCodes.length === paginatedDistributor.length}
@@ -2032,11 +2026,11 @@ export function DatabaseMasterModule() {
                         className="rounded border-slate-300 text-blue-900 focus:ring-blue-500 cursor-pointer"
                       />
                     </th>
-                    <th className="py-3 px-3 w-12 text-center">No</th>
-                    <th className="py-3 px-3">Kode LD</th>
-                    <th className="py-3 px-4">Nama Distributor</th>
-                    <th className="py-3 px-3 text-center">Status</th>
-                    <th className="py-3 px-3 text-right">Aksi</th>
+                    <th className="py-2 px-2.5 w-10 text-center">No</th>
+                    <th className="py-2 px-2.5">Kode LD</th>
+                    <th className="py-2 px-3">Nama Distributor</th>
+                    <th className="py-2 px-2.5 text-center">Status</th>
+                    <th className="py-2 px-2.5 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -2050,7 +2044,7 @@ export function DatabaseMasterModule() {
                           key={item.kode_ld}
                           className={`hover:bg-blue-50/40 transition-colors ${isSelected ? 'bg-blue-50/60' : ''}`}
                         >
-                          <td className="py-3 px-3 text-center">
+                          <td className="py-1.5 px-2.5 text-center">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -2058,54 +2052,54 @@ export function DatabaseMasterModule() {
                               className="rounded border-slate-300 text-blue-900 focus:ring-blue-500 cursor-pointer"
                             />
                           </td>
-                          <td className="py-3 px-3 text-center font-bold text-slate-400">
+                          <td className="py-1.5 px-2.5 text-center font-bold text-slate-400">
                             {rowNumber}
                           </td>
-                          <td className="py-3 px-3 font-mono font-extrabold text-blue-900 whitespace-nowrap">
+                          <td className="py-1.5 px-2.5 font-mono font-extrabold text-blue-900 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-900">{item.kode_ld}</span>
+                              <span className="px-2 py-0.2 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-[11px]">{item.kode_ld}</span>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(item.kode_ld, 'Kode LD')}
                                 className="text-slate-400 hover:text-blue-700 p-0.5 cursor-pointer"
                                 title="Salin Kode LD"
                               >
-                                <Copy size={12} />
+                                <Copy size={11} />
                               </button>
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-bold text-slate-900">
+                          <td className="py-1.5 px-3 font-bold text-slate-900">
                             {item.nama_distributor}
                           </td>
-                          <td className="py-3 px-3 text-center">
+                          <td className="py-1.5 px-2.5 text-center">
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider ${
                                 item.status === 'Aktif'
                                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                   : 'bg-slate-100 text-slate-600 border border-slate-300'
                               }`}
                             >
-                              {item.status === 'Aktif' ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                              {item.status === 'Aktif' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
                               <span>{item.status}</span>
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <td className="py-1.5 px-2.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditDistributor(item)}
-                                className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                                className="p-1 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
                                 title="Edit Data Distributor"
                               >
-                                <Edit3 size={14} />
+                                <Edit3 size={13} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteDistributor(item.kode_ld, item.nama_distributor)}
-                                className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                                className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
                                 title="Hapus Distributor"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={13} />
                               </button>
                             </div>
                           </td>
@@ -2114,9 +2108,9 @@ export function DatabaseMasterModule() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-500">
-                        <div className="max-w-xs mx-auto space-y-2">
-                          <Truck size={36} className="mx-auto text-slate-300" />
+                      <td colSpan={6} className="py-8 text-center text-slate-500">
+                        <div className="max-w-xs mx-auto space-y-1.5">
+                          <Truck size={28} className="mx-auto text-slate-300" />
                           <p className="text-xs font-bold text-slate-700">Tidak ada data distributor yang ditemukan</p>
                           <p className="text-[11px] text-slate-400">Coba ubah kata kunci pencarian atau tambah distributor baru.</p>
                         </div>
@@ -2128,8 +2122,8 @@ export function DatabaseMasterModule() {
             </div>
 
             {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 border-t border-slate-200/80 bg-slate-50/70 text-xs text-slate-600 font-medium">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 p-2.5 border-t border-slate-200/80 bg-slate-50/70 text-xs text-slate-600 font-medium">
+              <div className="flex items-center gap-1.5 text-[11px]">
                 <span>Menampilkan</span>
                 <select
                   value={rowsPerPageDistributor}
@@ -2137,7 +2131,7 @@ export function DatabaseMasterModule() {
                     setRowsPerPageDistributor(Number(e.target.value));
                     setPageDistributor(1);
                   }}
-                  className="py-1 px-2 rounded-lg bg-white border border-slate-300 text-xs font-bold cursor-pointer"
+                  className="py-1 px-1.5 rounded-md bg-white border border-slate-300 text-xs font-bold cursor-pointer"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>
@@ -2152,23 +2146,23 @@ export function DatabaseMasterModule() {
                 <span>dari <strong>{filteredDistributor.length}</strong> total distributor</span>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 text-[11px]">
                 <button
                   type="button"
                   onClick={() => setPageDistributor(prev => Math.max(1, prev - 1))}
                   disabled={pageDistributor === 1}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold cursor-pointer"
+                  className="px-2 py-0.5 rounded-md bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold cursor-pointer"
                 >
                   Sebelumnya
                 </button>
-                <span className="px-2 font-bold text-slate-800">
+                <span className="px-1.5 font-bold text-slate-800">
                   Hal {pageDistributor} / {totalPagesDistributor}
                 </span>
                 <button
                   type="button"
                   onClick={() => setPageDistributor(prev => Math.min(totalPagesDistributor, prev + 1))}
                   disabled={pageDistributor >= totalPagesDistributor}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold cursor-pointer"
+                  className="px-2 py-0.5 rounded-md bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold cursor-pointer"
                 >
                   Berikutnya
                 </button>

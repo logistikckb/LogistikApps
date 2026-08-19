@@ -97,105 +97,105 @@ export function StockOpnameModule() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2 sm:space-y-2.5">
       {/* Sub Navigation */}
-      <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
         <button
           onClick={() => setActiveTab('largo')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === 'largo' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+          className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeTab === 'largo' ? 'bg-blue-900 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
           }`}
         >
-          <Layers size={15} />
-          <span>Konversi LARGO ke SAP</span>
+          <Layers size={13} />
+          <span>Konversi LARGO</span>
         </button>
 
         <button
           onClick={() => setActiveTab('mb52')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === 'mb52' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+          className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeTab === 'mb52' ? 'bg-blue-900 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
           }`}
         >
-          <FileSpreadsheet size={15} />
-          <span>Data MB52 SAP ({mb52Rows.length})</span>
+          <FileSpreadsheet size={13} />
+          <span>MB52 SAP ({mb52Rows.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('form-so')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === 'form-so' ? 'bg-blue-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+          className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeTab === 'form-so' ? 'bg-blue-900 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
           }`}
         >
-          <FileText size={15} />
-          <span>Form & Berita Acara SO</span>
+          <FileText size={13} />
+          <span>Form & Berita Acara</span>
         </button>
       </div>
 
       {/* TAB 1: LARGO CONVERTER */}
       {activeTab === 'largo' && (
-        <div className="space-y-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <div className="space-y-2 sm:space-y-2.5">
+          <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 m-0">Input Teks Data Mentah LARGO</h3>
-                <p className="text-[11px] text-slate-500 m-0">Format per baris (Tab-Separated): <code>Location</code> [Tab] <code>ItemCode</code> [Tab] <code>ItemName</code> [Tab] <code>SLOC</code> [Tab] <code>Qty</code></p>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-800 m-0">Input Data Mentah LARGO</h3>
+                <p className="text-[10px] text-slate-500 m-0">Format (Tab): <code>Location</code> [Tab] <code>ItemCode</code> [Tab] <code>ItemName</code> [Tab] <code>SLOC</code> [Tab] <code>Qty</code></p>
               </div>
 
               <button
                 type="button"
                 onClick={handleProcessLargo}
-                className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-blue-900 hover:bg-blue-950 text-white text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1"
               >
-                <RefreshCw size={14} />
-                <span>Proses SUMIFS / Agregasi</span>
+                <RefreshCw size={12} />
+                <span>Proses SUMIFS</span>
               </button>
             </div>
 
             <textarea
-              rows={5}
+              rows={4}
               value={largoRawText}
               onChange={(e) => setLargoRawText(e.target.value)}
               placeholder="LOC01	21104501	KINO SAMANTHA HAIR OIL	SL01	100"
-              className="w-full bg-slate-50 text-slate-800 border border-slate-300 rounded-xl p-3 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full bg-slate-50 text-slate-800 border border-slate-300 rounded-lg p-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
 
           {/* Aggregated Output Table */}
           {aggregatedLargo.length > 0 && (
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">Hasil Agregasi SUMIFS ({aggregatedLargo.length} Baris Unique):</span>
                 <button
                   type="button"
                   onClick={handleExportLargoToExcel}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1"
                 >
-                  <Download size={13} />
+                  <Download size={12} />
                   <span>Download Excel</span>
                 </button>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-[280px] overflow-y-auto">
+              <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-[280px] overflow-y-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
+                  <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 text-[10px] uppercase tracking-wider">
                     <tr>
-                      <th className="p-2 border-b border-slate-200">#</th>
-                      <th className="p-2 border-b border-slate-200">SLOC</th>
-                      <th className="p-2 border-b border-slate-200">Lokasi</th>
-                      <th className="p-2 border-b border-slate-200">Item Code</th>
-                      <th className="p-2 border-b border-slate-200">Item Name</th>
-                      <th className="p-2 border-b border-slate-200 text-right">Total Qty (Agregasi)</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">#</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">SLOC</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">Lokasi</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">Item Code</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">Item Name</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200 text-right">Total Qty</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {aggregatedLargo.map((r, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-2 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                        <td className="p-2 font-bold font-mono text-blue-900">{r.sloc}</td>
-                        <td className="p-2">{r.location}</td>
-                        <td className="p-2 font-mono">{r.itemCode}</td>
-                        <td className="p-2">{r.itemName}</td>
-                        <td className="p-2 font-mono font-bold text-right text-emerald-700">{r.lastQty.toLocaleString()}</td>
+                        <td className="py-1.5 px-2.5 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                        <td className="py-1.5 px-2.5 font-bold font-mono text-blue-900">{r.sloc}</td>
+                        <td className="py-1.5 px-2.5">{r.location}</td>
+                        <td className="py-1.5 px-2.5 font-mono">{r.itemCode}</td>
+                        <td className="py-1.5 px-2.5">{r.itemName}</td>
+                        <td className="py-1.5 px-2.5 font-mono font-bold text-right text-emerald-700">{r.lastQty.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -208,46 +208,46 @@ export function StockOpnameModule() {
 
       {/* TAB 2: MB52 SAP */}
       {activeTab === 'mb52' && (
-        <div className="space-y-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-3">
+        <div className="space-y-2 sm:space-y-2.5">
+          <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-800 m-0">Upload Data MB52 SAP</h3>
-              <p className="text-[11px] text-slate-500 m-0">Menghitung Last Qty = Unrestricted + Transit + Blocked secara otomatis</p>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-800 m-0">Upload Data MB52 SAP</h3>
+              <p className="text-[10px] text-slate-500 m-0">Menghitung Last Qty = Unrestricted + Transit + Blocked secara otomatis</p>
             </div>
 
-            <label className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5">
-              <Upload size={14} />
-              <span>Upload MB52 Excel (.xlsx)</span>
+            <label className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1">
+              <Upload size={12} />
+              <span>Upload MB52 Excel</span>
               <input type="file" accept=".xlsx, .xls" onChange={handleMB52FileUpload} className="hidden" />
             </label>
           </div>
 
           {mb52Rows.length > 0 && (
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
               <span className="text-xs font-bold text-slate-700">Daftar Data MB52 SAP ({mb52Rows.length} Baris):</span>
-              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-[300px] overflow-y-auto">
+              <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-[300px] overflow-y-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
+                  <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 text-[10px] uppercase tracking-wider">
                     <tr>
-                      <th className="p-2 border-b border-slate-200">Material</th>
-                      <th className="p-2 border-b border-slate-200">Deskripsi</th>
-                      <th className="p-2 border-b border-slate-200">SLOC</th>
-                      <th className="p-2 border-b border-slate-200 text-right">Unrestricted</th>
-                      <th className="p-2 border-b border-slate-200 text-right">Transit</th>
-                      <th className="p-2 border-b border-slate-200 text-right">Blocked</th>
-                      <th className="p-2 border-b border-slate-200 text-right">Total Last Qty</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">Material</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">Deskripsi</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200">SLOC</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200 text-right">Unrestricted</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200 text-right">Transit</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200 text-right">Blocked</th>
+                      <th className="py-2 px-2.5 border-b border-slate-200 text-right">Total Last Qty</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {mb52Rows.map((r, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-2 font-mono font-bold">{r.material}</td>
-                        <td className="p-2">{r.desc}</td>
-                        <td className="p-2 font-bold font-mono text-blue-900">{r.sloc}</td>
-                        <td className="p-2 text-right font-mono">{r.unrestricted}</td>
-                        <td className="p-2 text-right font-mono">{r.transit}</td>
-                        <td className="p-2 text-right font-mono">{r.blocked}</td>
-                        <td className="p-2 text-right font-mono font-extrabold text-emerald-700">{r.lastQty.toLocaleString()}</td>
+                        <td className="py-1.5 px-2.5 font-mono font-bold">{r.material}</td>
+                        <td className="py-1.5 px-2.5">{r.desc}</td>
+                        <td className="py-1.5 px-2.5 font-bold font-mono text-blue-900">{r.sloc}</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono">{r.unrestricted}</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono">{r.transit}</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono">{r.blocked}</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono font-extrabold text-emerald-700">{r.lastQty.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -260,119 +260,119 @@ export function StockOpnameModule() {
 
       {/* TAB 3: FORM & BERITA ACARA SO */}
       {activeTab === 'form-so' && (
-        <div className="space-y-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <div className="space-y-2 sm:space-y-2.5">
+          <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-800 m-0">Pengaturan Berita Acara Stock Opname</h3>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-800 m-0">Pengaturan Berita Acara SO</h3>
               <button
                 type="button"
                 onClick={handlePrintBeritaAcara}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1"
               >
-                <Printer size={14} />
+                <Printer size={12} />
                 <span>Cetak / Save PDF</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Judul Dokumen:</label>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Judul Dokumen:</label>
                 <input 
                   type="text" 
                   value={docHeader.judul} 
                   onChange={(e) => setDocHeader({ ...docHeader, judul: e.target.value })} 
-                  className="w-full p-2 bg-slate-50 border rounded-xl" 
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs" 
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Nomor Berita Acara:</label>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Nomor Berita Acara:</label>
                 <input 
                   type="text" 
                   value={docHeader.nomor} 
                   onChange={(e) => setDocHeader({ ...docHeader, nomor: e.target.value })} 
-                  className="w-full p-2 bg-slate-50 border rounded-xl" 
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs" 
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Tanggal Pelaksanaan:</label>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Tanggal Pelaksanaan:</label>
                 <input 
                   type="date" 
                   value={docHeader.tanggal} 
                   onChange={(e) => setDocHeader({ ...docHeader, tanggal: e.target.value })} 
-                  className="w-full p-2 bg-slate-50 border rounded-xl" 
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs" 
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Petugas Tim 1:</label>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Petugas Tim 1:</label>
                 <input 
                   type="text" 
                   value={docHeader.petugas1} 
                   onChange={(e) => setDocHeader({ ...docHeader, petugas1: e.target.value })} 
-                  className="w-full p-2 bg-slate-50 border rounded-xl" 
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs" 
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Petugas Tim 2:</label>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Petugas Tim 2:</label>
                 <input 
                   type="text" 
                   value={docHeader.petugas2} 
                   onChange={(e) => setDocHeader({ ...docHeader, petugas2: e.target.value })} 
-                  className="w-full p-2 bg-slate-50 border rounded-xl" 
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs" 
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Mengetahui (Atasan):</label>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Mengetahui (Atasan):</label>
                 <input 
                   type="text" 
                   value={docHeader.mengetahui} 
                   onChange={(e) => setDocHeader({ ...docHeader, mengetahui: e.target.value })} 
-                  className="w-full p-2 bg-slate-50 border rounded-xl" 
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs" 
                 />
               </div>
             </div>
           </div>
 
           {/* Document Preview Box */}
-          <div className="p-6 bg-white border-2 border-slate-800 rounded-xl max-w-3xl mx-auto shadow-md space-y-6 text-slate-900 text-xs">
-            <div className="text-center border-b-2 border-slate-800 pb-3">
-              <h2 className="text-base font-black tracking-wider uppercase m-0">{docHeader.judul}</h2>
+          <div className="p-4 bg-white border border-slate-800 rounded-xl max-w-3xl mx-auto shadow-2xs space-y-4 text-slate-900 text-xs">
+            <div className="text-center border-b border-slate-800 pb-2">
+              <h2 className="text-sm font-black tracking-wider uppercase m-0">{docHeader.judul}</h2>
               <p className="font-mono text-xs m-0">No: {docHeader.nomor}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <strong>Lokasi:</strong> {docHeader.lokasi}<br />
                 <strong>Tanggal:</strong> {docHeader.tanggal}
               </div>
               <div className="text-right">
-                <strong>Status Rekonsiliasi:</strong> SELESAI<br />
-                <strong>Tim Pelaksana:</strong> {docHeader.petugas1}, {docHeader.petugas2}
+                <strong>Status:</strong> SELESAI<br />
+                <strong>Tim:</strong> {docHeader.petugas1}, {docHeader.petugas2}
               </div>
             </div>
 
             <div>
-              <p className="m-0 leading-relaxed">
+              <p className="m-0 leading-relaxed text-xs">
                 Pada hari ini, tanggal <strong>{docHeader.tanggal}</strong>, telah dilaksanakan kegiatan Stock Opname bertempat di <strong>{docHeader.lokasi}</strong> dengan hasil data fisik dan rekonsiliasi tercatat secara sah.
               </p>
             </div>
 
-            <div className="pt-12 grid grid-cols-3 text-center gap-4 border-t border-slate-300">
+            <div className="pt-8 grid grid-cols-3 text-center gap-3 border-t border-slate-300">
               <div>
-                <p className="mb-12 font-bold">Petugas 1</p>
-                <p className="font-bold underline">{docHeader.petugas1}</p>
+                <p className="mb-8 font-bold text-[11px]">Petugas 1</p>
+                <p className="font-bold underline text-xs">{docHeader.petugas1 || '(-)'}</p>
               </div>
               <div>
-                <p className="mb-12 font-bold">Petugas 2</p>
-                <p className="font-bold underline">{docHeader.petugas2}</p>
+                <p className="mb-8 font-bold text-[11px]">Petugas 2</p>
+                <p className="font-bold underline text-xs">{docHeader.petugas2 || '(-)'}</p>
               </div>
               <div>
-                <p className="mb-12 font-bold">Mengetahui</p>
-                <p className="font-bold underline">{docHeader.mengetahui}</p>
+                <p className="mb-8 font-bold text-[11px]">Mengetahui</p>
+                <p className="font-bold underline text-xs">{docHeader.mengetahui || '(-)'}</p>
               </div>
             </div>
           </div>

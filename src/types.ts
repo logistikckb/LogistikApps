@@ -168,6 +168,7 @@ export interface IncomingItem {
   tanggal_update?: string;
   status?: string;
   tujuan?: string;
+  note?: string;
   created_at?: string;
   updated_at?: string;
 }

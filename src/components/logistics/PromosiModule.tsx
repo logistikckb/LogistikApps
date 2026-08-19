@@ -543,27 +543,27 @@ export function PromosiModule() {
   };
 
   return (
-    <div className="space-y-6 text-slate-800">
+    <div className="space-y-2 sm:space-y-2.5 text-slate-800">
       {/* HEADER TITLE */}
-      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-200">
+      <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1 border-b border-slate-200">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight m-0 flex items-center gap-2">
-            <PackageCheck size={24} className="text-blue-600" />
+          <h1 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight m-0 flex items-center gap-1.5">
+            <PackageCheck size={18} className="text-blue-600" />
             <span>Penerimaan Barang Promosi</span>
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-semibold m-0 mt-1">
+          <p className="text-[10px] text-slate-500 font-semibold m-0">
             Form &amp; Data Penerimaan Barang Promosi Gudang
           </p>
         </div>
 
         {/* PROMINENT TOP TEMPLATE & EXCEL ACTION BUTTONS */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={downloadDatabaseTemplate}
-            className="hidden lg:flex px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all cursor-pointer items-center gap-2 shadow-md hover:shadow-indigo-600/30"
+            className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all cursor-pointer items-center gap-1.5 shadow-2xs"
             title="Unduh file template Excel sesuai struktur database"
           >
-            <FileSpreadsheet size={16} />
+            <FileSpreadsheet size={13} />
             <span>Download Template Excel</span>
           </button>
         </div>
@@ -571,69 +571,69 @@ export function PromosiModule() {
 
       {/* PREVIEW BANNER & SAVE TO DATABASE MODAL/BAR IF EXCEL UPLOADED */}
       {previewItems && (
-        <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 sm:p-5 shadow-md space-y-3 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-amber-200">
-            <div className="flex items-center gap-2">
-              <Database size={20} className="text-amber-700 shrink-0" />
+        <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-2.5 sm:p-3 shadow-2xs space-y-2 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1.5 border-b border-amber-200">
+            <div className="flex items-center gap-1.5">
+              <Database size={16} className="text-amber-700 shrink-0" />
               <div>
-                <h3 className="text-sm font-black text-amber-900 m-0 uppercase">
-                  Pratinjau Impor File Excel ({previewItems.length} Data)
+                <h3 className="text-xs font-black text-amber-900 m-0 uppercase">
+                  Pratinjau Impor Excel ({previewItems.length} Data)
                 </h3>
-                <p className="text-xs text-amber-700 font-semibold m-0">
-                  Data berikut belum masuk database. Klik tombol "Simpan Ke Database" di sebelah kanan.
+                <p className="text-[10px] text-amber-700 font-semibold m-0">
+                  Data belum masuk database. Klik "Simpan Ke Database".
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setPreviewItems(null)}
-                className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
               >
-                <X size={14} />
+                <X size={12} />
                 <span>Batal</span>
               </button>
 
               <button
                 onClick={handleSavePreviewToDatabase}
                 disabled={savingBatch}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
+                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <Save size={16} className={savingBatch ? 'animate-spin' : ''} />
-                <span>{savingBatch ? 'Menyimpan...' : `Simpan ${previewItems.length} Data Ke Database`}</span>
+                <Save size={13} className={savingBatch ? 'animate-spin' : ''} />
+                <span>{savingBatch ? 'Menyimpan...' : `Simpan ${previewItems.length} Data`}</span>
               </button>
             </div>
           </div>
 
           <div className="overflow-x-auto max-h-[220px] overflow-y-auto border border-amber-200 rounded-lg bg-white">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-amber-100/70 text-amber-900 font-extrabold uppercase sticky top-0">
+              <thead className="bg-amber-100/70 text-amber-900 font-extrabold uppercase sticky top-0 text-[10px]">
                 <tr>
-                  <th className="p-2">Nomor</th>
-                  <th className="p-2">Tgl Terima</th>
-                  <th className="p-2">Material</th>
-                  <th className="p-2">Pengirim</th>
-                  <th className="p-2">Penerima</th>
-                  <th className="p-2">Nopol</th>
-                  <th className="p-2">Expedisi</th>
-                  <th className="p-2 text-right">CTN</th>
-                  <th className="p-2 text-right">PCS</th>
-                  <th className="p-2">Keterangan</th>
+                  <th className="py-1.5 px-2">Nomor</th>
+                  <th className="py-1.5 px-2">Tgl Terima</th>
+                  <th className="py-1.5 px-2">Material</th>
+                  <th className="py-1.5 px-2">Pengirim</th>
+                  <th className="py-1.5 px-2">Penerima</th>
+                  <th className="py-1.5 px-2">Nopol</th>
+                  <th className="py-1.5 px-2">Expedisi</th>
+                  <th className="py-1.5 px-2 text-right">CTN</th>
+                  <th className="py-1.5 px-2 text-right">PCS</th>
+                  <th className="py-1.5 px-2">Keterangan</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
+              <tbody className="divide-y divide-slate-100 font-medium text-[11px]">
                 {previewItems.map((r, i) => (
                   <tr key={i} className="hover:bg-amber-50/50">
-                    <td className="p-2 font-mono font-bold text-amber-800">{r.nomor}</td>
-                    <td className="p-2">{r.tgl_terima}</td>
-                    <td className="p-2 font-bold">{r.material}</td>
-                    <td className="p-2">{r.pengirim || '-'}</td>
-                    <td className="p-2">{r.penerima || '-'}</td>
-                    <td className="p-2 font-mono">{r.nopol || '-'}</td>
-                    <td className="p-2">{r.expedisi || '-'}</td>
-                    <td className="p-2 text-right font-bold">{formatNumber(r.jumlah_ctn)}</td>
-                    <td className="p-2 text-right font-bold">{formatNumber(r.jumlah_pcs)}</td>
-                    <td className="p-2 text-slate-500">{r.keterangan}</td>
+                    <td className="py-1 px-2 font-mono font-bold text-amber-800">{r.nomor}</td>
+                    <td className="py-1 px-2">{r.tgl_terima}</td>
+                    <td className="py-1 px-2 font-bold">{r.material}</td>
+                    <td className="py-1 px-2">{r.pengirim || '-'}</td>
+                    <td className="py-1 px-2">{r.penerima || '-'}</td>
+                    <td className="py-1 px-2 font-mono">{r.nopol || '-'}</td>
+                    <td className="py-1 px-2">{r.expedisi || '-'}</td>
+                    <td className="py-1 px-2 text-right font-bold">{formatNumber(r.jumlah_ctn)}</td>
+                    <td className="py-1 px-2 text-right font-bold">{formatNumber(r.jumlah_pcs)}</td>
+                    <td className="py-1 px-2 text-slate-500">{r.keterangan}</td>
                   </tr>
                 ))}
               </tbody>
@@ -645,28 +645,28 @@ export function PromosiModule() {
       {/* FORM INPUT SECTION (MODAL) */}
       {showFormModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white">
-                <h2 className="text-base font-extrabold uppercase m-0 flex items-center gap-2">
-                  <Edit size={18} className="text-blue-300" />
+          <div className="flex min-h-full items-center justify-center p-3">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-3.5 py-2.5 bg-gradient-to-r from-blue-900 to-indigo-900 text-white">
+                <h2 className="text-xs sm:text-sm font-extrabold uppercase m-0 flex items-center gap-1.5">
+                  <Edit size={15} className="text-blue-300" />
                   <span>{editingId ? 'Edit Penerimaan Barang Promosi' : 'Form Penerimaan Barang Promosi'}</span>
                 </h2>
                 <button
                   type="button"
                   onClick={() => { handleCancelEdit(); setShowFormModal(false); }}
-                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
                 >
-                  <X size={16} />
+                  <X size={14} />
                 </button>
               </div>
 
-              <div className="p-4 sm:p-6 overflow-y-auto">
-                <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="p-3 sm:p-4 overflow-y-auto">
+                <form onSubmit={handleSubmit} className="space-y-3">
           {/* ROW 1: GRID 3 COLS */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Nomor <span className="text-red-500">*</span>
               </label>
               <input
@@ -675,12 +675,12 @@ export function PromosiModule() {
                 onChange={(e) => setFormData({ ...formData, nomor: e.target.value })}
                 placeholder="Contoh: PRM-001"
                 required
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Tgl Terima <span className="text-red-500">*</span>
               </label>
               <input
@@ -688,12 +688,12 @@ export function PromosiModule() {
                 value={formData.tgl_terima}
                 onChange={(e) => setFormData({ ...formData, tgl_terima: e.target.value })}
                 required
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Material <span className="text-red-500">*</span>
               </label>
               <input
@@ -702,15 +702,15 @@ export function PromosiModule() {
                 onChange={(e) => setFormData({ ...formData, material: e.target.value })}
                 placeholder="Nama/deskripsi material"
                 required
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
           </div>
 
           {/* ROW 2: GRID 4 COLS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Pengirim
               </label>
               <input
@@ -718,12 +718,12 @@ export function PromosiModule() {
                 value={formData.pengirim}
                 onChange={(e) => setFormData({ ...formData, pengirim: e.target.value })}
                 placeholder="Nama pengirim"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Penerima
               </label>
               <input
@@ -731,12 +731,12 @@ export function PromosiModule() {
                 value={formData.penerima}
                 onChange={(e) => setFormData({ ...formData, penerima: e.target.value })}
                 placeholder="Nama penerima"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Nopol Kendaraan
               </label>
               <input
@@ -744,12 +744,12 @@ export function PromosiModule() {
                 value={formData.nopol}
                 onChange={(e) => setFormData({ ...formData, nopol: e.target.value })}
                 placeholder="Contoh: B 1234 AB"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Expedisi
               </label>
               <input
@@ -757,15 +757,15 @@ export function PromosiModule() {
                 value={formData.expedisi}
                 onChange={(e) => setFormData({ ...formData, expedisi: e.target.value })}
                 placeholder="Nama expedisi"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
           </div>
 
           {/* ROW 3: GRID 3 COLS */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Jumlah CTN
               </label>
               <input
@@ -774,12 +774,12 @@ export function PromosiModule() {
                 value={formData.jumlah_ctn}
                 onChange={(e) => setFormData({ ...formData, jumlah_ctn: e.target.value })}
                 placeholder="0"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Jumlah PCS
               </label>
               <input
@@ -788,12 +788,12 @@ export function PromosiModule() {
                 value={formData.jumlah_pcs}
                 onChange={(e) => setFormData({ ...formData, jumlah_pcs: e.target.value })}
                 placeholder="0"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-800 uppercase tracking-wider mb-1">
                 Keterangan
               </label>
               <input
@@ -801,22 +801,22 @@ export function PromosiModule() {
                 value={formData.keterangan}
                 onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                 placeholder="Catatan tambahan"
-                className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
+                className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-2xs"
               />
             </div>
           </div>
 
           {/* SUBMIT BUTTON */}
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
-              className={`px-5 py-2.5 rounded-lg text-xs font-extrabold text-white shadow-md transition-all cursor-pointer flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1.5 ${
                 editingId
-                  ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/30'
-                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30'
+                  ? 'bg-amber-600 hover:bg-amber-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
               }`}
             >
-              <Save size={16} />
+              <Save size={14} />
               <span>{editingId ? 'Update Data' : 'Simpan Data'}</span>
             </button>
           </div>
@@ -828,60 +828,60 @@ export function PromosiModule() {
       , document.body)}
 
       {/* TABLE DATA SECTION (CARD SECTION) */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-2 sm:p-2.5 shadow-2xs space-y-2">
         {/* HEADER & ACTION BUTTONS */}
-        <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-extrabold text-slate-900 uppercase m-0">
+            <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase m-0">
               Data Barang Diterima
             </h2>
-            <p className="text-xs text-slate-500 font-medium m-0 mt-0.5">
-              Database Supabase (Tabel: promosi)
+            <p className="text-[10px] text-slate-500 font-medium m-0">
+              Database Supabase ({promosiList.length} data)
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => { resetForm(); setShowFormModal(true); }}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
               title="Tambah Data Baru"
             >
-              <span>+ Tambah Data</span>
+              <span>+ Tambah</span>
             </button>
             <button
               onClick={fetchPromosiData}
               disabled={loading}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+              className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
               title="Refresh data dari database"
             >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
               <span>Refresh</span>
             </button>
 
             {/* BUTTON 1: DOWNLOAD TEMPLATE EXCEL (Tampil di Desktop) */}
             <button
               onClick={downloadDatabaseTemplate}
-              className="hidden lg:flex px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition-all cursor-pointer items-center gap-1.5 shadow-xs"
+              className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all cursor-pointer items-center gap-1 shadow-2xs"
               title="Unduh Template Excel sesuai struktur Database"
             >
-              <FileSpreadsheet size={14} />
-              <span>Download Template</span>
+              <FileSpreadsheet size={12} />
+              <span>Template</span>
             </button>
 
             {/* BUTTON 2: DOWNLOAD EXCEL (Tampil di Desktop) */}
             <button
               onClick={downloadExcel}
-              className="hidden lg:flex px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-all cursor-pointer items-center gap-1.5 shadow-xs"
+              className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer items-center gap-1 shadow-2xs"
               title="Unduh semua data penerimaan ke file Excel"
             >
-              <Download size={14} />
-              <span>Download Excel</span>
+              <Download size={12} />
+              <span>Excel</span>
             </button>
 
             {/* BUTTON 3: UPLOAD EXCEL (Tampil di Desktop) */}
-            <label className="hidden lg:flex px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-extrabold transition-all cursor-pointer items-center gap-1.5 shadow-xs">
-              <Upload size={14} />
-              <span>Upload Excel</span>
+            <label className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all cursor-pointer items-center gap-1 shadow-2xs">
+              <Upload size={12} />
+              <span>Upload</span>
               <input
                 type="file"
                 accept=".xlsx, .xls"
@@ -895,73 +895,73 @@ export function PromosiModule() {
         {/* MAIN DATA TABLE */}
         <div className="overflow-x-auto border border-slate-200 rounded-lg">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 text-slate-700 font-extrabold uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-700 font-extrabold uppercase border-b border-slate-200 text-[10px]">
               <tr>
-                <th className="p-3">Nomor</th>
-                <th className="p-3">Tgl Terima</th>
-                <th className="p-3">Material</th>
-                <th className="p-3">Pengirim</th>
-                <th className="p-3">Penerima</th>
-                <th className="p-3">Nopol</th>
-                <th className="p-3">Expedisi</th>
-                <th className="p-3 text-right">CTN</th>
-                <th className="p-3 text-right">PCS</th>
-                <th className="p-3">Keterangan</th>
-                <th className="p-3 text-right min-w-[90px]">Aksi</th>
+                <th className="py-2 px-2.5">Nomor</th>
+                <th className="py-2 px-2.5">Tgl Terima</th>
+                <th className="py-2 px-2.5">Material</th>
+                <th className="py-2 px-2.5">Pengirim</th>
+                <th className="py-2 px-2.5">Penerima</th>
+                <th className="py-2 px-2.5">Nopol</th>
+                <th className="py-2 px-2.5">Expedisi</th>
+                <th className="py-2 px-2.5 text-right">CTN</th>
+                <th className="py-2 px-2.5 text-right">PCS</th>
+                <th className="py-2 px-2.5">Keterangan</th>
+                <th className="py-2 px-2.5 text-right min-w-[70px]">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-slate-500 font-semibold">
-                    <RefreshCw size={20} className="animate-spin inline-block mr-2 text-blue-600" />
+                  <td colSpan={11} className="py-6 px-4 text-center text-slate-500 font-semibold">
+                    <RefreshCw size={16} className="animate-spin inline-block mr-2 text-blue-600" />
                     Memuat data penerimaan dari Supabase...
                   </td>
                 </tr>
               ) : promosiList.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-slate-400 font-bold">
+                  <td colSpan={11} className="py-6 px-4 text-center text-slate-400 font-bold">
                     Belum ada data penerimaan barang promosi.
                   </td>
                 </tr>
               ) : (
                 promosiList.map((row) => (
                   <tr key={row.id} className="hover:bg-blue-50/50 transition-colors">
-                    <td className="p-3 font-mono font-bold text-orange-600 whitespace-nowrap">
+                    <td className="py-1.5 px-2.5 font-mono font-bold text-orange-600 whitespace-nowrap">
                       {row.nomor}
                     </td>
-                    <td className="p-3 whitespace-nowrap">{row.tgl_terima}</td>
-                    <td className="p-3 font-semibold text-slate-900 max-w-[180px] truncate" title={row.material}>
+                    <td className="py-1.5 px-2.5 whitespace-nowrap">{row.tgl_terima}</td>
+                    <td className="py-1.5 px-2.5 font-semibold text-slate-900 max-w-[160px] truncate" title={row.material}>
                       {row.material}
                     </td>
-                    <td className="p-3 text-slate-700 whitespace-nowrap">{row.pengirim || '-'}</td>
-                    <td className="p-3 text-slate-700 whitespace-nowrap">{row.penerima || '-'}</td>
-                    <td className="p-3 font-mono text-slate-700 whitespace-nowrap">{row.nopol || '-'}</td>
-                    <td className="p-3 text-slate-700 whitespace-nowrap">{row.expedisi || '-'}</td>
-                    <td className="p-3 text-right font-mono font-bold whitespace-nowrap">
+                    <td className="py-1.5 px-2.5 text-slate-700 whitespace-nowrap">{row.pengirim || '-'}</td>
+                    <td className="py-1.5 px-2.5 text-slate-700 whitespace-nowrap">{row.penerima || '-'}</td>
+                    <td className="py-1.5 px-2.5 font-mono text-slate-700 whitespace-nowrap">{row.nopol || '-'}</td>
+                    <td className="py-1.5 px-2.5 text-slate-700 whitespace-nowrap">{row.expedisi || '-'}</td>
+                    <td className="py-1.5 px-2.5 text-right font-mono font-bold whitespace-nowrap">
                       {formatNumber(row.jumlah_ctn)}
                     </td>
-                    <td className="p-3 text-right font-mono font-bold whitespace-nowrap">
+                    <td className="py-1.5 px-2.5 text-right font-mono font-bold whitespace-nowrap">
                       {formatNumber(row.jumlah_pcs)}
                     </td>
-                    <td className="p-3 text-slate-600 max-w-[150px] truncate" title={row.keterangan}>
+                    <td className="py-1.5 px-2.5 text-slate-600 max-w-[120px] truncate" title={row.keterangan}>
                       {row.keterangan || '-'}
                     </td>
-                    <td className="p-3 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-1.5 px-2.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleEdit(row)}
-                          className="p-1.5 rounded-md bg-white hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-600 cursor-pointer transition-all shadow-2xs"
+                          className="p-1 rounded bg-white hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-600 cursor-pointer transition-all shadow-2xs"
                           title="Edit"
                         >
-                          <Edit size={14} />
+                          <Edit size={12} />
                         </button>
                         <button
                           onClick={() => handleDelete(row.id)}
-                          className="p-1.5 rounded-md bg-white hover:bg-red-50 border border-slate-200 text-slate-700 hover:text-red-600 cursor-pointer transition-all shadow-2xs"
+                          className="p-1 rounded bg-white hover:bg-red-50 border border-slate-200 text-slate-700 hover:text-red-600 cursor-pointer transition-all shadow-2xs"
                           title="Hapus"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </td>
