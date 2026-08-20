@@ -1808,7 +1808,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                   />
                 </th>
                 <th className="px-2 py-1.5 text-center w-10">No</th>
-                <th className="px-2 py-1.5 text-center w-20">Aksi</th>
                 <th onClick={() => handleSort('tujuan')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Tujuan</span>
@@ -1862,7 +1861,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={10} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-rose-600" />
                       <span>Memuat data pemusnahan dari database...</span>
@@ -1871,7 +1870,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-6 text-center text-slate-500">
+                  <td colSpan={10} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Trash2 size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Pemusnahan</span>
@@ -1891,17 +1890,20 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                   return (
                     <tr
                       key={item.id_pemusnahan || index}
-                      className={`transition-colors group ${
-                        isChecked ? 'bg-rose-50/80' : 'hover:bg-rose-50/40'
+                      onClick={() => handleOpenDetailModal(item)}
+                      className={`transition-colors group cursor-pointer ${
+                        isChecked ? 'bg-rose-50/80 hover:bg-rose-100/70' : 'hover:bg-rose-50/50'
                       }`}
+                      title="Klik baris untuk melihat detail / edit data"
                     >
                       {/* Checkbox */}
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleSelectRow(item.id_pemusnahan)}
                           className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer w-3.5 h-3.5"
+                          title="Pilih Baris"
                         />
                       </td>
 
@@ -1910,219 +1912,65 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                         {rowNumber}
                       </td>
 
-                      {/* Aksi */}
-                      <td className="px-1.5 py-1 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleOpenDetailModal(item)}
-                            className="p-1 rounded-md bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-800 transition-colors cursor-pointer"
-                            title="Lihat Detail & QR"
-                          >
-                            <Eye size={12} />
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenEditModal(item)}
-                            className="p-1 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
-                            title="Edit Data"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-
-                          {/* Hapus Data khusus Admin */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setShowDeleteModal(true);
-                              }}
-                              className="p-1 rounded-md bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer"
-                              title="Hapus Data (Admin)"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
                       {/* Tujuan */}
-                      <td className="px-2 py-1 text-xs font-bold text-slate-800 min-w-[140px] max-w-[200px]">
-                        <input
-                          type="text"
-                          defaultValue={item.tujuan || 'Pemusnahan Limbah Terkontrol'}
-                          key={`tujuan-${item.id_pemusnahan}-${item.tujuan}`}
-                          onBlur={(e) => {
-                            if (e.target.value !== (item.tujuan || 'Pemusnahan Limbah Terkontrol')) {
-                              handleInlineCellUpdate(item, 'tujuan', e.target.value);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 text-xs font-bold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-200 focus:border-rose-400 outline-none transition-all truncate"
-                          title="Klik untuk edit Tujuan langsung di cell"
-                        />
+                      <td className="px-2.5 py-1.5 text-xs font-bold text-slate-800 min-w-[140px] max-w-[200px] truncate" title={item.tujuan || 'Pemusnahan Limbah Terkontrol'}>
+                        {item.tujuan || 'Pemusnahan Limbah Terkontrol'}
                       </td>
 
                       {/* Item Name */}
-                      <td className="px-2 py-1 min-w-[180px] max-w-xs" title={item.item_name}>
-                        <div className="font-extrabold text-slate-800 text-xs">
-                          <input
-                            type="text"
-                            defaultValue={item.item_name}
-                            key={`item_name-${item.id_pemusnahan}-${item.item_name}`}
-                            onBlur={(e) => {
-                              if (e.target.value.trim() && e.target.value !== item.item_name) {
-                                handleInlineCellUpdate(item, 'item_name', e.target.value.trim());
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className="w-full px-1.5 py-0.5 text-xs font-extrabold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-200 focus:border-rose-400 outline-none transition-all truncate"
-                            title="Klik untuk edit Item Name langsung"
-                          />
+                      <td className="px-2.5 py-1.5 min-w-[180px] max-w-xs" title={item.item_name}>
+                        <div className="font-extrabold text-slate-800 text-xs truncate">
+                          {item.item_name}
                         </div>
                         {item.item_code && (
-                          <div className="text-[10px] font-mono text-slate-500 px-1.5">
+                          <div className="text-[10px] font-mono text-slate-500">
                             {item.item_code}
                           </div>
                         )}
                       </td>
 
                       {/* Qty */}
-                      <td className="px-1.5 py-1 text-right min-w-[90px]">
-                        <input
-                          type="number"
-                          defaultValue={item.last_qty !== undefined && item.last_qty !== null ? item.last_qty : (item.first_qty ?? 0)}
-                          key={`qty-${item.id_pemusnahan}-${item.last_qty}`}
-                          onBlur={(e) => {
-                            const val = Number(e.target.value);
-                            if (!isNaN(val) && val !== item.last_qty) {
-                              handleInlineCellUpdate(item, 'last_qty', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 text-right font-mono font-black text-rose-800 bg-rose-50/50 hover:bg-rose-100/60 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-rose-200/60 focus:border-rose-400 outline-none text-xs transition-all"
-                          title="Klik untuk edit Qty langsung"
-                        />
+                      <td className="px-2.5 py-1.5 text-right font-mono font-black text-rose-800 text-xs min-w-[80px]">
+                        {Number(item.last_qty !== undefined && item.last_qty !== null ? item.last_qty : (item.first_qty ?? 0)).toLocaleString('id-ID')}
                       </td>
 
                       {/* Uom */}
-                      <td className="px-1.5 py-1 text-center min-w-[70px]">
-                        <input
-                          type="text"
-                          defaultValue={item.uom || 'CTN'}
-                          key={`uom-${item.id_pemusnahan}-${item.uom}`}
-                          onBlur={(e) => {
-                            const val = e.target.value.trim().toUpperCase();
-                            if (val && val !== item.uom) {
-                              handleInlineCellUpdate(item, 'uom', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1 py-1 text-center font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-200 focus:border-rose-400 outline-none text-xs transition-all uppercase"
-                          title="Klik untuk edit UOM langsung"
-                        />
+                      <td className="px-2 py-1.5 text-center font-bold text-slate-700 text-xs min-w-[60px] uppercase">
+                        {item.uom || 'CTN'}
                       </td>
 
                       {/* Batch */}
-                      <td className="px-1.5 py-1 min-w-[90px]">
-                        <input
-                          type="text"
-                          defaultValue={item.batch || ''}
-                          key={`batch-${item.id_pemusnahan}-${item.batch}`}
-                          placeholder="-"
-                          onBlur={(e) => {
-                            const val = e.target.value.trim() || '-';
-                            if (val !== item.batch) {
-                              handleInlineCellUpdate(item, 'batch', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 font-mono text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-200 focus:border-rose-400 outline-none transition-all"
-                          title="Klik untuk edit Batch langsung (otomatis hitung expired date jika terdaftar di master)"
-                        />
+                      <td className="px-2.5 py-1.5 font-mono text-xs font-bold text-slate-700 min-w-[90px]">
+                        {item.batch || '-'}
                       </td>
 
                       {/* Expired Date */}
-                      <td className="px-1.5 py-1 min-w-[110px]">
-                        <input
-                          type="text"
-                          defaultValue={item.expired_date || ''}
-                          key={`ed-${item.id_pemusnahan}-${item.expired_date}`}
-                          placeholder="YYYY-MM-DD"
-                          onBlur={(e) => {
-                            const val = e.target.value.trim() || '-';
-                            if (val !== item.expired_date) {
-                              handleInlineCellUpdate(item, 'expired_date', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 font-mono text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-200 focus:border-rose-400 outline-none transition-all"
-                          title="Klik untuk edit Expired Date langsung (Format: YYYY-MM-DD)"
-                        />
+                      <td className="px-2.5 py-1.5 font-mono text-xs font-bold text-slate-700 min-w-[100px]">
+                        {item.expired_date || '-'}
                       </td>
 
-                      {/* Status Column (Supports Document Number e.g. 49000000 or standard status) */}
-                      <td className="px-2 py-1 text-center min-w-[130px]">
-                        <div className="flex items-center gap-1 justify-center">
-                          <input
-                            type="text"
-                            defaultValue={item.status || ''}
-                            key={`status-${item.id_pemusnahan}-${item.status}`}
-                            onBlur={(e) => {
-                              if (e.target.value !== item.status) {
-                                handleUpdateStatus(item, e.target.value);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className={`px-2 py-1 rounded text-[10px] font-extrabold border outline-none text-center w-full transition-all ${
-                              /^\d+$/.test(item.status || '') 
-                                ? 'bg-indigo-50 text-indigo-900 border-indigo-300 font-mono focus:bg-white'
-                                : (item.status || '').toLowerCase().includes('disposed') || (item.status || '').toLowerCase().includes('musnah')
-                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300 focus:bg-white'
-                                : (item.status || '').toLowerCase().includes('proses')
-                                ? 'bg-blue-100 text-blue-900 border-blue-300 focus:bg-white'
-                                : 'bg-rose-100 text-rose-900 border-rose-300 focus:bg-white'
-                            }`}
-                            placeholder="No Dok / Status"
-                            title="Klik untuk ubah status atau isi nomor dokumen (contoh: 49000000)"
-                          />
-                        </div>
+                      {/* Status Column (Badge) */}
+                      <td className="px-2 py-1.5 text-center min-w-[130px]">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                          /^\d+$/.test(item.status || '') 
+                            ? 'bg-indigo-50 text-indigo-900 border-indigo-300 font-mono'
+                            : (item.status || '').toLowerCase().includes('disposed') || (item.status || '').toLowerCase().includes('musnah')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : (item.status || '').toLowerCase().includes('proses')
+                            ? 'bg-blue-100 text-blue-900 border-blue-300'
+                            : 'bg-rose-100 text-rose-900 border-rose-300'
+                        }`}>
+                          {item.status || 'Siap Dimusnahkan'}
+                        </span>
                       </td>
 
-                      {/* Note */}
-                      <td className="px-2 py-1 text-xs text-slate-600 min-w-[150px] max-w-[240px]">
+                      {/* Note (Direct inline cell editing) */}
+                      <td className="px-2 py-1 text-xs text-slate-600 min-w-[150px] max-w-[240px]" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="text"
                           defaultValue={item.note || ''}
                           key={`note-${item.id_pemusnahan}-${item.note}`}
-                          placeholder="Catatan..."
+                          placeholder="Klik untuk isi catatan..."
                           onBlur={(e) => {
                             if (e.target.value !== (item.note || '')) {
                               handleInlineCellUpdate(item, 'note', e.target.value);
@@ -2133,7 +1981,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                               (e.target as HTMLInputElement).blur();
                             }
                           }}
-                          className="w-full px-1.5 py-1 text-xs text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-200 focus:border-rose-400 outline-none transition-all truncate placeholder:text-slate-300"
+                          className="w-full px-2 py-1 text-xs text-slate-700 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1.5 focus:ring-rose-500 rounded border border-transparent hover:border-slate-300 focus:border-rose-400 outline-none transition-all truncate placeholder:text-slate-300 font-medium"
                           title="Klik untuk edit Note / Catatan langsung di cell"
                         />
                       </td>
@@ -2625,18 +2473,32 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
               </span>
 
               <div className="flex items-center gap-2">
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowDeleteModal(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 cursor-pointer flex items-center gap-1 transition-colors"
+                    title="Hapus Data (Admin)"
+                  >
+                    <Trash2 size={13} />
+                    <span>Hapus</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setShowDetailModal(false);
                     handleOpenEditModal(selectedItem);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs"
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1 transition-colors"
                 >
-                  Edit Data
+                  <Edit2 size={13} />
+                  <span>Edit Data</span>
                 </button>
                 <button
                   onClick={() => setShowDetailModal(false)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs"
+                  className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
                 >
                   Tutup
                 </button>
