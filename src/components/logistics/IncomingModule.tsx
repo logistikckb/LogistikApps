@@ -158,6 +158,14 @@ export function IncomingModule() {
   const [speechFeedbackBarang, setSpeechFeedbackBarang] = useState<string | null>(null);
   const barangRecognitionRef = useRef<any>(null);
 
+  const [isListeningDistributor, setIsListeningDistributor] = useState(false);
+  const [speechFeedbackDistributor, setSpeechFeedbackDistributor] = useState<string | null>(null);
+  const distributorRecognitionRef = useRef<any>(null);
+
+  const [isListeningBatch, setIsListeningBatch] = useState(false);
+  const [speechFeedbackBatch, setSpeechFeedbackBatch] = useState<string | null>(null);
+  const batchRecognitionRef = useRef<any>(null);
+
   const [isListeningSearch, setIsListeningSearch] = useState(false);
   const [speechFeedbackSearch, setSpeechFeedbackSearch] = useState<string | null>(null);
   const searchRecognitionRef = useRef<any>(null);
@@ -171,6 +179,16 @@ export function IncomingModule() {
       if (barangRecognitionRef.current) {
         try {
           barangRecognitionRef.current.abort();
+        } catch {}
+      }
+      if (distributorRecognitionRef.current) {
+        try {
+          distributorRecognitionRef.current.abort();
+        } catch {}
+      }
+      if (batchRecognitionRef.current) {
+        try {
+          batchRecognitionRef.current.abort();
         } catch {}
       }
       if (searchRecognitionRef.current) {
@@ -270,6 +288,222 @@ export function IncomingModule() {
       showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
     }
   }, [isSpeechSupported, isListeningBarang, showToast]);
+
+  // Voice handler for Distributor Search in Form
+  const toggleSpeechToTextDistributor = useCallback(() => {
+    if (!isSpeechSupported) {
+      showToast(
+        'Fitur Tidak Didukung',
+        'Browser Anda belum mendukung Web Speech Recognition. Gunakan browser modern seperti Google Chrome atau Microsoft Edge.',
+        'warning'
+      );
+      return;
+    }
+
+    if (isListeningDistributor) {
+      if (distributorRecognitionRef.current) {
+        try {
+          distributorRecognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListeningDistributor(false);
+      setSpeechFeedbackDistributor(null);
+      return;
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 3;
+
+      recognition.onstart = () => {
+        setIsListeningDistributor(true);
+        setIsDistributorDropdownOpen(true);
+        setSpeechFeedbackDistributor('Mendengarkan suara... Sebutkan nama distributor atau kode LD');
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const spoken = (finalTranscript || interimTranscript).trim();
+        if (spoken) {
+          setDistributorSearchText(spoken);
+          setIsDistributorDropdownOpen(true);
+          setSpeechFeedbackDistributor(`Terdeteksi: "${spoken}"`);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error on distributor:', event.error);
+        setIsListeningDistributor(false);
+        if (event.error === 'not-allowed') {
+          showToast(
+            'Izin Mikrofon Diperlukan',
+            'Izinkan akses mikrofon di browser untuk menggunakan fitur suara.',
+            'danger'
+          );
+        } else if (event.error === 'no-speech') {
+          setSpeechFeedbackDistributor('Tidak ada suara terdeteksi. Silakan coba klik mikrofon lagi.');
+          setTimeout(() => setSpeechFeedbackDistributor(null), 2500);
+        } else {
+          showToast('Info Mikrofon', `Status suara: ${event.error}`, 'info');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListeningDistributor(false);
+        setTimeout(() => {
+          setSpeechFeedbackDistributor(null);
+        }, 3000);
+      };
+
+      distributorRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error('Failed to start speech recognition on distributor:', err);
+      setIsListeningDistributor(false);
+      showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
+    }
+  }, [isSpeechSupported, isListeningDistributor, showToast]);
+
+  // Voice handler for Batch Input in Form
+  const toggleSpeechToTextBatch = useCallback(() => {
+    if (!isSpeechSupported) {
+      showToast(
+        'Fitur Tidak Didukung',
+        'Browser Anda belum mendukung Web Speech Recognition. Gunakan browser modern seperti Google Chrome atau Microsoft Edge.',
+        'warning'
+      );
+      return;
+    }
+
+    if (isListeningBatch) {
+      if (batchRecognitionRef.current) {
+        try {
+          batchRecognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListeningBatch(false);
+      setSpeechFeedbackBatch(null);
+      return;
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 3;
+
+      recognition.onstart = () => {
+        setIsListeningBatch(true);
+        setSpeechFeedbackBatch('Mendengarkan suara... Sebutkan nomor batch');
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const rawSpoken = (finalTranscript || interimTranscript).trim();
+        if (rawSpoken) {
+          let cleanBatch = rawSpoken
+            .replace(/\bkosong\b/gi, '0')
+            .replace(/\bnol\b/gi, '0')
+            .replace(/\bsatu\b/gi, '1')
+            .replace(/\bdua\b/gi, '2')
+            .replace(/\btiga\b/gi, '3')
+            .replace(/\bempat\b/gi, '4')
+            .replace(/\blima\b/gi, '5')
+            .replace(/\benam\b/gi, '6')
+            .replace(/\btujuh\b/gi, '7')
+            .replace(/\bdelapan\b/gi, '8')
+            .replace(/\bsembilan\b/gi, '9')
+            .replace(/\s+/g, '')
+            .toUpperCase();
+
+          setSpeechFeedbackBatch(`Terdeteksi: "${cleanBatch}"`);
+
+          setFormData(prev => {
+            const currentItemName = prev.item_name || barangSearchText || '';
+            const currentItemCode = prev.item_code || '';
+            
+            let nextEd = prev.expired_date;
+            let nextShelfLife = prev.shelf_life;
+            
+            if (cleanBatch.trim() && currentItemName.trim()) {
+              const comp = getEdIsoDateString(currentItemCode, currentItemName, cleanBatch.trim());
+              if (comp && comp.isoDate) {
+                nextEd = comp.isoDate;
+                nextShelfLife = comp.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${comp.result.lamaEdTahun * 12} Bulan`;
+              }
+            }
+            
+            return {
+              ...prev,
+              batch: cleanBatch,
+              vendor_batch: cleanBatch,
+              expired_date: nextEd,
+              shelf_life: nextShelfLife
+            };
+          });
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error on batch:', event.error);
+        setIsListeningBatch(false);
+        if (event.error === 'not-allowed') {
+          showToast(
+            'Izin Mikrofon Diperlukan',
+            'Izinkan akses mikrofon di browser untuk menggunakan fitur suara.',
+            'danger'
+          );
+        } else if (event.error === 'no-speech') {
+          setSpeechFeedbackBatch('Tidak ada suara terdeteksi. Silakan coba klik mikrofon lagi.');
+          setTimeout(() => setSpeechFeedbackBatch(null), 2500);
+        } else {
+          showToast('Info Mikrofon', `Status suara: ${event.error}`, 'info');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListeningBatch(false);
+        setTimeout(() => {
+          setSpeechFeedbackBatch(null);
+        }, 3000);
+      };
+
+      batchRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error('Failed to start speech recognition on batch:', err);
+      setIsListeningBatch(false);
+      showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
+    }
+  }, [isSpeechSupported, isListeningBatch, barangSearchText, showToast]);
 
   // Voice handler for Main Table Search
   const toggleSpeechToTextSearch = useCallback(() => {
@@ -2119,14 +2353,14 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 11. Note / Tujuan */}
+                  {/* 11. Note */}
                   <th
                     onClick={() => handleSort('tujuan')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900 min-w-[120px]"
-                    title="Urutkan Catatan / Tujuan"
+                    title="Urutkan Note / Catatan"
                   >
                     <div className="flex items-center gap-1">
-                      <span>Note / Tujuan</span>
+                      <span>Note</span>
                       <ArrowUpDown size={11} className="opacity-60" />
                     </div>
                   </th>
@@ -2394,45 +2628,74 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </div>
 
             <form onSubmit={handleSaveForm} className="p-4 sm:p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto custom-scrollbar">
-              {/* Row 1: Jenis Kedatangan & Tujuan */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Jenis Kedatangan *</label>
-                  <select
-                    value={formData.jenis || 'ADMK'}
-                    onChange={e => setFormData({ ...formData, jenis: e.target.value })}
-                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 font-bold cursor-pointer text-xs"
-                  >
-                    <option value="ADMK">ADMK</option>
-                    <option value="BTB">BTB</option>
-                    <option value="RETUR">RETUR</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Tujuan</label>
-                  <input
-                    type="text"
-                    value={formData.tujuan || ''}
-                    onChange={e => setFormData({ ...formData, light_tujuan: e.target.value, tujuan: e.target.value })}
-                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 font-semibold outline-none focus:ring-2 focus:ring-emerald-500 text-xs"
-                    placeholder="Contoh: Warehouse Utama"
-                  />
-                </div>
+              {/* Row 1: Jenis Kedatangan */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Jenis Kedatangan *</label>
+                <select
+                  value={formData.jenis || 'ADMK'}
+                  onChange={e => setFormData({ ...formData, jenis: e.target.value })}
+                  className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 font-bold cursor-pointer text-xs"
+                >
+                  <option value="ADMK">ADMK</option>
+                  <option value="BTB">BTB</option>
+                  <option value="RETUR">RETUR</option>
+                </select>
               </div>
 
-              {/* Row 2: Distributor (Pencarian Interaktif Tanpa Field Nama Terpisah) */}
+              {/* Row 2: Distributor (Pencarian Interaktif dengan Suara / Speech-to-Text) */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-slate-700 font-bold">
                     Distributor *
                   </label>
-                  {!isEditMode && formData.distributor && (
-                    <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200 flex items-center gap-1">
-                      <Clock size={10} />
-                      Otomatis dari baris terakhir
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {/* Speech to text indicator / button */}
+                    <button
+                      type="button"
+                      onClick={toggleSpeechToTextDistributor}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
+                        isListeningDistributor
+                          ? 'bg-rose-500 text-white animate-pulse ring-2 ring-rose-300'
+                          : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
+                      }`}
+                      title={isListeningDistributor ? 'Klik untuk menghentikan pendengaran suara' : 'Klik untuk sebutkan nama distributor (Speech to Text)'}
+                    >
+                      {isListeningDistributor ? (
+                        <>
+                          <Radio size={12} className="animate-spin text-white" />
+                          <span>Mendengarkan Suara...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic size={12} className="text-blue-900" />
+                          <span>Bicara / Suara</span>
+                        </>
+                      )}
+                    </button>
+                    {!isEditMode && formData.distributor && (
+                      <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200 flex items-center gap-1">
+                        <Clock size={10} />
+                        Otomatis
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Speech feedback banner for Distributor */}
+                {speechFeedbackDistributor && (
+                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between gap-2 text-xs animate-fade-in shadow-2xs">
+                    <div className="flex items-center gap-2 text-blue-900 font-bold overflow-hidden">
+                      <Volume2 size={14} className={`shrink-0 ${isListeningDistributor ? 'animate-bounce text-blue-900' : 'text-blue-900'}`} />
+                      <span className="truncate">{speechFeedbackDistributor}</span>
+                    </div>
+                    {isListeningDistributor && (
+                      <span className="flex h-2 w-2 relative shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {formData.distributor ? (
                   <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
@@ -2477,21 +2740,40 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           fetchMasterData();
                           setIsDistributorDropdownOpen(true);
                         }}
-                        placeholder="Ketik untuk mencari distributor (nama atau kode LD)..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-8.5 pr-8 py-2.5 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-xs shadow-2xs"
+                        placeholder="Ketik atau klik mikrofon untuk sebutkan distributor..."
+                        className={`w-full bg-white text-slate-800 border rounded-xl pl-8.5 pr-16 py-2.5 outline-none focus:ring-2 font-semibold text-xs shadow-2xs transition-all ${
+                          isListeningDistributor
+                            ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
+                            : 'border-slate-300 focus:ring-blue-600'
+                        }`}
                       />
-                      {distributorSearchText && (
+                      <div className="absolute right-2 flex items-center gap-1">
+                        {distributorSearchText && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDistributorSearchText('');
+                              setIsDistributorDropdownOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                            title="Hapus teks"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => {
-                            setDistributorSearchText('');
-                            setIsDistributorDropdownOpen(true);
-                          }}
-                          className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                          onClick={toggleSpeechToTextDistributor}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                            isListeningDistributor
+                              ? 'bg-rose-500 text-white shadow-xs animate-pulse'
+                              : 'text-blue-900 hover:bg-blue-50 hover:text-blue-950'
+                          }`}
+                          title={isListeningDistributor ? 'Berhenti mendengarkan' : 'Pencarian Suara Distributor (Speech to Text)'}
                         >
-                          <X size={13} />
+                          <Mic size={14} />
                         </button>
-                      )}
+                      </div>
                     </div>
 
                     {isDistributorDropdownOpen && (
@@ -2842,42 +3124,101 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-slate-700 font-bold">Batch</label>
-                    {formData.batch && (
-                      <span className="text-[10px] text-blue-900 font-semibold font-mono">
-                        Batch: {formData.batch}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={toggleSpeechToTextBatch}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
+                          isListeningBatch
+                            ? 'bg-rose-500 text-white animate-pulse ring-2 ring-rose-300'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
+                        }`}
+                        title={isListeningBatch ? 'Klik untuk menghentikan pendengaran suara' : 'Klik untuk sebutkan nomor batch (Speech to Text)'}
+                      >
+                        {isListeningBatch ? (
+                          <>
+                            <Radio size={12} className="animate-spin text-white" />
+                            <span>Mendengarkan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mic size={12} className="text-emerald-700" />
+                            <span>Bicara / Suara</span>
+                          </>
+                        )}
+                      </button>
+                      {formData.batch && (
+                        <span className="text-[10px] text-blue-900 font-semibold font-mono">
+                          Batch: {formData.batch}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={formData.batch || ''}
-                    onChange={e => {
-                      const newBatch = e.target.value.toUpperCase();
-                      const currentItemName = formData.item_name || barangSearchText || '';
-                      const currentItemCode = formData.item_code || '';
-                      
-                      let nextEd = formData.expired_date;
-                      let nextShelfLife = formData.shelf_life;
-                      
-                      if (newBatch.trim() && currentItemName.trim()) {
-                        const comp = getEdIsoDateString(currentItemCode, currentItemName, newBatch.trim());
-                        if (comp && comp.isoDate) {
-                          nextEd = comp.isoDate;
-                          nextShelfLife = comp.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${comp.result.lamaEdTahun * 12} Bulan`;
+
+                  {/* Speech feedback banner for Batch */}
+                  {speechFeedbackBatch && (
+                    <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-2 text-xs animate-fade-in shadow-2xs">
+                      <div className="flex items-center gap-2 text-emerald-900 font-bold overflow-hidden">
+                        <Volume2 size={14} className={`shrink-0 ${isListeningBatch ? 'animate-bounce text-emerald-600' : 'text-emerald-600'}`} />
+                        <span className="truncate">{speechFeedbackBatch}</span>
+                      </div>
+                      {isListeningBatch && (
+                        <span className="flex h-2 w-2 relative shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={formData.batch || ''}
+                      onChange={e => {
+                        const newBatch = e.target.value.toUpperCase();
+                        const currentItemName = formData.item_name || barangSearchText || '';
+                        const currentItemCode = formData.item_code || '';
+                        
+                        let nextEd = formData.expired_date;
+                        let nextShelfLife = formData.shelf_life;
+                        
+                        if (newBatch.trim() && currentItemName.trim()) {
+                          const comp = getEdIsoDateString(currentItemCode, currentItemName, newBatch.trim());
+                          if (comp && comp.isoDate) {
+                            nextEd = comp.isoDate;
+                            nextShelfLife = comp.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${comp.result.lamaEdTahun * 12} Bulan`;
+                          }
                         }
-                      }
-                      
-                      setFormData(prev => ({
-                        ...prev,
-                        batch: newBatch,
-                        vendor_batch: newBatch,
-                        expired_date: nextEd,
-                        shelf_life: nextShelfLife
-                      }));
-                    }}
-                    placeholder="Contoh: L911346N atau 0456"
-                    className="w-full bg-white font-mono font-bold text-slate-800 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
-                  />
+                        
+                        setFormData(prev => ({
+                          ...prev,
+                          batch: newBatch,
+                          vendor_batch: newBatch,
+                          expired_date: nextEd,
+                          shelf_life: nextShelfLife
+                        }));
+                      }}
+                      placeholder="Contoh: L911346N atau 0456"
+                      className={`w-full bg-white font-mono font-bold text-slate-800 border rounded-xl pl-3 pr-10 py-2 outline-none focus:ring-2 uppercase shadow-2xs transition-all ${
+                        isListeningBatch
+                          ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
+                          : 'border-slate-300 focus:ring-emerald-500'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={toggleSpeechToTextBatch}
+                      className={`absolute right-2 p-1.5 rounded-lg transition-all cursor-pointer ${
+                        isListeningBatch
+                          ? 'bg-rose-500 text-white shadow-xs animate-pulse'
+                          : 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900'
+                      }`}
+                      title={isListeningBatch ? 'Berhenti mendengarkan' : 'Pencarian Suara Batch (Speech to Text)'}
+                    >
+                      <Mic size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -3014,26 +3355,18 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 </select>
               </div>
 
-              {/* Row 8: Catatan / Note (Dimasukkan ke kolom Tujuan pada database incoming) */}
-              <div className="space-y-1 bg-slate-50/80 p-3 rounded-2xl border border-slate-200">
-                <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
-                  <label className="block text-slate-800 font-bold text-xs">
-                    Note / Catatan Tambahan
-                  </label>
-                  <span className="text-[10px] text-blue-900 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                    ℹ️ Note ini otomatis tersimpan ke kolom 'tujuan' di tabel database incoming
-                  </span>
-                </div>
+              {/* Row 8: Catatan / Note */}
+              <div className="space-y-1">
+                <label className="block text-slate-800 font-bold text-xs">
+                  Catatan / Note
+                </label>
                 <input
                   type="text"
                   value={formData.note !== undefined ? formData.note : (formData.tujuan && formData.tujuan !== '-' ? formData.tujuan : '')}
                   onChange={e => setFormData({ ...formData, note: e.target.value, tujuan: e.target.value })}
-                  placeholder="Ketik catatan / keterangan / tujuan barang disini..."
+                  placeholder="Catatan tambahan (opsional)..."
                   className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                 />
-                <p className="text-[10px] text-slate-500 m-0">
-                  Data yang Anda ketik pada input ini akan dipetakan langsung ke kolom <strong>tujuan</strong> pada tabel database incoming.
-                </p>
               </div>
 
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
@@ -3148,7 +3481,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   </span>
                 </div>
                 <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200 col-span-2 sm:col-span-3">
-                  <span className="text-blue-900 font-bold text-[10px] block mb-0.5">Note / Catatan (Kolom Tujuan Database):</span>
+                  <span className="text-blue-900 font-bold text-[10px] block mb-0.5">Note / Catatan:</span>
                   <span className="font-semibold text-slate-800 text-xs">{selectedItem.note || (selectedItem.tujuan && selectedItem.tujuan !== '-' ? selectedItem.tujuan : '-')}</span>
                 </div>
               </div>
