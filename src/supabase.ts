@@ -243,3 +243,103 @@ export async function fetchAllRowsFromSupabase<T = any>(
 
   return allRows;
 }
+
+/**
+ * Mengambil konfigurasi global dari database Supabase (Tabel: app_settings)
+ * dengan fallback ke localStorage jika offline atau tabel belum ada.
+ */
+export async function getAppSettingFromSupabase<T = any>(
+  key: string,
+  defaultValue: T
+): Promise<T> {
+  // 1. Coba dari localStorage terlebih dahulu sebagai nilai instan
+  let localValue: T = defaultValue;
+  try {
+    const cached = localStorage.getItem(`ckb_app_setting_${key}`);
+    if (cached) {
+      localValue = JSON.parse(cached);
+    }
+  } catch {}
+
+  if (!isSupabaseConfigured) {
+    return localValue;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+
+    if (!error && data && data.value !== undefined) {
+      const parsedValue = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+      // Simpan ke local cache untuk fast load berikutnya
+      try {
+        localStorage.setItem(`ckb_app_setting_${key}`, JSON.stringify(parsedValue));
+      } catch {}
+      return parsedValue as T;
+    }
+  } catch (err) {
+    console.warn(`[getAppSettingFromSupabase] Gagal mengambil setting "${key}":`, err);
+  }
+
+  return localValue;
+}
+
+/**
+ * Menyimpan konfigurasi global ke database Supabase (Tabel: app_settings)
+ * sehingga otomatis aktif dan terbaca di SEMUA perangkat anggota tim.
+ */
+export async function saveAppSettingToSupabase<T = any>(
+  key: string,
+  value: T,
+  updatedBy?: string
+): Promise<{ success: boolean; message?: string }> {
+  // Simpan ke local cache
+  try {
+    localStorage.setItem(`ckb_app_setting_${key}`, JSON.stringify(value));
+  } catch {}
+
+  if (!isSupabaseConfigured) {
+    return {
+      success: true,
+      message: 'Tersimpan di perangkat lokal (Supabase belum terkonfigurasi).'
+    };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+        updated_by: updatedBy || 'Admin'
+      }, { onConflict: 'key' });
+
+    if (error) {
+      // Jika tabel app_settings belum dibuat di Supabase
+      if (error.code === '42P01' || error.message.includes('relation "app_settings" does not exist')) {
+        return {
+          success: false,
+          message: 'Tabel "app_settings" belum dibuat di Supabase. Silakan jalankan SQL Setup yang disediakan.'
+        };
+      }
+      return {
+        success: false,
+        message: `Gagal menyimpan ke Supabase: ${error.message}`
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Berhasil disimpan ke Database Supabase! Konfigurasi kini otomatis aktif di semua perangkat tim.'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Gagal menyimpan ke Supabase.'
+    };
+  }
+}

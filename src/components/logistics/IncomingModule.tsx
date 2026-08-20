@@ -47,7 +47,7 @@ import {
   Settings
 } from 'lucide-react';
 import Fuse from 'fuse.js';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
@@ -176,6 +176,9 @@ export function IncomingModule() {
       mode: 'overwrite' as 'overwrite' | 'append'
     };
   });
+  const [isConfigFromSupabase, setIsConfigFromSupabase] = useState(false);
+  const [isSavingToSupabase, setIsSavingToSupabase] = useState(false);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
   const [showGSheetAdvanced, setShowGSheetAdvanced] = useState(false);
   const [isSyncingGSheet, setIsSyncingGSheet] = useState(false);
   const [gSheetSyncResult, setGSheetSyncResult] = useState<{
@@ -185,6 +188,31 @@ export function IncomingModule() {
     updatedRows?: number;
     timestamp?: string;
   } | null>(null);
+
+  // Ambil Konfigurasi Webhook Global dari Database Supabase secara otomatis saat mount / modal dibuka
+  useEffect(() => {
+    let isMounted = true;
+    async function loadGlobalConfig() {
+      try {
+        const cloudConfig = await getAppSettingFromSupabase('gsheet_sync_config', null);
+        if (isMounted && cloudConfig && cloudConfig.webhookUrl) {
+          setGSheetConfig(prev => ({
+            ...prev,
+            webhookUrl: cloudConfig.webhookUrl || prev.webhookUrl,
+            spreadsheetId: cloudConfig.spreadsheetId !== undefined ? cloudConfig.spreadsheetId : prev.spreadsheetId,
+            sheetName: cloudConfig.sheetName || prev.sheetName,
+            secretToken: cloudConfig.secretToken || prev.secretToken,
+            mode: cloudConfig.mode || prev.mode
+          }));
+          setIsConfigFromSupabase(true);
+        }
+      } catch (e) {
+        console.warn('Gagal memuat setting cloud Google Sheet:', e);
+      }
+    }
+    loadGlobalConfig();
+    return () => { isMounted = false; };
+  }, [showGSheetModal]);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<IncomingItem | null>(null);
@@ -1589,6 +1617,34 @@ export function IncomingModule() {
     try {
       localStorage.setItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
     } catch {}
+  };
+
+  const handleSaveConfigToSupabase = async () => {
+    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
+    if (!rawUrl) {
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook sebelum menyimpan ke cloud.', 'warning');
+      return;
+    }
+
+    setIsSavingToSupabase(true);
+    handleSaveGSheetConfig(gSheetConfig);
+
+    const res = await saveAppSettingToSupabase(
+      'gsheet_sync_config',
+      gSheetConfig,
+      currentUser?.nama || currentUser?.username || 'Admin'
+    );
+    setIsSavingToSupabase(false);
+
+    if (res.success) {
+      setIsConfigFromSupabase(true);
+      showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
+    } else {
+      showToast('Perhatian', res.message || 'Gagal menyimpan ke Supabase.', 'warning');
+      if (res.message?.includes('app_settings')) {
+        setShowSqlHelp(true);
+      }
+    }
   };
 
   const handleExecuteGSheetSync = async () => {
@@ -4051,42 +4107,81 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
 
               {/* Ready Status or Setup Prompt */}
               {gSheetConfig.webhookUrl ? (
-                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <div>
-                      <div className="font-extrabold text-emerald-900 text-xs flex items-center gap-1.5">
-                        <span>Webhook Aktif & Siap Digunakan</span>
-                        <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-800 px-1.5 py-0.2 rounded">
-                          Tab: {gSheetConfig.sheetName || 'Incoming'}
-                        </span>
+                <div className="p-3 bg-emerald-50/90 border border-emerald-300 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <div>
+                        <div className="font-extrabold text-emerald-950 text-xs flex items-center gap-1.5 flex-wrap">
+                          <span>Webhook Aktif</span>
+                          {isConfigFromSupabase && (
+                            <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Database size={10} />
+                              Cloud Supabase (Semua Perangkat)
+                            </span>
+                          )}
+                          <span className="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded">
+                            Tab: {gSheetConfig.sheetName || 'Incoming'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-600 truncate max-w-xs sm:max-w-md mt-0.5 font-mono">
+                          {gSheetConfig.webhookUrl}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-slate-500 truncate max-w-xs sm:max-w-sm mt-0.5 font-mono">
-                        {gSheetConfig.webhookUrl}
-                      </p>
                     </div>
-                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowGSheetAdvanced(!showGSheetAdvanced)}
-                    className="text-[11px] font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
-                  >
-                    {showGSheetAdvanced ? 'Sembunyikan' : 'Ubah URL / Tab'}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowGSheetAdvanced(!showGSheetAdvanced)}
+                      className="text-[11px] font-bold text-slate-700 hover:text-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                    >
+                      {showGSheetAdvanced ? 'Tutup Pengaturan' : 'Ubah URL / Tab'}
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900">
+                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-amber-950">
                   <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-[11px] leading-relaxed">
-                    <span className="font-bold">Konfigurasi Webhook Belum Diatur:</span> Masukkan URL Webhook Cloudflare Worker atau Google Apps Script sekali saja di bawah ini, atau pasang di environment variable <code className="bg-amber-100 px-1 rounded font-mono text-[10px]">VITE_GSHEET_WEBHOOK_URL</code> agar otomatis aktif di semua perangkat tim.
+                    <span className="font-extrabold text-amber-900">Konfigurasi Cloud Belum Tersedia:</span>
+                    <p className="m-0 mt-0.5 text-slate-700">
+                      Admin cukup mengisi URL Webhook di bawah ini <b>1 kali</b> dan klik <b>"Simpan ke Cloud Database"</b>. Setelah itu, <b>seluruh HP/perangkat tim akan otomatis terhubung</b> tanpa perlu input manual!
+                    </p>
                   </div>
                 </div>
               )}
 
               {/* Form Inputs (Collapsible if webhook is already set, or always visible if empty) */}
               {(!gSheetConfig.webhookUrl || showGSheetAdvanced) && (
-                <div className="space-y-3 pt-1 animate-fade-in border-t border-slate-200">
+                <div className="space-y-3 pt-2 animate-fade-in border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Settings size={13} className="text-slate-500" />
+                      <span>Pengaturan Webhook & Spreadsheet</span>
+                    </span>
+
+                    {/* Tombol Simpan ke Supabase untuk Admin */}
+                    <button
+                      type="button"
+                      disabled={isSavingToSupabase || !gSheetConfig.webhookUrl.trim()}
+                      onClick={handleSaveConfigToSupabase}
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                      title="Simpan konfigurasi ini ke database Supabase agar otomatis terbaca di semua perangkat anggota tim"
+                    >
+                      {isSavingToSupabase ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Menyimpan ke Cloud...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Database size={12} />
+                          <span>Simpan ke Cloud Database</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-slate-800 font-bold text-xs mb-1">
                       URL Webhook / Cloudflare Worker <span className="text-red-500">*</span>
@@ -4119,7 +4214,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                       />
                       <p className="text-[10px] text-slate-500 mt-1">
-                        ID dari URL spreadsheet Google Sheets Anda.
+                        ID dari URL Google Sheets (kosongkan jika script terpasang di sheet).
                       </p>
                     </div>
 
@@ -4135,7 +4230,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                       />
                       <p className="text-[10px] text-slate-500 mt-1">
-                        Nama tab lembar kerja di Google Sheets (default: Incoming).
+                        Nama lembar kerja target (default: Incoming).
                       </p>
                     </div>
                   </div>
@@ -4167,6 +4262,48 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                       />
                     </div>
+                  </div>
+
+                  {/* Toggle SQL Setup Info */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowSqlHelp(!showSqlHelp)}
+                      className="text-[10px] text-blue-700 hover:text-blue-900 font-bold underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Info size={12} />
+                      <span>{showSqlHelp ? 'Sembunyikan SQL Database Setup' : 'Petunjuk SQL Database Supabase (app_settings)'}</span>
+                    </button>
+
+                    {showSqlHelp && (
+                      <div className="mt-2 p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[10px] space-y-2 animate-fade-in border border-slate-800">
+                        <div className="flex items-center justify-between text-slate-400 font-sans text-[11px] pb-1 border-b border-slate-800">
+                          <span>Jalankan di Supabase SQL Editor:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sql = `CREATE TABLE IF NOT EXISTS app_settings (\n  key TEXT PRIMARY KEY,\n  value JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT NOW(),\n  updated_by TEXT\n);\nALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`;
+                              navigator.clipboard.writeText(sql);
+                              showToast('SQL Disalin', 'Query SQL telah disalin ke clipboard!', 'success');
+                            }}
+                            className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-sans font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Copy size={10} />
+                            <span>Salin SQL</span>
+                          </button>
+                        </div>
+                        <pre className="overflow-x-auto whitespace-pre-wrap text-emerald-400 text-[10px] leading-relaxed">
+{`CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by TEXT
+);
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
