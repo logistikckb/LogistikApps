@@ -44,7 +44,15 @@ import {
   QrCode,
   RotateCcw,
   Zap,
-  MessageSquare
+  MessageSquare,
+  Flame,
+  ArrowRight,
+  CheckSquare,
+  Square,
+  ArrowRightLeft,
+  Truck,
+  Share2,
+  CheckCheck
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
@@ -55,7 +63,109 @@ import { PenyiapanItem, DataBarang } from '../../types';
 import { getEdIsoDateString } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
-export function PenyiapanModule() {
+// Pilihan Tujuan Transfer Database Massal
+export interface DestinationOption {
+  id: string;
+  name: string;
+  tableName: string;
+  idPrefix: string;
+  idField: string;
+  defaultSloc: string;
+  defaultLocation: string;
+  defaultLocationType: string;
+  defaultQcCode: string;
+  defaultDestinationCode: string;
+  defaultStatus: string;
+  defaultTujuan: string;
+  defaultCategory: string;
+  sourceStatusDefault: string;
+  cacheKey: string;
+  description: string;
+  colorClass: string;
+  badgeBg: string;
+  badgeText: string;
+  borderColor: string;
+  appModuleId?: string;
+}
+
+export const BULK_DESTINATIONS: DestinationOption[] = [
+  {
+    id: 'pemusnahan',
+    name: 'Menu Pemusnahan (Menu E)',
+    tableName: 'data_pemusnahan',
+    idPrefix: 'PMS-',
+    idField: 'id_pemusnahan',
+    defaultSloc: 'SL99',
+    defaultLocation: 'WH-REJECT-01',
+    defaultLocationType: 'Quarantine',
+    defaultQcCode: 'QC-REJECT',
+    defaultDestinationCode: 'INCINERATOR',
+    defaultStatus: 'Siap Dimusnahkan',
+    defaultTujuan: 'Pemusnahan Limbah Terkontrol',
+    defaultCategory: 'Damaged',
+    sourceStatusDefault: 'Terkirim ke Pemusnahan',
+    cacheKey: 'pemusnahan_cache_v1',
+    description: 'Tabel: public.data_pemusnahan - Karantina limbah / scrap / expired barang',
+    colorClass: 'from-rose-600 to-red-700',
+    badgeBg: 'bg-rose-100',
+    badgeText: 'text-rose-900 border-rose-300',
+    borderColor: 'border-rose-500',
+    appModuleId: 'menu-e'
+  },
+  {
+    id: 'incoming',
+    name: 'Menu Kedatangan / Inbound (Menu B)',
+    tableName: 'incoming',
+    idPrefix: 'INC-',
+    idField: 'id_incoming',
+    defaultSloc: 'SL01',
+    defaultLocation: 'WH-IN-01',
+    defaultLocationType: 'Rack',
+    defaultQcCode: 'QC-PASS',
+    defaultDestinationCode: 'DST-01',
+    defaultStatus: 'Received',
+    defaultTujuan: 'Warehouse Utama (Inbound)',
+    defaultCategory: 'Finished Good',
+    sourceStatusDefault: 'Terkirim ke Kedatangan',
+    cacheKey: 'ckb_incoming_cache_v1',
+    description: 'Tabel: public.incoming - Pengembalian atau pencatatan inbound',
+    colorClass: 'from-blue-600 to-indigo-700',
+    badgeBg: 'bg-blue-100',
+    badgeText: 'text-blue-900 border-blue-300',
+    borderColor: 'border-blue-500',
+    appModuleId: 'menu-b'
+  },
+  {
+    id: 'surat_jalan',
+    name: 'Database Surat Jalan',
+    tableName: 'data_surat_jalan',
+    idPrefix: 'SJ-',
+    idField: 'id_surat_jalan',
+    defaultSloc: 'SL02',
+    defaultLocation: 'STAGING-OUT',
+    defaultLocationType: 'Dock',
+    defaultQcCode: 'QC-PASS',
+    defaultDestinationCode: 'CUSTOMER-EXPEDITION',
+    defaultStatus: 'Shipped',
+    defaultTujuan: 'Pengiriman Cabang / Ekspedisi',
+    defaultCategory: 'Finished Good',
+    sourceStatusDefault: 'Terkirim ke Surat Jalan',
+    cacheKey: 'surat_jalan_cache_v1',
+    description: 'Tabel: public.data_surat_jalan - Transaksi pengiriman outbound',
+    colorClass: 'from-emerald-600 to-teal-800',
+    badgeBg: 'bg-emerald-100',
+    badgeText: 'text-emerald-900 border-emerald-300',
+    borderColor: 'border-emerald-500'
+  }
+];
+
+interface PenyiapanModuleProps {
+  onNavigateToPemusnahan?: () => void;
+  onNavigateToIncoming?: () => void;
+  onNavigateToModule?: (moduleId: string) => void;
+}
+
+export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToModule }: PenyiapanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
@@ -67,6 +177,26 @@ export function PenyiapanModule() {
   const [isPushing, setIsPushing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSupabaseError, setLastSupabaseError] = useState<string | null>(null);
+
+  // Multi-Selection State for Bulk Transfer
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkTransferModal, setShowBulkTransferModal] = useState(false);
+  const [bulkTargetModuleId, setBulkTargetModuleId] = useState<string>('pemusnahan');
+  const [bulkFormData, setBulkFormData] = useState<any>({
+    sloc: 'SL99',
+    location: 'WH-REJECT-01',
+    location_type: 'Quarantine',
+    qc_code: 'QC-REJECT',
+    destination_code: 'INCINERATOR',
+    target_status: 'Siap Dimusnahkan',
+    tujuan: 'Pemusnahan Limbah Terkontrol',
+    category: 'Damaged',
+    note: ''
+  });
+  const [bulkSourceAction, setBulkSourceAction] = useState<'update_status' | 'delete' | 'keep'>('update_status');
+  const [bulkSourceStatus, setBulkSourceStatus] = useState<string>('Terkirim ke Pemusnahan');
+  const [isBulkTransferring, setIsBulkTransferring] = useState(false);
+  const [bulkTransferProgress, setBulkTransferProgress] = useState({ current: 0, total: 0, percentage: 0 });
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,6 +217,10 @@ export function PenyiapanModule() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showPemusnahanModal, setShowPemusnahanModal] = useState(false);
+  const [pemusnahanTargetItem, setPemusnahanTargetItem] = useState<PenyiapanItem | null>(null);
+  const [pemusnahanFormData, setPemusnahanFormData] = useState<any>({});
+  const [isSendingPemusnahan, setIsSendingPemusnahan] = useState(false);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<PenyiapanItem | null>(null);
@@ -749,6 +883,31 @@ export function PenyiapanModule() {
     statusFilter !== 'ALL'
   );
 
+  // Quick count of items with status "Ada"
+  const adaCount = useMemo(() => {
+    return penyiapanList.filter(item => (item.status || '').trim().toLowerCase() === 'ada').length;
+  }, [penyiapanList]);
+
+  // Selected items full data objects
+  const selectedItemsData = useMemo(() => {
+    return penyiapanList.filter(item => selectedIds.includes(item.id_penyiapan));
+  }, [penyiapanList, selectedIds]);
+
+  // Total quantity of selected items
+  const selectedTotalQty = useMemo(() => {
+    return selectedItemsData.reduce((acc, curr) => acc + (Number(curr.last_qty) || 0), 0);
+  }, [selectedItemsData]);
+
+  // Checkbox master toggle states
+  const isAllFilteredSelected = useMemo(() => {
+    if (filteredPenyiapan.length === 0) return false;
+    return filteredPenyiapan.every(item => selectedIds.includes(item.id_penyiapan));
+  }, [filteredPenyiapan, selectedIds]);
+
+  const isSomeFilteredSelected = useMemo(() => {
+    return filteredPenyiapan.some(item => selectedIds.includes(item.id_penyiapan)) && !isAllFilteredSelected;
+  }, [filteredPenyiapan, selectedIds, isAllFilteredSelected]);
+
   // Clear all filters
   const handleClearAllFilters = () => {
     setSearchQuery('');
@@ -1016,7 +1175,136 @@ export function PenyiapanModule() {
     }
   };
 
+  // Open Transfer to Pemusnahan Modal (Relasi ke Menu Pemusnahan)
+  const handleOpenSendToPemusnahan = (item: PenyiapanItem) => {
+    setPemusnahanTargetItem(item);
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const generatedId = `PMS-${dateStr}-${randomSuffix}`;
+
+    setPemusnahanFormData({
+      id_pemusnahan: generatedId,
+      tujuan: 'Pemusnahan Limbah Terkontrol',
+      item_code: item.item_code,
+      item_name: item.item_name,
+      category: item.category || 'Damaged',
+      location: 'WH-REJECT-01',
+      location_type: 'Quarantine',
+      first_qty: item.first_qty ?? 0,
+      last_qty: item.last_qty ?? 0,
+      uom: item.uom || 'CTN',
+      qty_convert: item.qty_convert ?? item.last_qty ?? 0,
+      uom_convert: item.uom_convert || 'PCS',
+      lpn_serial_number: item.lpn_serial_number && item.lpn_serial_number !== '-' ? item.lpn_serial_number : `LPN-PMS-${dateStr}-${randomSuffix}`,
+      batch: item.batch || '-',
+      vendor_batch: item.vendor_batch || '-',
+      sloc: 'SL99',
+      expired_date: item.expired_date || '-',
+      destination_code: 'INCINERATOR',
+      qc_code: 'QC-REJECT',
+      user_tally: currentUser?.nama || item.user_tally || 'Tally QC',
+      shelf_life: item.shelf_life || 'Expired',
+      source: `Penyiapan (${item.id_penyiapan})`,
+      user_input: currentUser?.nama || 'Admin',
+      tanggal_update: now.toISOString(),
+      status: 'Siap Dimusnahkan',
+      note: item.note ? `${item.note} - Dari Penyiapan ${item.id_penyiapan}` : `Ditransfer dari Penyiapan ID: ${item.id_penyiapan}`
+    });
+    setShowPemusnahanModal(true);
+  };
+
+  // Confirm Transfer to Pemusnahan (Inserts to public.data_pemusnahan and updates data_penyiapan)
+  const handleConfirmSendToPemusnahan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pemusnahanTargetItem || !pemusnahanFormData.id_pemusnahan) return;
+
+    setIsSendingPemusnahan(true);
+    const nowIso = new Date().toISOString();
+    const payload = {
+      id_pemusnahan: pemusnahanFormData.id_pemusnahan,
+      tujuan: pemusnahanFormData.tujuan || 'Pemusnahan Limbah Terkontrol',
+      item_code: pemusnahanFormData.item_code,
+      item_name: pemusnahanFormData.item_name,
+      category: pemusnahanFormData.category || 'Damaged',
+      location: pemusnahanFormData.location || 'WH-REJECT-01',
+      location_type: pemusnahanFormData.location_type || 'Quarantine',
+      first_qty: Number(pemusnahanFormData.first_qty) || 0,
+      last_qty: Number(pemusnahanFormData.last_qty) || 0,
+      uom: pemusnahanFormData.uom || 'CTN',
+      qty_convert: Number(pemusnahanFormData.qty_convert) || 0,
+      uom_convert: pemusnahanFormData.uom_convert || 'PCS',
+      lpn_serial_number: pemusnahanFormData.lpn_serial_number || '-',
+      batch: pemusnahanFormData.batch || '-',
+      vendor_batch: pemusnahanFormData.vendor_batch || '-',
+      sloc: pemusnahanFormData.sloc || 'SL99',
+      expired_date: pemusnahanFormData.expired_date || '-',
+      destination_code: pemusnahanFormData.destination_code || 'INCINERATOR',
+      qc_code: pemusnahanFormData.qc_code || 'QC-REJECT',
+      user_tally: pemusnahanFormData.user_tally || currentUser?.nama || 'Tally QC',
+      shelf_life: pemusnahanFormData.shelf_life || 'Expired',
+      source: pemusnahanFormData.source || `Penyiapan (${pemusnahanTargetItem.id_penyiapan})`,
+      user_input: currentUser?.nama || 'Admin',
+      tanggal_update: nowIso,
+      status: pemusnahanFormData.status || 'Siap Dimusnahkan',
+      note: pemusnahanFormData.note || '',
+      created_at: nowIso,
+      updated_at: nowIso
+    };
+
+    try {
+      // 1. Insert into data_pemusnahan in Supabase
+      if (isSupabaseConfigured) {
+        const { error: pmsError } = await supabase
+          .from('data_pemusnahan')
+          .upsert(payload, { onConflict: 'id_pemusnahan' });
+
+        if (pmsError) {
+          console.error('Error inserting into data_pemusnahan:', pmsError);
+        }
+      }
+
+      // 2. Append to local pemusnahan_cache_v1
+      try {
+        const cached = localStorage.getItem('pemusnahan_cache_v1');
+        const list = cached ? JSON.parse(cached) : [];
+        const merged = [payload, ...list.filter((x: any) => x.id_pemusnahan !== payload.id_pemusnahan)];
+        localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(merged));
+      } catch (err) {
+        console.warn('Error updating local pemusnahan cache:', err);
+      }
+
+      // 3. Update status in Penyiapan to 'Terkirim ke Pemusnahan'
+      const updatedStatus = 'Terkirim ke Pemusnahan';
+      setPenyiapanList(prev => prev.map(p => p.id_penyiapan === pemusnahanTargetItem.id_penyiapan ? { ...p, status: updatedStatus } : p));
+
+      if (isSupabaseConfigured) {
+        await supabase
+          .from('data_penyiapan')
+          .update({ status: updatedStatus, updated_at: nowIso })
+          .eq('id_penyiapan', pemusnahanTargetItem.id_penyiapan);
+      }
+
+      setShowPemusnahanModal(false);
+      showToast(
+        'Berhasil Dikirim ke Pemusnahan',
+        `Item ${payload.item_name} berhasil dicatat di Menu Pemusnahan (${payload.id_pemusnahan})`,
+        'success'
+      );
+    } catch (err: any) {
+      console.error('Failed to transfer to pemusnahan:', err);
+      showToast('Gagal Transfer', err?.message || 'Terjadi kesalahan saat memindahkan data', 'danger');
+    } finally {
+      setIsSendingPemusnahan(false);
+    }
+  };
+
   const handleUpdateStatus = async (item: PenyiapanItem, newStatus: string) => {
+    if (newStatus === 'Oke' || newStatus === 'Siap Dimusnahkan') {
+      handleOpenSendToPemusnahan(item);
+      return;
+    }
+
     const oldStatus = item.status;
     
     // Optimistic UI update
@@ -1038,6 +1326,308 @@ export function PenyiapanModule() {
         // Revert on failure
         setPenyiapanList(prev => prev.map(p => p.id_penyiapan === item.id_penyiapan ? { ...p, status: oldStatus } : p));
       }
+    }
+  };
+
+  // Inline Cell Update directly from Table in Penyiapan (Location, Qty, Expired Date, Note, etc.)
+  const handleInlineCellUpdate = async (item: PenyiapanItem, field: keyof PenyiapanItem, newValue: any) => {
+    const oldValue = item[field];
+    if (oldValue === newValue) return;
+
+    let processedValue = newValue;
+    if (field === 'last_qty' || field === 'first_qty' || field === 'qty_convert') {
+      processedValue = Number(newValue) || 0;
+    }
+
+    const nowIso = new Date().toISOString();
+    const updatedItem = { ...item, [field]: processedValue, updated_at: nowIso };
+
+    // Auto calculate Expired Date if batch changed and item code/name exists
+    if (field === 'batch' && processedValue && processedValue !== '-' && item.item_code && item.item_name) {
+      const autoCalc = getEdIsoDateString(item.item_code, item.item_name, String(processedValue));
+      if (autoCalc && autoCalc.isoDate) {
+        updatedItem.expired_date = autoCalc.isoDate;
+        updatedItem.shelf_life = autoCalc.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${autoCalc.result.lamaEdTahun * 12} Bulan`;
+      }
+    }
+
+    // 1. Optimistic Local State & Cache Update
+    setPenyiapanList(prev => prev.map(p => p.id_penyiapan === item.id_penyiapan ? updatedItem : p));
+
+    try {
+      const currentCache = localStorage.getItem('penyiapan_cache_v1');
+      if (currentCache) {
+        const parsed = JSON.parse(currentCache);
+        const nextCache = parsed.map((p: PenyiapanItem) => p.id_penyiapan === item.id_penyiapan ? updatedItem : p);
+        localStorage.setItem('penyiapan_cache_v1', JSON.stringify(nextCache));
+      }
+    } catch (e) {
+      console.warn('Cache write warning:', e);
+    }
+
+    // 2. Sync to Supabase Cloud
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('data_penyiapan')
+          .update({
+            [field]: processedValue,
+            ...(updatedItem.expired_date !== item.expired_date ? { expired_date: updatedItem.expired_date, shelf_life: updatedItem.shelf_life } : {}),
+            updated_at: nowIso
+          })
+          .eq('id_penyiapan', item.id_penyiapan);
+
+        if (error) throw error;
+      } catch (err: any) {
+        console.error(`Failed to inline update ${String(field)} on Supabase data_penyiapan:`, err);
+        showToast('Peringatan Sync', `Gagal menyimpan perubahan ${String(field)}: ${err.message}`, 'warning');
+        setPenyiapanList(prev => prev.map(p => p.id_penyiapan === item.id_penyiapan ? item : p));
+      }
+    }
+  };
+
+  // =========================================================================
+  // MULTI-SELECTION & BULK TRANSFER HANDLERS
+  // =========================================================================
+  const handleToggleSelectItem = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAllFiltered = () => {
+    const filteredIds = filteredPenyiapan.map(item => item.id_penyiapan);
+    const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  // Quick Action: Select All items with status "Ada"
+  const handleSelectAllAda = () => {
+    const adaItems = penyiapanList.filter(
+      item => (item.status || '').trim().toLowerCase() === 'ada'
+    );
+    if (adaItems.length === 0) {
+      showToast('Tidak Ada Data', 'Tidak ditemukan data penyiapan dengan status "Ada"', 'warning');
+      return;
+    }
+    const adaIds = adaItems.map(item => item.id_penyiapan);
+    setSelectedIds(adaIds);
+    showToast(
+      'Pilih Otomatis Status "Ada"',
+      `${adaIds.length} item berstatus "Ada" terpilih siap dipindahkan`,
+      'info'
+    );
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleOpenBulkTransferModal = () => {
+    if (selectedIds.length === 0) {
+      showToast('Pilih Data', 'Pilih minimal 1 data penyiapan untuk dipindahkan massal', 'warning');
+      return;
+    }
+    const initialDest = BULK_DESTINATIONS.find(d => d.id === bulkTargetModuleId) || BULK_DESTINATIONS[0];
+    setBulkFormData({
+      sloc: initialDest.defaultSloc,
+      location: initialDest.defaultLocation,
+      location_type: initialDest.defaultLocationType,
+      qc_code: initialDest.defaultQcCode,
+      destination_code: initialDest.defaultDestinationCode,
+      target_status: initialDest.defaultStatus,
+      tujuan: initialDest.defaultTujuan,
+      category: initialDest.defaultCategory,
+      note: `Transfer massal ${selectedIds.length} item dari Penyiapan`
+    });
+    setBulkSourceStatus(initialDest.sourceStatusDefault);
+    setShowBulkTransferModal(true);
+  };
+
+  const handleDestinationChange = (destId: string) => {
+    setBulkTargetModuleId(destId);
+    const dest = BULK_DESTINATIONS.find(d => d.id === destId);
+    if (dest) {
+      setBulkFormData((prev: any) => ({
+        ...prev,
+        sloc: dest.defaultSloc,
+        location: dest.defaultLocation,
+        location_type: dest.defaultLocationType,
+        qc_code: dest.defaultQcCode,
+        destination_code: dest.defaultDestinationCode,
+        target_status: dest.defaultStatus,
+        tujuan: dest.defaultTujuan,
+        category: dest.defaultCategory,
+        note: `Transfer massal ${selectedIds.length} item dari Penyiapan ke ${dest.name}`
+      }));
+      setBulkSourceStatus(dest.sourceStatusDefault);
+    }
+  };
+
+  // Bulk update status directly in Penyiapan
+  const handleBulkUpdateStatus = async (newStatus: string) => {
+    if (selectedIds.length === 0) return;
+    const nowIso = new Date().toISOString();
+    
+    // Update local state optimistically
+    setPenyiapanList(prev =>
+      prev.map(item => (selectedIds.includes(item.id_penyiapan) ? { ...item, status: newStatus } : item))
+    );
+
+    if (isSupabaseConfigured) {
+      try {
+        const idChunks = chunkArray(selectedIds, 50);
+        for (const ids of idChunks) {
+          await supabase
+            .from('data_penyiapan')
+            .update({ status: newStatus, updated_at: nowIso })
+            .in('id_penyiapan', ids);
+        }
+      } catch (err) {
+        console.error('Error updating bulk status in Supabase:', err);
+      }
+    }
+
+    showToast('Status Diperbarui', `${selectedIds.length} data penyiapan diubah statusnya menjadi "${newStatus}"`, 'success');
+  };
+
+  // Execute Bulk Transfer to Selected Destination Database
+  const handleExecuteBulkTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) return;
+
+    const targetConfig = BULK_DESTINATIONS.find(d => d.id === bulkTargetModuleId) || BULK_DESTINATIONS[0];
+    const itemsToTransfer = penyiapanList.filter(item => selectedIds.includes(item.id_penyiapan));
+    if (itemsToTransfer.length === 0) return;
+
+    setIsBulkTransferring(true);
+    setBulkTransferProgress({ current: 0, total: itemsToTransfer.length, percentage: 0 });
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const nowIso = now.toISOString();
+
+    // Construct target payload
+    const targetPayloads = itemsToTransfer.map((item, idx) => {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const generatedId = `${targetConfig.idPrefix}${dateStr}-${randomSuffix}-${idx + 1}`;
+
+      return {
+        [targetConfig.idField]: generatedId,
+        tujuan: bulkFormData.tujuan || targetConfig.defaultTujuan,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        category: item.category || targetConfig.defaultCategory,
+        location: targetConfig.defaultLocation || item.location || 'WH-01',
+        location_type: targetConfig.defaultLocationType || item.location_type || 'Rack',
+        first_qty: Number(item.first_qty) || 0,
+        last_qty: Number(item.last_qty) || 0,
+        uom: item.uom || 'CTN',
+        qty_convert: Number(item.qty_convert) || Number(item.last_qty) || 0,
+        uom_convert: item.uom_convert || 'PCS',
+        lpn_serial_number: item.lpn_serial_number && item.lpn_serial_number !== '-' ? item.lpn_serial_number : `LPN-${targetConfig.idPrefix}${dateStr}-${randomSuffix}`,
+        batch: item.batch || '-',
+        vendor_batch: item.vendor_batch || '-',
+        sloc: targetConfig.defaultSloc || item.sloc || 'SL01',
+        expired_date: (item.expired_date && item.expired_date !== '-') ? item.expired_date : null,
+        destination_code: targetConfig.defaultDestinationCode || item.destination_code || 'DST-01',
+        qc_code: targetConfig.defaultQcCode || item.qc_code || 'QC-PASS',
+        user_tally: item.user_tally || currentUser?.nama || 'Tally QC',
+        shelf_life: item.shelf_life || '24 Bulan',
+        source: `Penyiapan (${item.id_penyiapan})`,
+        user_input: currentUser?.nama || 'Admin',
+        tanggal_update: nowIso,
+        status: bulkFormData.target_status || targetConfig.defaultStatus,
+        note: bulkFormData.note || '',
+        created_at: nowIso,
+        updated_at: nowIso
+      };
+    });
+
+    try {
+      // 1. Batch upsert into Supabase target table
+      if (isSupabaseConfigured) {
+        const chunks = chunkArray(targetPayloads, 50);
+        let processed = 0;
+        for (const chunk of chunks) {
+          const { error } = await supabase
+            .from(targetConfig.tableName)
+            .upsert(chunk as any, { onConflict: targetConfig.idField });
+
+          if (error) {
+            console.warn(`Batch upsert error on ${targetConfig.tableName}, trying single item fallback:`, error);
+            for (const single of chunk) {
+              await supabase
+                .from(targetConfig.tableName)
+                .upsert([single] as any, { onConflict: targetConfig.idField });
+            }
+          }
+          processed += chunk.length;
+          setBulkTransferProgress({
+            current: processed,
+            total: targetPayloads.length,
+            percentage: Math.round((processed / targetPayloads.length) * 100)
+          });
+        }
+      }
+
+      // 2. Update local storage cache for destination table
+      try {
+        const cachedTarget = localStorage.getItem(targetConfig.cacheKey);
+        const targetList = cachedTarget ? JSON.parse(cachedTarget) : [];
+        const mergedTargetList = [...targetPayloads, ...targetList.filter((x: any) => !targetPayloads.some(p => p[targetConfig.idField] === x[targetConfig.idField]))];
+        localStorage.setItem(targetConfig.cacheKey, JSON.stringify(mergedTargetList));
+      } catch (e) {
+        console.warn('Error updating local target cache:', e);
+      }
+
+      // 3. Handle action on source (data_penyiapan)
+      if (bulkSourceAction === 'update_status') {
+        const newStatus = bulkSourceStatus || targetConfig.sourceStatusDefault;
+        setPenyiapanList(prev =>
+          prev.map(p => (selectedIds.includes(p.id_penyiapan) ? { ...p, status: newStatus } : p))
+        );
+
+        if (isSupabaseConfigured) {
+          const idChunks = chunkArray(selectedIds, 50);
+          for (const ids of idChunks) {
+            await supabase
+              .from('data_penyiapan')
+              .update({ status: newStatus, updated_at: nowIso })
+              .in('id_penyiapan', ids);
+          }
+        }
+      } else if (bulkSourceAction === 'delete') {
+        setPenyiapanList(prev => prev.filter(p => !selectedIds.includes(p.id_penyiapan)));
+
+        if (isSupabaseConfigured) {
+          const idChunks = chunkArray(selectedIds, 50);
+          for (const ids of idChunks) {
+            await supabase
+              .from('data_penyiapan')
+              .delete()
+              .in('id_penyiapan', ids);
+          }
+        }
+      }
+
+      showToast(
+        'Pindah Data Massal Berhasil!',
+        `${targetPayloads.length} item berhasil ditransfer ke ${targetConfig.name}`,
+        'success'
+      );
+
+      setSelectedIds([]);
+      setShowBulkTransferModal(false);
+    } catch (err: any) {
+      console.error('Bulk transfer failed:', err);
+      showToast('Gagal Pindah Data', err?.message || 'Terjadi kesalahan saat memproses transfer massal', 'danger');
+    } finally {
+      setIsBulkTransferring(false);
     }
   };
 
@@ -1696,6 +2286,80 @@ export function PenyiapanModule() {
           </div>
         </div>
 
+        {/* Quick Action Strip for Status "Ada" & Bulk Selection */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-extrabold uppercase text-slate-500 flex items-center gap-1">
+              <Zap size={11} className="text-amber-500" />
+              Aksi Cepat:
+            </span>
+
+            {/* Quick Filter Status Ada Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (statusFilter === 'Ada') {
+                  setStatusFilter('ALL');
+                } else {
+                  setStatusFilter('Ada');
+                }
+                setCurrentPage(1);
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                statusFilter === 'Ada'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}
+              title="Filter tabel hanya untuk data dengan status Ada"
+            >
+              <Check size={12} />
+              <span>{statusFilter === 'Ada' ? 'Filter Aktif: Status "Ada"' : 'Filter Status "Ada"'}</span>
+              <span className={`px-1.5 py-0.2 rounded text-[10px] ${statusFilter === 'Ada' ? 'bg-emerald-800 text-white' : 'bg-emerald-200/80 text-emerald-900 font-bold'}`}>
+                {adaCount}
+              </span>
+            </button>
+
+            {/* Select All "Ada" Items Button */}
+            <button
+              type="button"
+              onClick={handleSelectAllAda}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-900 border border-blue-200 text-xs font-bold transition-all cursor-pointer"
+              title="Pilih dan centang semua item dengan status 'Ada' untuk transfer massal"
+            >
+              <CheckSquare size={12} className="text-blue-700" />
+              <span>Pilih Semua "Ada"</span>
+              <span className="px-1.5 py-0.2 rounded bg-blue-200/80 text-blue-950 font-extrabold text-[10px]">
+                {adaCount}
+              </span>
+            </button>
+
+            {/* If items are selected, show clear button */}
+            {selectedIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer"
+                title="Batalkan semua pilihan centang"
+              >
+                <X size={12} />
+                <span>Batal Pilih ({selectedIds.length})</span>
+              </button>
+            )}
+          </div>
+
+          {/* Quick Bulk Transfer Trigger when items selected */}
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              onClick={handleOpenBulkTransferModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-blue-900 to-indigo-900 hover:from-blue-800 hover:to-indigo-800 text-white text-xs font-black shadow-xs cursor-pointer animate-pulse"
+            >
+              <Share2 size={13} />
+              <span>Pindah Massal ({selectedIds.length} Item)</span>
+            </button>
+          )}
+        </div>
+
         {/* Active Filter Badges & Clear Filters */}
         {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
@@ -1817,6 +2481,67 @@ export function PenyiapanModule() {
       </div>
 
       {/* ========================================================================= */}
+      {/* BULK ACTION STICKY BAR (APPSHEET BATCH OPERATIONS) */}
+      {/* ========================================================================= */}
+      {selectedIds.length > 0 && (
+        <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white shadow-lg border border-blue-500/30 flex flex-wrap items-center justify-between gap-2.5 animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300">
+              <CheckCheck size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-xs sm:text-sm text-white">
+                  {selectedIds.length} Item Dipilih
+                </span>
+                <span className="px-2 py-0.2 rounded-full bg-emerald-500 text-emerald-950 font-black text-[10px]">
+                  Total: {selectedTotalQty.toLocaleString('id-ID')} CTN
+                </span>
+              </div>
+              <p className="text-[11px] text-blue-200/80 m-0 font-medium hidden sm:block">
+                Pilih menu / database tujuan untuk memindahkan seluruh data terpilih secara bersamaan
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+            {/* Set Status Ada Direct Button */}
+            <button
+              type="button"
+              onClick={() => handleBulkUpdateStatus('Ada')}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+              title="Ubah status semua item terpilih menjadi 'Ada'"
+            >
+              <Check size={13} />
+              <span className="hidden sm:inline">Set Status:</span>
+              <span>"Ada"</span>
+            </button>
+
+            {/* Pindah Data Massal Button */}
+            <button
+              type="button"
+              onClick={handleOpenBulkTransferModal}
+              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:from-amber-700 active:to-amber-600 text-amber-950 text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+              title="Buka dialog pemilihan database tujuan untuk memindahkan data massal"
+            >
+              <Share2 size={14} />
+              <span>Pindah Data Massal</span>
+            </button>
+
+            {/* Clear Selection */}
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all cursor-pointer"
+              title="Batal pilih semua item"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* DATA TABLE (APPSHEET STYLE) */}
       {/* ========================================================================= */}
       <div className="rounded-xl bg-white border border-slate-200/80 shadow-2xs overflow-hidden">
@@ -1826,6 +2551,11 @@ export function PenyiapanModule() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <Boxes size={14} className="text-blue-900" />
             <span>Daftar Data Penyiapan ({filteredPenyiapan.length} item)</span>
+            {selectedIds.length > 0 && (
+              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-[10px] font-extrabold border border-blue-200">
+                {selectedIds.length} dipilih
+              </span>
+            )}
             {isLocationFiltered && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-900 text-[9px] font-extrabold border border-indigo-200">
                 <MapPin size={10} />
@@ -1876,6 +2606,23 @@ export function PenyiapanModule() {
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
             <thead>
               <tr className="bg-slate-100/90 text-slate-700 font-extrabold uppercase tracking-tight text-[10px] border-b border-slate-200 select-none">
+                {/* Master Select Checkbox Column */}
+                <th className="px-2 py-1.5 text-center w-8">
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAllFiltered}
+                    className="p-1 rounded text-slate-600 hover:text-blue-900 cursor-pointer transition-colors"
+                    title={isAllFilteredSelected ? "Batalkan pilihan semua baris" : "Pilih semua baris dalam filter"}
+                  >
+                    {isAllFilteredSelected ? (
+                      <CheckSquare size={14} className="text-blue-800" />
+                    ) : isSomeFilteredSelected ? (
+                      <Square size={14} className="text-blue-600 fill-blue-100" />
+                    ) : (
+                      <Square size={14} className="text-slate-400" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-2 py-1.5 text-center w-10">No</th>
                 <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
                 <th className="px-2 py-1.5 text-center w-20">Aksi</th>
@@ -1911,7 +2658,7 @@ export function PenyiapanModule() {
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 8 : 9} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -1920,7 +2667,7 @@ export function PenyiapanModule() {
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 7 : 8} className="p-6 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 8 : 9} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -1935,29 +2682,47 @@ export function PenyiapanModule() {
               ) : (
                 paginatedData.map((item, index) => {
                   const rowNumber = rowsPerPage === 'ALL' ? index + 1 : (currentPage - 1) * rowsPerPage + index + 1;
-                  const isQcPass = (item.qc_code || '').toUpperCase().includes('PASS') || (item.qc_code || '').toLowerCase().includes('lulus');
-                  const isQcHold = (item.qc_code || '').toUpperCase().includes('HOLD') || (item.qc_code || '').toLowerCase().includes('karantina');
-                  const isQcReject = (item.qc_code || '').toUpperCase().includes('REJECT') || (item.qc_code || '').toLowerCase().includes('reject');
+                  const isItemSelected = selectedIds.includes(item.id_penyiapan);
 
                   return (
                     <tr
                       key={item.id_penyiapan || index}
-                      className="hover:bg-blue-50/50 transition-colors group"
+                      className={`transition-colors group ${
+                        isItemSelected ? 'bg-blue-50/70 hover:bg-blue-100/60 font-semibold' : 'hover:bg-slate-50/80'
+                      }`}
                     >
+                      {/* Checkbox Select Row */}
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelectItem(item.id_penyiapan)}
+                          className="p-1 rounded text-slate-500 hover:text-blue-900 cursor-pointer"
+                          title={isItemSelected ? "Batalkan pilihan item ini" : "Pilih item ini"}
+                        >
+                          {isItemSelected ? (
+                            <CheckSquare size={14} className="text-blue-800 fill-blue-50" />
+                          ) : (
+                            <Square size={14} className="text-slate-300 hover:text-slate-500" />
+                          )}
+                        </button>
+                      </td>
+
                       {/* No */}
                       <td className="px-2 py-1.5 text-center text-slate-400 font-mono text-[10px]">
                         {rowNumber}
                       </td>
 
                       {/* Status Sticky Column */}
-                      <td className="px-1.5 py-1 text-center sticky left-0 bg-white group-hover:bg-blue-50/90 transition-colors z-10 shadow-2xs border-r border-slate-100">
+                      <td className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${
+                        isItemSelected ? 'bg-blue-50 group-hover:bg-blue-100/80' : 'bg-white group-hover:bg-slate-50'
+                      }`}>
                         <select
                           value={item.status || ''}
                           onChange={(e) => handleUpdateStatus(item, e.target.value)}
                           className={`px-1.5 py-1 rounded text-[10px] font-bold border outline-none cursor-pointer text-center appearance-none w-full ${
                             (item.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
                             (item.status || '').toLowerCase() === 'beda' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                            (item.status || '').toLowerCase() === 'tidak' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                            (item.status || '').toLowerCase() === 'tidak' ? 'bg-amber-100 text-amber-800 border-amber-300' :
                             'bg-slate-100 text-slate-700 border-slate-300'
                           }`}
                         >
@@ -1971,6 +2736,19 @@ export function PenyiapanModule() {
                       {/* Aksi */}
                       <td className="px-1.5 py-1 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {/* Tombol Kirim ke Pemusnahan (Relasi ke Menu Pemusnahan) */}
+                          <button
+                            onClick={() => handleOpenSendToPemusnahan(item)}
+                            className={`p-1 rounded-md transition-colors cursor-pointer ${
+                              (item.status || '').toLowerCase().includes('pemusnahan')
+                                ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                : 'bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800'
+                            }`}
+                            title="Kirim Data ke Menu Pemusnahan (public.data_pemusnahan)"
+                          >
+                            <Flame size={12} className={(item.status || '').toLowerCase().includes('pemusnahan') ? 'text-rose-600 animate-pulse' : ''} />
+                          </button>
+
                           <button
                             onClick={() => handleOpenEditModal(item)}
                             className="p-1 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
@@ -1997,43 +2775,139 @@ export function PenyiapanModule() {
 
                       {/* Location (Hidden when location is filtered) */}
                       {!isLocationFiltered && (
-                        <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs">
+                        <td className="px-2 py-1 font-bold text-slate-700 text-xs min-w-[120px]">
                           <div className="flex items-center gap-1">
-                            <MapPin size={11} className="text-slate-400" />
-                            <span>{item.location || '-'}</span>
+                            <MapPin size={11} className="text-slate-400 shrink-0" />
+                            <input
+                              type="text"
+                              defaultValue={item.location || ''}
+                              key={`loc-${item.id_penyiapan}-${item.location}`}
+                              placeholder="Lokasi..."
+                              onBlur={(e) => {
+                                if (e.target.value !== (item.location || '')) {
+                                  handleInlineCellUpdate(item, 'location', e.target.value);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="w-full px-1 py-0.5 text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                              title="Klik untuk ubah Lokasi langsung"
+                            />
                           </div>
                         </td>
                       )}
 
                       {/* Item Name & Note */}
-                      <td className="px-2.5 py-1.5 max-w-xs" title={item.item_name}>
-                        <div className="font-extrabold text-slate-800 text-xs truncate">
-                          {item.item_name}
+                      <td className="px-2 py-1 min-w-[180px] max-w-xs">
+                        <div className="font-extrabold text-slate-800 text-xs">
+                          <input
+                            type="text"
+                            defaultValue={item.item_name}
+                            key={`item_name-${item.id_penyiapan}-${item.item_name}`}
+                            onBlur={(e) => {
+                              if (e.target.value.trim() && e.target.value !== item.item_name) {
+                                handleInlineCellUpdate(item, 'item_name', e.target.value.trim());
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-full px-1 py-0.5 text-xs font-extrabold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                            title="Klik untuk ubah Nama Barang langsung"
+                          />
                         </div>
-                        {item.note && (
-                          <div
-                            className="text-[9px] text-blue-800 font-semibold flex items-center gap-1 mt-0.5 max-w-xs truncate bg-blue-50 px-1 py-0.2 rounded border border-blue-200"
-                            title={`Catatan: ${item.note}`}
-                          >
-                            <MessageSquare size={9} className="shrink-0 text-blue-600" />
-                            <span className="truncate">{item.note}</span>
-                          </div>
-                        )}
+                        <div className="mt-0.5">
+                          <input
+                            type="text"
+                            defaultValue={item.note || ''}
+                            key={`note-${item.id_penyiapan}-${item.note}`}
+                            placeholder="+ Catatan..."
+                            onBlur={(e) => {
+                              if (e.target.value !== (item.note || '')) {
+                                handleInlineCellUpdate(item, 'note', e.target.value);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-full px-1 py-0.5 text-[9.5px] font-medium text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate placeholder:text-slate-300"
+                            title="Klik untuk ubah Catatan langsung"
+                          />
+                        </div>
                       </td>
 
                       {/* Last Qty */}
-                      <td className="px-2.5 py-1.5 text-right font-mono font-black text-emerald-800 bg-emerald-50/40 text-xs">
-                        {item.last_qty !== undefined && item.last_qty !== null ? Number(item.last_qty).toLocaleString('id-ID') : '-'}
+                      <td className="px-1.5 py-1 text-right min-w-[90px]">
+                        <input
+                          type="number"
+                          defaultValue={item.last_qty !== undefined && item.last_qty !== null ? item.last_qty : 0}
+                          key={`qty-${item.id_penyiapan}-${item.last_qty}`}
+                          onBlur={(e) => {
+                            const val = Number(e.target.value);
+                            if (!isNaN(val) && val !== item.last_qty) {
+                              handleInlineCellUpdate(item, 'last_qty', val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 text-right font-mono font-black text-emerald-800 bg-emerald-50/50 hover:bg-emerald-100/60 focus:bg-white focus:ring-1.5 focus:ring-emerald-500 rounded border border-emerald-200/60 focus:border-emerald-400 outline-none text-xs transition-all"
+                          title="Klik untuk ubah Qty langsung"
+                        />
                       </td>
 
                       {/* Uom */}
-                      <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs">
-                        {item.uom || 'CTN'}
+                      <td className="px-1.5 py-1 text-center min-w-[70px]">
+                        <input
+                          type="text"
+                          defaultValue={item.uom || 'CTN'}
+                          key={`uom-${item.id_penyiapan}-${item.uom}`}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim().toUpperCase();
+                            if (val && val !== item.uom) {
+                              handleInlineCellUpdate(item, 'uom', val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1 py-1 text-center font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none text-xs transition-all uppercase"
+                          title="Klik untuk ubah Satuan UOM langsung"
+                        />
                       </td>
 
                       {/* Expired Date */}
-                      <td className="px-2.5 py-1.5 font-mono font-bold text-slate-700 text-xs">
-                        {item.expired_date || '-'}
+                      <td className="px-1.5 py-1 min-w-[110px]">
+                        <input
+                          type="text"
+                          defaultValue={item.expired_date || ''}
+                          key={`ed-${item.id_penyiapan}-${item.expired_date}`}
+                          placeholder="YYYY-MM-DD"
+                          onBlur={(e) => {
+                            const val = e.target.value.trim() || '-';
+                            if (val !== item.expired_date) {
+                              handleInlineCellUpdate(item, 'expired_date', val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 font-mono text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all"
+                          title="Klik untuk ubah Expired Date langsung (Format: YYYY-MM-DD)"
+                        />
                       </td>
                     </tr>
                   );
@@ -2779,6 +3653,500 @@ export function PenyiapanModule() {
                 Ya, Hapus
               </button>
             </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: TRANSFER KE PEMUSNAHAN (RELASI PENYIAPAN -> PEMUSNAHAN) */}
+      {/* ========================================================================= */}
+      {showPemusnahanModal && pemusnahanTargetItem && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+            
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-rose-700 to-red-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                  <Flame size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-tight m-0">
+                    Kirim Item ke Menu Pemusnahan
+                  </h3>
+                  <p className="text-[11px] text-rose-200 m-0 font-medium">
+                    Relasi dari Penyiapan ID: {pemusnahanTargetItem.id_penyiapan} ➔ Tabel public.data_pemusnahan
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowPemusnahanModal(false)}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleConfirmSendToPemusnahan} className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-xs">
+              
+              {/* Product summary card */}
+              <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200 space-y-1">
+                <span className="text-[10px] font-bold text-rose-600 uppercase">Produk yang akan dimusnahkan:</span>
+                <div className="font-extrabold text-slate-800 text-sm">{pemusnahanTargetItem.item_name}</div>
+                <div className="flex flex-wrap items-center gap-3 font-mono text-slate-600 text-[11px] pt-1">
+                  <span>SKU: <strong className="text-slate-800">{pemusnahanTargetItem.item_code}</strong></span>
+                  <span>Batch: <strong className="text-slate-800">{pemusnahanTargetItem.batch || '-'}</strong></span>
+                  <span>Qty: <strong className="text-rose-700">{pemusnahanTargetItem.last_qty} {pemusnahanTargetItem.uom}</strong></span>
+                  <span>Lokasi Asal: <strong>{pemusnahanTargetItem.location || '-'}</strong></span>
+                </div>
+              </div>
+
+              {/* Row 1: ID Pemusnahan & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ID Pemusnahan (Auto Generated)</label>
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.id_pemusnahan || ''}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, id_pemusnahan: e.target.value })}
+                    required
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-100 font-mono font-bold text-slate-800 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Pemusnahan</label>
+                  <select
+                    value={pemusnahanFormData.status || 'Siap Dimusnahkan'}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, status: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-rose-800 text-xs"
+                  >
+                    <option value="Siap Dimusnahkan">Siap Dimusnahkan</option>
+                    <option value="Dalam Proses">Dalam Proses</option>
+                    <option value="Disposed">Disposed (Musnah)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Location, SLOC & QC Code */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Lokasi Karantina Pemusnahan</label>
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.location || 'WH-REJECT-01'}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, location: e.target.value })}
+                    required
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">SLOC Pemusnahan</label>
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.sloc || 'SL99'}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, sloc: e.target.value })}
+                    required
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-slate-800 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status QC</label>
+                  <select
+                    value={pemusnahanFormData.qc_code || 'QC-REJECT'}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, qc_code: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
+                  >
+                    <option value="QC-REJECT">QC-REJECT</option>
+                    <option value="QC-HOLD">QC-HOLD</option>
+                    <option value="EXPIRED">EXPIRED</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Destinasi & Tujuan */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tempat / Destinasi Pemusnahan</label>
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.destination_code || 'INCINERATOR'}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, destination_code: e.target.value })}
+                    placeholder="Contoh: INCINERATOR / SCRAP YARD"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tujuan Pemusnahan</label>
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.tujuan || 'Pemusnahan Limbah Terkontrol'}
+                    onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, tujuan: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Catatan */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Alasan / Catatan Pemusnahan</label>
+                <textarea
+                  value={pemusnahanFormData.note || ''}
+                  onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, note: e.target.value })}
+                  rows={2}
+                  placeholder="Keterangan kondisi barang yang perlu dimusnahkan"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                {onNavigateToPemusnahan && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPemusnahanModal(false);
+                      onNavigateToPemusnahan();
+                    }}
+                    className="text-xs text-rose-600 hover:text-rose-800 font-bold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <span>Buka Menu Pemusnahan</span>
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowPemusnahanModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingPemusnahan}
+                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Flame size={15} />
+                    <span>{isSendingPemusnahan ? 'Mengirim Data...' : 'Konfirmasi Kirim ke Pemusnahan'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: PINDAH DATA MASSAL (BULK TRANSFER KE DATABASE TUJUAN) */}
+      {/* ========================================================================= */}
+      {showBulkTransferModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[94vh] flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white border border-white/20">
+                  <Share2 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black tracking-tight m-0 flex items-center gap-2">
+                    <span>Pindah Data Massal ({selectedIds.length} Item)</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 text-[10px] font-black uppercase">
+                      Bulk Transfer
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-blue-200 m-0 font-medium">
+                    Pindahkan {selectedIds.length} item data penyiapan ({selectedTotalQty.toLocaleString('id-ID')} Total Qty) ke Menu / Database Tujuan
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowBulkTransferModal(false)}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleExecuteBulkTransfer} className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5 text-xs">
+              
+              {/* Step 1: Pilihan Menu / Database Tujuan */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-black text-slate-800 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-blue-900 text-white text-[10px] flex items-center justify-center font-bold">1</span>
+                    <span>Pilih Menu / Database Tujuan:</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Pilih salah satu database tujuan</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {BULK_DESTINATIONS.map(dest => {
+                    const isSelected = bulkTargetModuleId === dest.id;
+                    return (
+                      <div
+                        key={dest.id}
+                        onClick={() => handleDestinationChange(dest.id)}
+                        className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                          isSelected
+                            ? 'border-blue-800 bg-blue-50/70 shadow-sm ring-2 ring-blue-800/20'
+                            : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-blue-900 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                              {dest.id === 'pemusnahan' ? <Flame size={15} className={isSelected ? 'text-amber-300' : ''} /> :
+                               dest.id === 'incoming' ? <Package size={15} /> :
+                               <Truck size={15} />}
+                            </div>
+                            <div>
+                              <div className="font-black text-slate-800 text-xs leading-tight">{dest.name}</div>
+                              <span className="font-mono text-[9px] text-slate-400">{dest.tableName}</span>
+                            </div>
+                          </div>
+
+                          <input
+                            type="radio"
+                            name="target_destination"
+                            checked={isSelected}
+                            onChange={() => handleDestinationChange(dest.id)}
+                            className="mt-1 cursor-pointer accent-blue-900"
+                          />
+                        </div>
+
+                        <p className="text-[10px] text-slate-500 leading-snug m-0">
+                          {dest.description}
+                        </p>
+
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60 font-mono text-[9px] text-slate-600">
+                          <span>SLoc: <strong className="text-slate-800">{dest.defaultSloc}</strong></span>
+                          <span>•</span>
+                          <span>QC: <strong className="text-slate-800">{dest.defaultQcCode}</strong></span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 2: Konfigurasi Parameter Tujuan */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <label className="font-black text-slate-800 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-blue-900 text-white text-[10px] flex items-center justify-center font-bold">2</span>
+                  <span>Konfigurasi Parameter Target (Disesuaikan Otomatis):</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">Tujuan / Deskripsi Transaksi</label>
+                    <input
+                      type="text"
+                      value={bulkFormData.tujuan || ''}
+                      onChange={(e) => setBulkFormData({ ...bulkFormData, tujuan: e.target.value })}
+                      required
+                      placeholder="Contoh: Pemusnahan Limbah Terkontrol / Inbound"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">Status di Database Tujuan</label>
+                    <input
+                      type="text"
+                      value={bulkFormData.target_status || ''}
+                      onChange={(e) => setBulkFormData({ ...bulkFormData, target_status: e.target.value })}
+                      required
+                      placeholder="Contoh: Siap Dimusnahkan / Received"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-blue-900 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">Catatan (Note)</label>
+                  <input
+                    type="text"
+                    value={bulkFormData.note || ''}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, note: e.target.value })}
+                    placeholder="Isi catatan yang akan disalin ke setiap baris data target..."
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Step 3: Tindakan pada Data di Penyiapan Asal */}
+              <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2.5">
+                <label className="font-black text-slate-800 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-blue-900 text-white text-[10px] flex items-center justify-center font-bold">3</span>
+                  <span>Tindakan pada Data di Tabel Penyiapan (Asal):</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <label className={`p-2.5 rounded-xl border cursor-pointer flex items-start gap-2 ${
+                    bulkSourceAction === 'update_status' ? 'bg-white border-blue-600 shadow-xs' : 'bg-slate-50/80 border-slate-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="source_action"
+                      checked={bulkSourceAction === 'update_status'}
+                      onChange={() => setBulkSourceAction('update_status')}
+                      className="mt-0.5 accent-blue-900"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-800 block">Ubah Status (Disarankan)</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight">
+                        Status penyiapan diubah menjadi status transfer
+                      </span>
+                      {bulkSourceAction === 'update_status' && (
+                        <input
+                          type="text"
+                          value={bulkSourceStatus}
+                          onChange={(e) => setBulkSourceStatus(e.target.value)}
+                          className="mt-1.5 w-full px-2 py-1 rounded border border-blue-300 text-[10px] font-bold bg-blue-50/50 text-blue-900"
+                          placeholder="Status baru"
+                        />
+                      )}
+                    </div>
+                  </label>
+
+                  <label className={`p-2.5 rounded-xl border cursor-pointer flex items-start gap-2 ${
+                    bulkSourceAction === 'delete' ? 'bg-white border-rose-600 shadow-xs' : 'bg-slate-50/80 border-slate-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="source_action"
+                      checked={bulkSourceAction === 'delete'}
+                      onChange={() => setBulkSourceAction('delete')}
+                      className="mt-0.5 accent-rose-600"
+                    />
+                    <div>
+                      <span className="font-bold text-rose-800 block">Hapus dari Penyiapan</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight">
+                        Keluarkan item terpilih dari antrean penyiapan
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`p-2.5 rounded-xl border cursor-pointer flex items-start gap-2 ${
+                    bulkSourceAction === 'keep' ? 'bg-white border-slate-600 shadow-xs' : 'bg-slate-50/80 border-slate-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="source_action"
+                      checked={bulkSourceAction === 'keep'}
+                      onChange={() => setBulkSourceAction('keep')}
+                      className="mt-0.5 accent-slate-900"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-800 block">Biarkan Status Asal</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight">
+                        Hanya duplikasi/salin data ke tabel tujuan
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Step 4: Ringkasan Item Terpilih Preview */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">
+                    Daftar Item yang Akan Dipindahkan ({selectedItemsData.length} Item):
+                  </span>
+                  <span className="font-mono font-black text-blue-900">
+                    Total Qty: {selectedTotalQty.toLocaleString('id-ID')} CTN
+                  </span>
+                </div>
+
+                <div className="max-h-44 overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl bg-slate-50">
+                  <table className="w-full text-left text-[11px] whitespace-nowrap">
+                    <thead className="bg-slate-100 font-bold text-slate-700 sticky top-0 border-b border-slate-200">
+                      <tr>
+                        <th className="p-2 w-8">No</th>
+                        <th className="p-2">Item Code</th>
+                        <th className="p-2">Item Name</th>
+                        <th className="p-2">Batch</th>
+                        <th className="p-2 text-right">Last Qty</th>
+                        <th className="p-2">UOM</th>
+                        <th className="p-2">Status Asal</th>
+                        <th className="p-2">Lokasi Asal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70 bg-white">
+                      {selectedItemsData.map((item, idx) => (
+                        <tr key={item.id_penyiapan} className="hover:bg-blue-50/50">
+                          <td className="p-2 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                          <td className="p-2 font-mono font-bold text-blue-900">{item.item_code}</td>
+                          <td className="p-2 font-bold text-slate-800 max-w-[200px] truncate">{item.item_name}</td>
+                          <td className="p-2 font-mono text-amber-900 font-bold">{item.batch || '-'}</td>
+                          <td className="p-2 text-right font-mono font-black text-emerald-800">{item.last_qty}</td>
+                          <td className="p-2">{item.uom || 'CTN'}</td>
+                          <td className="p-2">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                              {item.status || 'Ada'}
+                            </span>
+                          </td>
+                          <td className="p-2 text-slate-600">{item.location || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Progress Bar during transfer */}
+              {isBulkTransferring && (
+                <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-900">
+                    <span className="flex items-center gap-2">
+                      <RefreshCw size={14} className="animate-spin text-blue-900" />
+                      <span>Memproses transfer massal data...</span>
+                    </span>
+                    <span>{bulkTransferProgress.current} / {bulkTransferProgress.total} ({bulkTransferProgress.percentage}%)</span>
+                  </div>
+                  <div className="w-full bg-blue-200 h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-blue-900 h-full transition-all duration-300"
+                      style={{ width: `${bulkTransferProgress.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkTransferModal(false)}
+                  disabled={isBulkTransferring}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isBulkTransferring}
+                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-blue-900 to-indigo-900 hover:from-blue-800 hover:to-indigo-800 active:from-blue-950 active:to-indigo-950 text-white font-black shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Share2 size={16} />
+                  <span>
+                    {isBulkTransferring ? 'Memindahkan Data...' : `Proses Pindah ${selectedIds.length} Data Massal`}
+                  </span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       , document.body)}

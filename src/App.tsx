@@ -9,6 +9,7 @@ import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModul
 import { IncomingModule } from './components/logistics/IncomingModule';
 import { QrGeneratorHoneywellModule } from './components/logistics/QrGeneratorHoneywellModule';
 import { PenyiapanModule } from './components/logistics/PenyiapanModule';
+import { PemusnahanModule } from './components/logistics/PemusnahanModule';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
 import { BroadcastBar } from './components/broadcast/BroadcastBar';
@@ -179,7 +180,9 @@ export default function App() {
                 ) : activeToolId === 'menu-c' ? (
                   <QrGeneratorHoneywellModule />
                 ) : activeToolId === 'menu-d' ? (
-                  <PenyiapanModule />
+                  <PenyiapanModule onNavigateToPemusnahan={() => handleOpenTool('menu-e')} />
+                ) : activeToolId === 'menu-e' ? (
+                  <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
                 ) : (
                   <PlaceholderTool
                     id={currentTool.id}

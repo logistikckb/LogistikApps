@@ -10,7 +10,9 @@ import {
   Settings,
   Grid,
   ShieldCheck,
-  QrCode
+  QrCode,
+  Flame,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -127,18 +129,20 @@ export const TOOLS_LIST: ToolItem[] = [
   },
   {
     id: 'menu-e',
-    title: 'Menu E',
-    shortDesc: 'Modul baru kosong (Siap dibangun bertahap)',
-    category: 'Utilitas E',
-    icon: Settings,
-    isReady: false,
-    colorBg: 'bg-purple-600',
-    colorBorder: 'border-purple-500',
-    colorIcon: 'text-purple-600',
+    title: 'Pemusnahan',
+    shortDesc: 'Pemusnahan & Disposal Barang Terkontrol (data_pemusnahan) dengan Relasi Modul Penyiapan',
+    category: 'Disposal & Karantina',
+    icon: Flame,
+    isReady: true,
+    requiresAdmin: false,
+    colorBg: 'bg-rose-600',
+    colorBorder: 'border-rose-500',
+    colorIcon: 'text-rose-600',
     plannedFeatures: [
-      'Fitur 1 (Menunggu instruksi)',
-      'Fitur 2 (Menunggu instruksi)',
-      'Fitur 3 (Menunggu instruksi)'
+      'Manajemen Transaksi Pemusnahan Barang (Tabel Supabase: public.data_pemusnahan)',
+      'Relasi Otomatis dari Modul Penyiapan (Kirim item dengan status Oke / Siap Musnah)',
+      'Tracking Lokasi Karantina (WH-REJECT-01), SLOC (SL99) & Destinasi Incinerator',
+      'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
     ]
   }
 ];

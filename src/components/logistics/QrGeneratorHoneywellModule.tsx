@@ -911,54 +911,79 @@ export function QrGeneratorHoneywellModule() {
     const itemsToProcess = labels.filter(l => selectedIds.size === 0 || selectedIds.has(l.id));
     if (itemsToProcess.length === 0) return '// Tidak ada label yang dipilih';
 
+    const widthDots = Math.round(printWidthMm * 8); // 8 dots/mm = 203 DPI (Standar PM42)
+    const heightDots = Math.round(printHeightMm * 8);
+
     if (type === 'direct-protocol') {
-      let dp = `CLL\nOPTIMIZE "BATCH" ON\nMEDIA TYPE "LABEL WITH GAPS"\nMEDIA SIZE ${printWidthMm * 8} DOTS, ${printHeightMm * 8} DOTS\nFEED\n\n`;
+      let dp = `CLL\nOPTIMIZE "BATCH" ON\nMEDIA TYPE "LABEL WITH GAPS"\nMEDIA SIZE ${widthDots} DOTS, ${heightDots} DOTS\nFEED\n\n`;
       itemsToProcess.forEach((item) => {
         dp += `CLIP ON\nDIR 1\n`;
         dp += `FONT "Swiss 721 BT", 8, 8\n`;
         if (item.isFullLogistic) {
           dp += `PP ${leftMarginMm * 8}, 20: FT "ITEM: ${item.itemCode || ''}"\n`;
           dp += `PP ${leftMarginMm * 8}, 45: FT "${item.itemName || item.title}"\n`;
-          dp += `PP ${leftMarginMm * 8}, 65: PL ${printWidthMm * 8 - (leftMarginMm * 8 + 20)}, 1\n`;
+          dp += `PP ${leftMarginMm * 8}, 65: PL ${widthDots - (leftMarginMm * 8 + 20)}, 1\n`;
           dp += `BARCODE "QR", 5, 2, 4\n`;
           dp += `PP 30, 80: PB "${item.lpn || item.text}"\n`;
           dp += `FONT "Swiss 721 BT", 8, 8\n`;
-          dp += `PP ${leftMarginMm * 8}, ${printHeightMm * 8 - 55}: FT "SN/LPN: ${item.lpn || item.text}"\n`;
-          dp += `PP ${leftMarginMm * 8}, ${printHeightMm * 8 - 36}: FT "BATCH: ${item.batch || '-'}"\n`;
-          dp += `PP ${leftMarginMm * 8}, ${printHeightMm * 8 - 18}: FT "EXP DATE: ${item.expiredDate || '-'}"\n`;
+          dp += `PP ${leftMarginMm * 8}, ${heightDots - 55}: FT "SN/LPN: ${item.lpn || item.text}"\n`;
+          dp += `PP ${leftMarginMm * 8}, ${heightDots - 36}: FT "BATCH: ${item.batch || '-'}"\n`;
+          dp += `PP ${leftMarginMm * 8}, ${heightDots - 18}: FT "EXP DATE: ${item.expiredDate || '-'}"\n`;
         } else {
           dp += `PP ${leftMarginMm * 8}, 20: FT "${item.title}"\n`;
-          dp += `PP ${leftMarginMm * 8}, 45: PL ${printWidthMm * 8 - (leftMarginMm * 8 + 20)}, 1\n`;
+          dp += `PP ${leftMarginMm * 8}, 45: PL ${widthDots - (leftMarginMm * 8 + 20)}, 1\n`;
           dp += `BARCODE "QR", 5, 2, 4\n`;
           dp += `PP 30, 80: PB "${item.text}"\n`;
           dp += `FONT "Swiss 721 BT", 8, 8\n`;
-          dp += `PP 20, ${printHeightMm * 8 - 35}: FT "${item.text}"\n`;
+          dp += `PP 20, ${heightDots - 35}: FT "${item.text}"\n`;
         }
         dp += `PF 1\n\n`;
       });
       return dp;
     }
 
-    let zpl = `^XA\n^PW${Math.round(printWidthMm * 8)}\n^LL${Math.round(printHeightMm * 8)}\n^MNM\n^XZ\n\n`;
+    // ZPL / ZSim 100% Compliant dengan Emulasi ZSim Honeywell PM42
+    let zpl = ``;
     itemsToProcess.forEach((item) => {
       zpl += `^XA\n`;
+      zpl += `^PW${widthDots}\n`;
+      zpl += `^LL${heightDots}\n`;
+      zpl += `^LH0,0\n`;
+      zpl += `^PON\n`;
+      zpl += `^MNY\n`; // Media tracking: Gap / Web sensing (Bukan continuous)
+      zpl += `^PR4,4\n`; // Print speed standard
+
       if (showBorder) {
-        zpl += `^FO10,10^GB${Math.round(printWidthMm * 8) - 20},${Math.round(printHeightMm * 8) - 20},2^FS\n`;
+        zpl += `^FO10,10^GB${widthDots - 20},${heightDots - 20},2^FS\n`;
       }
+
       if (item.isFullLogistic) {
-        zpl += `^FO${leftMarginMm * 8},20^A0N,18,18^FDITEM: ${item.itemCode || ''}^FS\n`;
-        zpl += `^FO${leftMarginMm * 8},42^A0N,18,18^FB${Math.round(printWidthMm * 8) - 40},2,0,L^FD${item.itemName || item.title}^FS\n`;
-        zpl += `^FO${leftMarginMm * 8},62^GB${Math.round(printWidthMm * 8) - (leftMarginMm * 8 + 20)},1,1^FS\n`;
-        zpl += `^FO${Math.round((printWidthMm * 8) / 2) - 70},70^BQN,2,4^FDQA,${item.lpn || item.text}^FS\n`;
-        zpl += `^FO${leftMarginMm * 8},${Math.round(printHeightMm * 8) - 65}^A0N,16,16^FDSN/LPN: ${item.lpn || item.text}^FS\n`;
-        zpl += `^FO${leftMarginMm * 8},${Math.round(printHeightMm * 8) - 44}^A0N,16,16^FDBATCH: ${item.batch || '-'}^FS\n`;
-        zpl += `^FO${leftMarginMm * 8},${Math.round(printHeightMm * 8) - 24}^A0N,16,16^FDEXP DATE: ${item.expiredDate || '-'}^FS\n`;
+        // Baris 1: Item Code
+        zpl += `^FO${leftMarginMm * 8},20^A0N,20,20^FDITEM: ${item.itemCode || ''}^FS\n`;
+        // Baris 2: Item Name (Maks 2 baris)
+        zpl += `^FO${leftMarginMm * 8},44^A0N,20,20^FB${widthDots - 40},2,0,L^FD${item.itemName || item.title}^FS\n`;
+        // Garis Pembatas
+        zpl += `^FO${leftMarginMm * 8},66^GB${widthDots - (leftMarginMm * 8 + 20)},2,2^FS\n`;
+        
+        // QR Code di Tengah (BQN = Model 2 Enhanced, Magnification 4, Error Correction Q)
+        const qrPosX = Math.max(10, Math.round((widthDots / 2) - 80));
+        zpl += `^FO${qrPosX},76^BQN,2,4,Q,7^FDMA,${item.lpn || item.text}^FS\n`;
+        
+        // Footer: LPN, BATCH, EXP DATE
+        zpl += `^FO${leftMarginMm * 8},${heightDots - 70}^A0N,18,18^FDSN/LPN: ${item.lpn || item.text}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},${heightDots - 48}^A0N,18,18^FDBATCH: ${item.batch || '-'}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},${heightDots - 26}^A0N,18,18^FDEXP DATE: ${item.expiredDate || '-'}^FS\n`;
       } else {
-        zpl += `^FO${leftMarginMm * 8},25^A0N,20,20^FB${Math.round(printWidthMm * 8) - 40},2,0,L^FD${item.title}^FS\n`;
-        zpl += `^FO${leftMarginMm * 8},50^GB${Math.round(printWidthMm * 8) - (leftMarginMm * 8 + 20)},1,1^FS\n`;
-        zpl += `^FO${Math.round((printWidthMm * 8) / 2) - 70},70^BQN,2,4^FDQA,${item.text}^FS\n`;
-        zpl += `^FO20,${Math.round(printHeightMm * 8) - 45}^A0N,18,18^FB${Math.round(printWidthMm * 8) - 40},2,0,C^FD${item.text}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},25^A0N,22,22^FB${widthDots - 40},2,0,L^FD${item.title}^FS\n`;
+        zpl += `^FO${leftMarginMm * 8},52^GB${widthDots - (leftMarginMm * 8 + 20)},2,2^FS\n`;
+        
+        const qrPosX = Math.max(10, Math.round((widthDots / 2) - 80));
+        zpl += `^FO${qrPosX},75^BQN,2,4,Q,7^FDMA,${item.text}^FS\n`;
+        
+        zpl += `^FO20,${heightDots - 45}^A0N,20,20^FB${widthDots - 40},2,0,C^FD${item.text}^FS\n`;
       }
+
+      zpl += `^PQ1,0,1,Y\n`; // Print 1 copy
       zpl += `^XZ\n\n`;
     });
     return zpl;
@@ -1021,14 +1046,42 @@ export function QrGeneratorHoneywellModule() {
         </div>
       </div>
 
-      {/* Petunjuk Singkat */}
+      {/* Petunjuk Singkat & Solusi ZSim vs Autosense */}
       {showGuide && (
-        <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-slate-800 space-y-1 animate-in fade-in duration-150">
-          <div className="font-bold text-amber-950 text-[11px]">Cara Print Langsung ke Honeywell PM42 Tanpa LARGO:</div>
-          <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1 text-[11px]">
-            <li><strong>Autosense:</strong> Di LCD printer PM42: <em>Settings &gt; Printing &gt; Media &gt; Media Type</em> pilih <code>Label w/ Gaps</code> atau <code>Autosense</code>.</li>
-            <li><strong>Dialog Print Browser:</strong> Pilih printer <strong>Honeywell PM42</strong>, atur Paper Size sesuai ukuran stiker, <strong>Margin: None / Nol</strong>, dan centang Background Graphics.</li>
-          </ul>
+        <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-slate-800 space-y-2.5 animate-in fade-in duration-150 shadow-xs">
+          <div className="flex items-start gap-2">
+            <div className="p-1 rounded-lg bg-amber-500 text-slate-950 font-bold shrink-0 mt-0.5">
+              <AlertCircle size={16} />
+            </div>
+            <div>
+              <div className="font-extrabold text-amber-950 text-xs">Penyebab ZSim Tidak Mau Ngeprint & Solusi Mode Autosense:</div>
+              <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">
+                Driver Windows Honeywell (InterDriver) mengirim data dalam format <strong>Direct Protocol</strong>. Jika printer PM42 diatur ke <strong>ZSim</strong>, printer akan menolak/mengabaikan print dari browser Windows karena menunggu kode Zebra ZPL mentah.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 border-t border-amber-200/70 text-[11px]">
+            <div className="p-2 bg-white/80 rounded-lg border border-amber-200">
+              <span className="font-bold text-blue-900 block mb-1">✅ Solusi Terbaik (Gunakan Autosense):</span>
+              <ol className="list-decimal list-inside space-y-0.5 text-slate-700 pl-1">
+                <li>Di layar LCD PM42, tekan <strong>Menu</strong>.</li>
+                <li>Masuk ke <strong>Settings &gt; System Settings &gt; General &gt; Command Language</strong>.</li>
+                <li>Ubah dari <code className="text-red-700 font-bold">ZSim</code> menjadi <code className="text-emerald-700 font-bold">Autosense</code> (atau <em>Direct Protocol</em>).</li>
+                <li>Simpan &amp; restart printer. Sekarang cetak dari browser akan lancar 100%.</li>
+              </ol>
+            </div>
+
+            <div className="p-2 bg-white/80 rounded-lg border border-amber-200">
+              <span className="font-bold text-slate-900 block mb-1">⚙️ Jika Printer Harus Tetap di Mode ZSim:</span>
+              <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
+                <li>Gunakan tombol <strong>Raw Code</strong> &gt; pilih tab <strong>ZPL / ZSim (.zpl)</strong>.</li>
+                <li>Unduh file <code className="font-mono text-[10px]">.zpl</code> atau salin kodenya.</li>
+                <li>Kirim file ke printer menggunakan Driver <em>Generic / Text Only</em> atau port 9100.</li>
+                <li>Pastikan lakukan <strong>Media Calibration</strong> di printer jika kertas lompat.</li>
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1567,12 +1620,13 @@ export function QrGeneratorHoneywellModule() {
             </div>
 
             {/* Checklist Pengaturan Dialog Browser untuk Honeywell PM42 */}
-            <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-1.5 text-xs text-amber-950">
+            <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2 text-xs text-amber-950">
               <div className="flex items-center gap-1.5 font-bold text-amber-900 text-[11px]">
                 <Info size={14} />
-                <span>Panduan Pengaturan di Dialog Printer Browser:</span>
+                <span>Pengaturan Wajib di Layar Printer & Dialog Browser:</span>
               </div>
               <ul className="space-y-1 text-[11px] text-amber-900/90 pl-5 list-disc m-0">
+                <li><strong>Mode Bahasa Printer (PENTING):</strong> Pastikan di LCD PM42 <em>Command Language</em> disetel ke <strong className="text-emerald-800">Autosense</strong> atau <strong>Direct Protocol</strong> (Jangan di-lock di ZSim jika print lewat browser).</li>
                 <li><strong>Destination (Tujuan):</strong> Pilih <strong>Honeywell PM42</strong> / Driver Printer Thermal Anda.</li>
                 <li><strong>Paper Size:</strong> Pilih <strong>80 x 100 mm</strong> (atau User-Defined Label 8x10 cm).</li>
                 <li><strong>Margins:</strong> Atur ke <strong>None / Tidak Ada (0)</strong> agar posisi pas.</li>
@@ -1632,6 +1686,18 @@ export function QrGeneratorHoneywellModule() {
               >
                 ZPL / ZSim (.zpl)
               </button>
+            </div>
+
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600">
+              {commandType === 'zpl' ? (
+                <span>
+                  <strong>ZPL / ZSim:</strong> Format bahasa Zebra ZPL II untuk printer Honeywell PM42 dengan mode <strong>ZSim</strong> atau <strong>Autosense</strong>. Cocok dikirim langsung via Port 9100 / Raw Print / Driver Generic Text.
+                </span>
+              ) : (
+                <span>
+                  <strong>Direct Protocol (.dp):</strong> Bahasa bawaan asli Intermec / Honeywell PM42. Digunakan saat printer berada dalam mode <strong>Direct Protocol</strong> atau <strong>Autosense</strong>.
+                </span>
+              )}
             </div>
 
             <textarea
