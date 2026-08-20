@@ -62,8 +62,23 @@ export function edComputeExpiredRow(
     doy = Math.floor(kodeNumerik / 10);      // 3 Digit Pertama = DOY (Hari ke-N dalam tahun)
     digitThn = kodeNumerik % 10;              // Digit Terakhir = Digit Terakhir Tahun Produksi
     
-    // Hitung Tahun Produksi paling mendekati (tidak melebihi tahun berjalan)
-    tahunProduksi = today.getFullYear() - (((today.getFullYear() - digitThn) % 10) + 10) % 10;
+    // Hitung Tahun Produksi dengan rolling window dekade yang tepat (Era 2020-an/2030-an)
+    // Contoh: digit 6 -> 2026 (ED 2029), digit 7 -> 2027 (ED 2030), digit 8 -> 2028 (ED 2031), digit 9 -> 2029 (ED 2032), digit 0 -> 2030 (ED 2033)
+    const currentYear = today.getFullYear();
+    const currentDecade = Math.floor(currentYear / 10) * 10;
+    const currentLastDigit = currentYear % 10;
+
+    tahunProduksi = currentDecade + digitThn;
+    const diff = digitThn - currentLastDigit;
+
+    // Jika digit jauh lebih kecil dari digit tahun berjalan (misal tahun berjalan 2026 tapi digit 0, 1, 2),
+    // maka batch tersebut adalah batch produksi mendatang (2030, 2031, 2032)
+    if (diff < -3) {
+      tahunProduksi += 10;
+    } else if (diff > 6) {
+      tahunProduksi -= 10;
+    }
+    
     if (doy < 1 || doy > 366) {
       status = 'Cek: Hari ke-N (DOY) di luar rentang valid';
     } else {
@@ -74,8 +89,6 @@ export function edComputeExpiredRow(
       if (tglMixing.getFullYear() !== tahunProduksi) {
         status = 'Cek: Hari ke-N (DOY) tidak valid untuk tahun produksi ini';
         tglMixing = null;
-      } else if (tglMixing > today) {
-        status = 'Cek: Tgl Mixing di masa depan';
       }
     }
   }
@@ -93,7 +106,13 @@ export function edComputeExpiredRow(
     if (sled.getMonth() !== month) {
       sled.setFullYear(targetYr, month + 1, 0); // Penanganan tahun kabisat (29 Feb)
     }
-    if (status === 'OK' && sled < today) status = 'PERHATIAN: Sudah Expired';
+    if (status === 'OK') {
+      if (sled < today) {
+        status = 'PERHATIAN: Sudah Expired';
+      } else if (tglMixing > today) {
+        status = 'OK (Planning / Masa Depan)';
+      }
+    }
   }
 
   return {

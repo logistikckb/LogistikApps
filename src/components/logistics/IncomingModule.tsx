@@ -147,6 +147,10 @@ export function IncomingModule() {
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showSqlSetupModal, setShowSqlSetupModal] = useState(false);
   const [showGSheetModal, setShowGSheetModal] = useState(false);
+  const [showCloseStatusModal, setShowCloseStatusModal] = useState(false);
+  const [statusTargetItem, setStatusTargetItem] = useState<IncomingItem | null>(null);
+  const [quickDocNumber, setQuickDocNumber] = useState('');
+  const [formDocNumber, setFormDocNumber] = useState('');
 
   // Google Sheets / Cloudflare Worker Webhook Sync State
   const [gSheetConfig, setGSheetConfig] = useState(() => {
@@ -1085,6 +1089,7 @@ export function IncomingModule() {
       tujuan: '',
       note: ''
     });
+    setFormDocNumber('');
     setShowFormModal(true);
   };
 
@@ -1097,9 +1102,22 @@ export function IncomingModule() {
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
     const itemNote = item.note || (item.tujuan && item.tujuan !== '-' ? item.tujuan : '');
+    
+    // Extract document number if status is already CLOSE - [DOC] or CLOSE + [DOC]
+    const rawStatus = (item.status || 'OPEN').trim();
+    const isClosed = rawStatus.toUpperCase().startsWith('CLOSE');
+    let extractedDoc = '';
+    if (isClosed) {
+      const match = rawStatus.match(/^CLOSE\s*[-:+ ]\s*(.*)$/i);
+      if (match && match[1]) {
+        extractedDoc = match[1].trim();
+      }
+    }
+    setFormDocNumber(extractedDoc);
+
     setFormData({
       ...item,
-      status: (item.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
+      status: isClosed ? 'CLOSE' : 'OPEN',
       tujuan: itemNote,
       note: itemNote
     });
@@ -1107,11 +1125,29 @@ export function IncomingModule() {
   };
 
   // Quick inline update status proses (OPEN <-> CLOSE) directly from table
-  const handleUpdateProsesStatus = async (item: IncomingItem, newStatus: 'OPEN' | 'CLOSE') => {
+  const handleTriggerStatusChange = (item: IncomingItem, targetStatus: string) => {
+    if (targetStatus === 'CLOSE') {
+      // Prompt modal for document number input
+      setStatusTargetItem(item);
+      const rawStatus = (item.status || '').trim();
+      let extractedDoc = '';
+      if (rawStatus.toUpperCase().startsWith('CLOSE')) {
+        const match = rawStatus.match(/^CLOSE\s*[-:+ ]\s*(.*)$/i);
+        if (match && match[1]) extractedDoc = match[1].trim();
+      }
+      setQuickDocNumber(extractedDoc);
+      setShowCloseStatusModal(true);
+    } else {
+      // Revert to OPEN immediately
+      handleSaveProsesStatusDirect(item, 'OPEN');
+    }
+  };
+
+  const handleSaveProsesStatusDirect = async (item: IncomingItem, finalStatusString: string) => {
     const nowIso = new Date().toISOString();
     const updatedItem: IncomingItem = {
       ...item,
-      status: newStatus,
+      status: finalStatusString,
       updated_at: nowIso
     };
 
@@ -1120,8 +1156,8 @@ export function IncomingModule() {
 
     showToast(
       'Status Proses Diperbarui',
-      `Status kedatangan ${item.id_incoming} diubah menjadi ${newStatus}`,
-      newStatus === 'CLOSE' ? 'success' : 'info'
+      `Status kedatangan ${item.id_incoming} diubah menjadi ${finalStatusString}`,
+      finalStatusString.toUpperCase().startsWith('CLOSE') ? 'success' : 'info'
     );
 
     // 2. Persist to Supabase if connected
@@ -1129,16 +1165,29 @@ export function IncomingModule() {
       try {
         const { error } = await supabase
           .from('incoming')
-          .update({ status: newStatus, updated_at: nowIso })
+          .update({ status: finalStatusString, updated_at: nowIso })
           .eq('id_incoming', item.id_incoming);
 
         if (error) {
           console.error('Error updating status in supabase:', error);
+          showToast('Peringatan Database', 'Tersimpan lokal, namun gagal ke database cloud. Cek Setup Database.', 'warning');
         }
       } catch (err) {
         console.error('Failed to update status in supabase:', err);
       }
     }
+  };
+
+  const handleConfirmCloseWithDoc = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!statusTargetItem) return;
+
+    const trimmedDoc = quickDocNumber.trim();
+    const finalStatus = trimmedDoc ? `CLOSE - ${trimmedDoc}` : 'CLOSE';
+    await handleSaveProsesStatusDirect(statusTargetItem, finalStatus);
+    setShowCloseStatusModal(false);
+    setStatusTargetItem(null);
+    setQuickDocNumber('');
   };
 
   const handleOpenDetailModal = (item: IncomingItem) => {
@@ -1284,6 +1333,13 @@ export function IncomingModule() {
     const cleanBatch = formData.batch?.trim() || '-';
     const cleanQty = Number(formData.last_qty) || 0;
 
+    const isFormClosed = (formData.status || 'OPEN').trim().toUpperCase().startsWith('CLOSE');
+    const trimmedFormDoc = formDocNumber.trim();
+    const finalFormStatus = isFormClosed
+      ? (trimmedFormDoc ? `CLOSE - ${trimmedFormDoc}` : 'CLOSE')
+      : 'OPEN';
+    const finalNote = formData.note !== undefined ? (formData.note.trim() || '-') : (formData.tujuan?.trim() || '-');
+
     const recordToSave: IncomingItem = {
       id_incoming: idIncoming,
       jenis: formData.jenis?.trim() || 'ADMK',
@@ -1311,9 +1367,9 @@ export function IncomingModule() {
       source: formData.source?.trim() || '-',
       user_input: currentUser?.nama || formData.user_input?.trim() || '-',
       tanggal_update: nowIso,
-      status: (formData.status || 'OPEN').trim().toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
-      tujuan: (formData.note?.trim() || formData.tujuan?.trim() || '-'),
-      note: (formData.note?.trim() || formData.tujuan?.trim() || '-'),
+      status: finalFormStatus,
+      tujuan: finalNote,
+      note: finalNote,
       created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso,
       updated_at: nowIso
     };
@@ -1333,9 +1389,20 @@ export function IncomingModule() {
     // 2. Persist to Supabase if online
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase
+        let { error } = await supabase
           .from('incoming')
           .upsert(recordToSave, { onConflict: 'id_incoming' });
+
+        // Resilient Fallback: If remote schema cache hasn't run the ALTER TABLE ADD COLUMN note yet
+        if (error && (error.message?.includes("'note'") || error.message?.includes('schema cache'))) {
+          console.warn("Retrying upsert without 'note' column for compatibility with older DB schema:", error.message);
+          const fallbackRecord: any = { ...recordToSave };
+          delete fallbackRecord.note;
+          const retryRes = await supabase
+            .from('incoming')
+            .upsert(fallbackRecord, { onConflict: 'id_incoming' });
+          error = retryRes.error;
+        }
 
         if (error) {
           console.error('Error saving incoming to database:', error);
@@ -1343,8 +1410,9 @@ export function IncomingModule() {
           if (error.code === '42P01' || error.message?.includes('does not exist')) {
             setShowSqlSetupModal(true);
           }
-          showToast('Peringatan Database', 'Tersimpan lokal, namun gagal ke database cloud. Cek Setup Database.', 'warning');
+          showToast('Peringatan Database', `Tersimpan lokal, namun gagal ke cloud: ${error.message}`, 'warning');
         } else {
+          setLastSupabaseError(null);
           fetchIncomingData();
         }
       } catch (err: any) {
@@ -2241,11 +2309,17 @@ CREATE TABLE IF NOT EXISTS public.incoming (
     source VARCHAR(100) DEFAULT 'Supplier',
     user_input VARCHAR(100) DEFAULT 'Operator',
     tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
-    status VARCHAR(50) DEFAULT 'Received',
-    tujuan VARCHAR(255) DEFAULT 'Warehouse Utama',
+    status VARCHAR(100) DEFAULT 'OPEN',
+    tujuan VARCHAR(255) DEFAULT '-',
+    note VARCHAR(255) DEFAULT '-',
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+
+-- JIKA TABEL SUDAH ADA, TAMBAHKAN KOLOM NOTE / UBAH STATUS AGAR TIDAK ERROR:
+ALTER TABLE public.incoming ADD COLUMN IF NOT EXISTS note VARCHAR(255) DEFAULT '-';
+ALTER TABLE public.incoming ADD COLUMN IF NOT EXISTS tujuan VARCHAR(255) DEFAULT '-';
+ALTER TABLE public.incoming ALTER COLUMN status TYPE VARCHAR(100);
 
 -- Indexing untuk pencarian cepat
 CREATE INDEX IF NOT EXISTS idx_incoming_item_code ON public.incoming(item_code);
@@ -2809,21 +2883,32 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : (item.tanggal_update || '-')}
                       </td>
 
-                      {/* 12. Kolom Status Proses (Dropdown OPEN / CLOSE) */}
+                      {/* 12. Kolom Status Proses (OPEN / CLOSE + No. Dokumen) */}
                       <td className="py-2.5 px-3 text-center" onClick={e => e.stopPropagation()}>
-                        <select
-                          value={rowStatus}
-                          onChange={e => handleUpdateProsesStatus(item, e.target.value as 'OPEN' | 'CLOSE')}
-                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
-                            isClosed
-                              ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                              : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
-                          }`}
-                          title="Klik untuk mengubah status proses (OPEN / CLOSE)"
-                        >
-                          <option value="OPEN" className="bg-white text-slate-800 font-bold">OPEN</option>
-                          <option value="CLOSE" className="bg-white text-slate-800 font-bold">CLOSE</option>
-                        </select>
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <select
+                            value={isClosed ? 'CLOSE' : 'OPEN'}
+                            onChange={e => handleTriggerStatusChange(item, e.target.value)}
+                            className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
+                              isClosed
+                                ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                                : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                            }`}
+                            title="Klik untuk mengubah status proses (OPEN / CLOSE)"
+                          >
+                            <option value="OPEN" className="bg-white text-slate-800 font-bold">OPEN</option>
+                            <option value="CLOSE" className="bg-white text-slate-800 font-bold">CLOSE</option>
+                          </select>
+                          {isClosed && (
+                            <span 
+                              className="text-[9px] font-mono font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 max-w-[130px] truncate cursor-pointer hover:bg-emerald-200"
+                              title={`Status lengkap: ${item.status}. Klik untuk edit no dokumen.`}
+                              onClick={() => handleTriggerStatusChange(item, 'CLOSE')}
+                            >
+                              {item.status}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* 13. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
@@ -3649,27 +3734,48 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               </div>
 
               {/* Row 7: Status Proses (OPEN / CLOSE - Standar: OPEN) */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <label className="block text-slate-800 font-bold text-xs">
-                    Status Proses
-                  </label>
-                  <p className="text-[11px] text-slate-500 m-0">
-                    Standar berstatus OPEN. Ubah ke CLOSE bila penerimaan sudah selesai.
-                  </p>
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <label className="block text-slate-800 font-bold text-xs">
+                      Status Proses
+                    </label>
+                    <p className="text-[11px] text-slate-500 m-0">
+                      Standar berstatus OPEN. Ubah ke CLOSE bila penerimaan sudah selesai.
+                    </p>
+                  </div>
+                  <select
+                    value={(formData.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN'}
+                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                    className={`text-xs font-black px-4 py-2 rounded-xl border outline-none cursor-pointer font-mono shadow-2xs transition-all shrink-0 ${
+                      (formData.status || 'OPEN').toUpperCase() === 'CLOSE'
+                        ? 'bg-emerald-600 text-white border-emerald-700'
+                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                    }`}
+                  >
+                    <option value="OPEN">OPEN (Aktif)</option>
+                    <option value="CLOSE">CLOSE (Selesai)</option>
+                  </select>
                 </div>
-                <select
-                  value={(formData.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN'}
-                  onChange={e => setFormData({ ...formData, status: e.target.value })}
-                  className={`text-xs font-black px-4 py-2 rounded-xl border outline-none cursor-pointer font-mono shadow-2xs transition-all shrink-0 ${
-                    (formData.status || 'OPEN').toUpperCase() === 'CLOSE'
-                      ? 'bg-emerald-600 text-white border-emerald-700'
-                      : 'bg-amber-100 text-amber-900 border-amber-300'
-                  }`}
-                >
-                  <option value="OPEN">OPEN (Aktif)</option>
-                  <option value="CLOSE">CLOSE (Selesai)</option>
-                </select>
+
+                {/* Input Nomor Dokumen jika Status CLOSE */}
+                {(formData.status || 'OPEN').toUpperCase() === 'CLOSE' && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1 animate-fade-in">
+                    <label className="block text-slate-800 font-bold text-xs">
+                      Nomor Dokumen <span className="text-emerald-600 font-normal">(Disimpan di Status: CLOSE - [No. Dokumen])</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formDocNumber}
+                      onChange={e => setFormDocNumber(e.target.value)}
+                      placeholder="Contoh: PO-2025/08/001 atau DO-99882..."
+                      className="w-full bg-white text-slate-800 border border-emerald-400 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                    />
+                    <p className="text-[10px] text-slate-500 m-0">
+                      Preview kolom proses: <span className="font-mono font-bold text-emerald-800">{formDocNumber.trim() ? `CLOSE - ${formDocNumber.trim()}` : 'CLOSE'}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Row 8: Catatan / Note */}
@@ -4001,6 +4107,68 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
       , document.body)}
 
       {/* ========================================================================= */}
+      {/* 7.5. MODAL: QUICK CLOSE STATUS WITH DOCUMENT NUMBER */}
+      {/* ========================================================================= */}
+      {showCloseStatusModal && statusTargetItem && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <CheckCircle2 size={20} />
+                <h3 className="text-base font-black text-slate-800 m-0">Selesaikan Proses (CLOSE)</h3>
+              </div>
+              <button
+                onClick={() => setShowCloseStatusModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 m-0">
+              Ubah status transaksi <span className="font-mono font-bold text-slate-800">{statusTargetItem.id_incoming}</span> ({statusTargetItem.item_name}) menjadi <span className="font-bold text-emerald-700">CLOSE</span>. Anda dapat memasukkan nomor dokumen di bawah ini.
+            </p>
+
+            <form onSubmit={handleConfirmCloseWithDoc} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-slate-800 font-bold text-xs">
+                  Nomor Dokumen <span className="text-slate-400 font-normal">(Opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={quickDocNumber}
+                  onChange={e => setQuickDocNumber(e.target.value)}
+                  placeholder="Contoh: PO-2025/08/001 atau DO-99882..."
+                  className="w-full bg-white text-slate-800 border border-emerald-400 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                />
+                <p className="text-[10px] text-slate-500 m-0">
+                  Akan tersimpan sebagai: <span className="font-mono font-bold text-emerald-800">{quickDocNumber.trim() ? `CLOSE - ${quickDocNumber.trim()}` : 'CLOSE'}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCloseStatusModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check size={14} />
+                  Simpan Status CLOSE
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
       {/* 8. MODAL: SQL SETUP HELPER */}
       {/* ========================================================================= */}
       {showSqlSetupModal && typeof document !== "undefined" && createPortal(
@@ -4061,165 +4229,182 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
       {/* 9. MODAL: GOOGLE SHEETS / CLOUDFLARE WORKER WEBHOOK SYNC */}
       {/* ========================================================================= */}
       {showGSheetModal && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden my-8 animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-xl overflow-hidden my-6 animate-scale-in flex flex-col max-h-[92vh]">
+            
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-white/10 rounded-2xl">
-                  <Share2 size={22} className="text-emerald-300" />
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 bg-white/10 backdrop-blur-xs rounded-xl text-emerald-300 shrink-0">
+                  <Share2 size={20} />
                 </div>
-                <div>
-                  <h3 className="text-base font-black m-0 leading-tight flex items-center gap-2">
-                    <span>Sync ke Google Sheets</span>
-                    <span className="text-[10px] uppercase tracking-wider bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold m-0 leading-tight text-white">
+                      Sync ke Google Sheets
+                    </h3>
+                    <span className="text-[10px] font-bold tracking-wide uppercase bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/20">
                       Webhook / Workers
                     </span>
-                  </h3>
-                  <p className="text-xs text-emerald-100/80 m-0 mt-0.5">
-                    Kirim data kedatangan langsung ke Google Spreadsheet via Cloudflare Worker atau Apps Script
+                  </div>
+                  <p className="text-xs text-emerald-100/75 m-0 mt-0.5 truncate">
+                    Sinkronisasi data kedatangan barang ke Google Spreadsheet secara realtime
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowGSheetModal(false)}
-                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
+                title="Tutup Modal"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-5 sm:p-6 space-y-4 text-xs">
-              {/* Info Banner */}
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-emerald-900">
-                <FileSpreadsheet size={18} className="text-emerald-600 shrink-0 mt-0.5" />
-                <div className="text-[11px] leading-relaxed">
-                  <span className="font-bold">Total data siap dikirim: </span>
-                  <span className="font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                    {filteredIncoming.length > 0 ? filteredIncoming.length : incomingList.length} Baris Data
-                  </span>
-                  <span className="text-slate-600 ml-1">
-                    (Sesuai filter pencarian & status yang sedang aktif)
-                  </span>
+            {/* Modal Scrollable Body */}
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-slate-700">
+              
+              {/* Summary Box: Total Data */}
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
+                    <FileSpreadsheet size={16} />
+                  </div>
+                  <div className="text-xs leading-tight min-w-0">
+                    <span className="text-slate-600 font-medium">Data Siap Dikirim: </span>
+                    <span className="font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                      {filteredIncoming.length > 0 ? filteredIncoming.length : incomingList.length} Baris
+                    </span>
+                  </div>
                 </div>
+                <span className="text-[11px] text-slate-500 hidden sm:inline-block shrink-0">
+                  (Sesuai filter & pencarian)
+                </span>
               </div>
 
-              {/* Ready Status or Setup Prompt */}
+              {/* Status Connection Box */}
               {gSheetConfig.webhookUrl ? (
-                <div className="p-3 bg-emerald-50/90 border border-emerald-300 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <div>
-                        <div className="font-extrabold text-emerald-950 text-xs flex items-center gap-1.5 flex-wrap">
-                          <span>Webhook Aktif</span>
-                          {isConfigFromSupabase && (
-                            <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Database size={10} />
-                              Cloud Supabase (Semua Perangkat)
-                            </span>
-                          )}
-                          <span className="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded">
-                            Tab: {gSheetConfig.sheetName || 'Incoming'}
+                <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Webhook Siap
+                        </span>
+                        
+                        {isConfigFromSupabase && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            <Database size={10} />
+                            Cloud Supabase
                           </span>
-                        </div>
-                        <p className="text-[10px] text-slate-600 truncate max-w-xs sm:max-w-md mt-0.5 font-mono">
-                          {gSheetConfig.webhookUrl}
-                        </p>
+                        )}
+
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700">
+                          Tab: {gSheetConfig.sheetName || 'Incoming'}
+                        </span>
                       </div>
+
+                      <p className="text-[11px] text-slate-500 font-mono truncate max-w-full m-0" title={gSheetConfig.webhookUrl}>
+                        {gSheetConfig.webhookUrl}
+                      </p>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setShowGSheetAdvanced(!showGSheetAdvanced)}
-                      className="text-[11px] font-bold text-slate-700 hover:text-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg shadow-2xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
                     >
-                      {showGSheetAdvanced ? 'Tutup Pengaturan' : 'Ubah URL / Tab'}
+                      <Settings size={13} className="text-slate-500" />
+                      <span>{showGSheetAdvanced ? 'Tutup' : 'Pengaturan'}</span>
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-amber-950">
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900">
                   <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-[11px] leading-relaxed">
-                    <span className="font-extrabold text-amber-900">Konfigurasi Cloud Belum Tersedia:</span>
-                    <p className="m-0 mt-0.5 text-slate-700">
-                      Admin cukup mengisi URL Webhook di bawah ini <b>1 kali</b> dan klik <b>"Simpan ke Cloud Database"</b>. Setelah itu, <b>seluruh HP/perangkat tim akan otomatis terhubung</b> tanpa perlu input manual!
-                    </p>
+                  <div className="text-xs leading-relaxed">
+                    <span className="font-bold text-amber-900">URL Webhook Belum Diatur: </span>
+                    <span className="text-slate-600">
+                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke database cloud Supabase agar otomatis terpasang di seluruh perangkat tim.
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Form Inputs (Collapsible if webhook is already set, or always visible if empty) */}
+              {/* Form Settings (Collapsible or visible if empty) */}
               {(!gSheetConfig.webhookUrl || showGSheetAdvanced) && (
-                <div className="space-y-3 pt-2 animate-fade-in border-t border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5">
-                      <Settings size={13} className="text-slate-500" />
-                      <span>Pengaturan Webhook & Spreadsheet</span>
+                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3.5 animate-fade-in">
+                  
+                  {/* Settings Sub-Header */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Settings size={14} className="text-slate-500" />
+                      <span>Konfigurasi Webhook & Spreadsheet</span>
                     </span>
 
-                    {/* Tombol Simpan ke Supabase untuk Admin */}
                     <button
                       type="button"
                       disabled={isSavingToSupabase || !gSheetConfig.webhookUrl.trim()}
                       onClick={handleSaveConfigToSupabase}
-                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                      title="Simpan konfigurasi ini ke database Supabase agar otomatis terbaca di semua perangkat anggota tim"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                      title="Simpan ke Cloud Supabase agar otomatis aktif di semua HP/Laptop tim"
                     >
                       {isSavingToSupabase ? (
                         <>
                           <RefreshCw size={12} className="animate-spin" />
-                          <span>Menyimpan ke Cloud...</span>
+                          <span>Menyimpan...</span>
                         </>
                       ) : (
                         <>
                           <Database size={12} />
-                          <span>Simpan ke Cloud Database</span>
+                          <span>Simpan ke Cloud</span>
                         </>
                       )}
                     </button>
                   </div>
 
+                  {/* Input: URL Webhook */}
                   <div>
-                    <label className="block text-slate-800 font-bold text-xs mb-1">
-                      URL Webhook / Cloudflare Worker <span className="text-red-500">*</span>
+                    <label className="block text-slate-700 font-bold text-xs mb-1">
+                      URL Webhook / Cloudflare Worker <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <input
                         type="url"
                         value={gSheetConfig.webhookUrl}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
-                        placeholder="https://logistik-worker.yourname.workers.dev atau https://script.google.com/..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        placeholder="https://script.google.com/... atau https://worker.dev/..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
                       <Globe size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Masukkan URL Cloudflare Worker atau URL Deployment Web App Google Apps Script.
+                    <p className="text-[11px] text-slate-500 mt-1 m-0">
+                      URL Web App Deployment dari Google Apps Script atau Cloudflare Worker.
                     </p>
                   </div>
 
+                  {/* Input: Spreadsheet ID & Sheet Name */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-800 font-bold text-xs mb-1">
-                        Spreadsheet ID (Opsional)
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Spreadsheet ID <span className="text-slate-400 font-normal">(Opsional)</span>
                       </label>
                       <input
                         type="text"
                         value={gSheetConfig.spreadsheetId}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, spreadsheetId: e.target.value })}
-                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgm..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        placeholder="1BxiMVs0XRA5nFMd..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        ID dari URL Google Sheets (kosongkan jika script terpasang di sheet).
+                      <p className="text-[10px] text-slate-500 mt-1 m-0">
+                        ID dari URL spreadsheet (kosongkan jika script melekat pada sheet).
                       </p>
                     </div>
 
                     <div>
-                      <label className="block text-slate-800 font-bold text-xs mb-1">
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
                         Nama Tab / Sheet
                       </label>
                       <input
@@ -4227,57 +4412,58 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         value={gSheetConfig.sheetName}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, sheetName: e.target.value })}
                         placeholder="Incoming"
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        Nama lembar kerja target (default: Incoming).
+                      <p className="text-[10px] text-slate-500 mt-1 m-0">
+                        Nama lembar kerja target (default: <span className="font-mono">Incoming</span>).
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Input: Mode & Secret Token */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-800 font-bold text-xs mb-1">
-                        Mode Pengiriman
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Mode Pengiriman Data
                       </label>
                       <select
                         value={gSheetConfig.mode}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, mode: e.target.value as any })}
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer"
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer transition-all"
                       >
-                        <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua Data)</option>
-                        <option value="append">➕ Append (Tambahkan Baris Baru di Bawah)</option>
+                        <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua)</option>
+                        <option value="append">➕ Append (Tambah di Bawah)</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-slate-800 font-bold text-xs mb-1">
-                        Secret Token / Key (Opsional)
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Secret Token <span className="text-slate-400 font-normal">(Opsional)</span>
                       </label>
                       <input
                         type="password"
                         value={gSheetConfig.secretToken}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, secretToken: e.target.value })}
                         placeholder="Token otorisasi jika ada..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
                     </div>
                   </div>
 
-                  {/* Toggle SQL Setup Info */}
-                  <div className="pt-2">
+                  {/* SQL Setup Helper Toggle */}
+                  <div className="pt-1">
                     <button
                       type="button"
                       onClick={() => setShowSqlHelp(!showSqlHelp)}
-                      className="text-[10px] text-blue-700 hover:text-blue-900 font-bold underline flex items-center gap-1 cursor-pointer"
+                      className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
-                      <Info size={12} />
-                      <span>{showSqlHelp ? 'Sembunyikan SQL Database Setup' : 'Petunjuk SQL Database Supabase (app_settings)'}</span>
+                      <Info size={13} />
+                      <span>{showSqlHelp ? 'Sembunyikan Script SQL Supabase' : 'Petunjuk Tabel Supabase (app_settings)'}</span>
                     </button>
 
                     {showSqlHelp && (
-                      <div className="mt-2 p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-[10px] space-y-2 animate-fade-in border border-slate-800">
-                        <div className="flex items-center justify-between text-slate-400 font-sans text-[11px] pb-1 border-b border-slate-800">
+                      <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] space-y-2 animate-fade-in border border-slate-800">
+                        <div className="flex items-center justify-between text-slate-400 font-sans text-xs pb-1 border-b border-slate-800">
                           <span>Jalankan di Supabase SQL Editor:</span>
                           <button
                             type="button"
@@ -4286,13 +4472,13 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                               navigator.clipboard.writeText(sql);
                               showToast('SQL Disalin', 'Query SQL telah disalin ke clipboard!', 'success');
                             }}
-                            className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-sans font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-sans font-bold flex items-center gap-1 cursor-pointer transition-colors"
                           >
-                            <Copy size={10} />
+                            <Copy size={11} />
                             <span>Salin SQL</span>
                           </button>
                         </div>
-                        <pre className="overflow-x-auto whitespace-pre-wrap text-emerald-400 text-[10px] leading-relaxed">
+                        <pre className="overflow-x-auto whitespace-pre-wrap text-emerald-400 text-[10px] leading-relaxed m-0">
 {`CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value JSONB NOT NULL,
@@ -4311,39 +4497,39 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
               {/* Sync Result Status Box */}
               {gSheetSyncResult && (
                 <div
-                  className={`p-3.5 rounded-2xl border text-xs animate-fade-in ${
+                  className={`p-3.5 rounded-xl border text-xs animate-fade-in ${
                     gSheetSyncResult.success
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-                      : 'bg-red-50 border-red-300 text-red-950'
+                      ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                      : 'bg-rose-50/90 border-rose-300 text-rose-950'
                   }`}
                 >
                   <div className="flex items-start gap-2.5">
                     {gSheetSyncResult.success ? (
                       <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
                     ) : (
-                      <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+                      <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
                     )}
-                    <div className="flex-1 space-y-1">
-                      <div className="font-extrabold flex items-center justify-between">
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="font-bold flex items-center justify-between gap-2">
                         <span>{gSheetSyncResult.success ? 'Sinkronisasi Berhasil!' : 'Gagal Sinkronisasi'}</span>
                         {gSheetSyncResult.timestamp && (
-                          <span className="text-[10px] font-normal text-slate-500">
+                          <span className="text-[10px] font-normal text-slate-500 shrink-0">
                             {gSheetSyncResult.timestamp}
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] leading-relaxed m-0 text-slate-700">
+                      <p className="text-xs leading-relaxed m-0 text-slate-700">
                         {gSheetSyncResult.message}
                       </p>
                       {gSheetSyncResult.spreadsheetUrl && (
-                        <div className="pt-2">
+                        <div className="pt-1">
                           <a
                             href={gSheetSyncResult.spreadsheetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
                           >
-                            <span>Buka Google Sheet</span>
+                            <span>Buka Google Spreadsheet</span>
                             <ExternalLink size={12} />
                           </a>
                         </div>
@@ -4355,11 +4541,11 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-2">
+            <div className="px-5 py-3.5 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowGSheetModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all cursor-pointer text-xs"
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold transition-all cursor-pointer text-xs shadow-2xs"
               >
                 Tutup
               </button>
@@ -4368,7 +4554,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                 type="button"
                 disabled={isSyncingGSheet || !gSheetConfig.webhookUrl.trim()}
                 onClick={handleExecuteGSheetSync}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 text-xs"
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold shadow-sm hover:shadow transition-all cursor-pointer flex items-center gap-2 text-xs"
               >
                 {isSyncingGSheet ? (
                   <>
