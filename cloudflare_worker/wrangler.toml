@@ -1,0 +1,7 @@
+name = "logistik-sheets-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"
+SECRET_TOKEN = ""

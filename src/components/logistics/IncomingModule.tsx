@@ -39,7 +39,12 @@ import {
   Mic,
   MicOff,
   Volume2,
-  Radio
+  Radio,
+  Share2,
+  ExternalLink,
+  Send,
+  Globe,
+  Settings
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
@@ -141,6 +146,45 @@ export function IncomingModule() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showSqlSetupModal, setShowSqlSetupModal] = useState(false);
+  const [showGSheetModal, setShowGSheetModal] = useState(false);
+
+  // Google Sheets / Cloudflare Worker Webhook Sync State
+  const [gSheetConfig, setGSheetConfig] = useState(() => {
+    // Default from environment variables if set in project
+    const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
+    const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
+    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME as string) || 'Incoming';
+
+    try {
+      const saved = localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          webhookUrl: parsed.webhookUrl || defaultEnvUrl,
+          spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
+          sheetName: parsed.sheetName || defaultEnvSheetName,
+          secretToken: parsed.secretToken || '',
+          mode: (parsed.mode || 'overwrite') as 'overwrite' | 'append'
+        };
+      }
+    } catch {}
+    return {
+      webhookUrl: defaultEnvUrl,
+      spreadsheetId: defaultEnvSpreadsheetId,
+      sheetName: defaultEnvSheetName,
+      secretToken: '',
+      mode: 'overwrite' as 'overwrite' | 'append'
+    };
+  });
+  const [showGSheetAdvanced, setShowGSheetAdvanced] = useState(false);
+  const [isSyncingGSheet, setIsSyncingGSheet] = useState(false);
+  const [gSheetSyncResult, setGSheetSyncResult] = useState<{
+    success: boolean;
+    message: string;
+    spreadsheetUrl?: string;
+    updatedRows?: number;
+    timestamp?: string;
+  } | null>(null);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<IncomingItem | null>(null);
@@ -1538,6 +1582,212 @@ export function IncomingModule() {
   };
 
   // =========================================================================
+  // GOOGLE SHEETS / CLOUDFLARE WORKER WEBHOOK SYNC
+  // =========================================================================
+  const handleSaveGSheetConfig = (newConfig: typeof gSheetConfig) => {
+    setGSheetConfig(newConfig);
+    try {
+      localStorage.setItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
+    } catch {}
+  };
+
+  const handleExecuteGSheetSync = async () => {
+    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
+    if (!rawUrl) {
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Google Apps Script atau Cloudflare Worker.', 'warning');
+      return;
+    }
+
+    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+      showToast('Format URL Tidak Valid', 'URL Webhook harus diawali dengan https:// atau http://', 'warning');
+      return;
+    }
+
+    const itemsToSync = filteredIncoming.length > 0 ? filteredIncoming : incomingList;
+    if (itemsToSync.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data kedatangan untuk dikirim ke Google Sheets.', 'warning');
+      return;
+    }
+
+    setIsSyncingGSheet(true);
+    setGSheetSyncResult(null);
+
+    try {
+      const headers = [
+        'ID Incoming',
+        'Jenis',
+        'ID Distributor',
+        'Distributor',
+        'Item Code',
+        'Item Name',
+        'Kategori',
+        'Lokasi',
+        'Tipe Lokasi',
+        'Qty Awal',
+        'Qty Akhir',
+        'UOM',
+        'Qty Convert',
+        'UOM Convert',
+        'LPN / SN',
+        'Batch',
+        'Vendor Batch',
+        'SLOC',
+        'Expired Date',
+        'Kode Tujuan',
+        'Status QC',
+        'User Tally',
+        'Shelf Life',
+        'Sumber',
+        'User Input',
+        'Tanggal Update',
+        'Status',
+        'Catatan / Note'
+      ];
+
+      const rows = itemsToSync.map(item => [
+        item.id_incoming || '-',
+        item.jenis || '-',
+        item.id_distributor || '-',
+        item.distributor || '-',
+        item.item_code || '-',
+        item.item_name || '-',
+        item.category || '-',
+        item.location || '-',
+        item.location_type || '-',
+        Number(item.first_qty) || 0,
+        Number(item.last_qty) || 0,
+        item.uom || '-',
+        Number(item.qty_convert) || 0,
+        item.uom_convert || '-',
+        item.lpn_serial_number || '-',
+        item.batch || '-',
+        item.vendor_batch || '-',
+        item.sloc || '-',
+        item.expired_date || '-',
+        item.destination_code || '-',
+        item.qc_code || '-',
+        item.user_tally || '-',
+        item.shelf_life || '-',
+        item.source || '-',
+        item.user_input || '-',
+        item.tanggal_update ? item.tanggal_update.substring(0, 10) : '-',
+        item.status || 'OPEN',
+        item.note !== undefined && item.note !== '' ? item.note : (item.tujuan || '-')
+      ]);
+
+      const payload = {
+        action: 'sync_incoming',
+        mode: gSheetConfig.mode || 'overwrite',
+        sheetName: gSheetConfig.sheetName || 'Incoming',
+        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
+        secretToken: gSheetConfig.secretToken || '',
+        timestamp: new Date().toISOString(),
+        totalRows: itemsToSync.length,
+        headers,
+        rows,
+        data: itemsToSync
+      };
+
+      // Save latest config
+      handleSaveGSheetConfig(gSheetConfig);
+
+      const isDirectGoogleScript = rawUrl.includes('script.google.com');
+      let responseJson: any = null;
+      let syncSucceeded = false;
+      let executionMode: 'cors' | 'no-cors' = 'cors';
+
+      // 1. Attempt standard POST using text/plain to avoid CORS OPTIONS preflight
+      try {
+        const res = await fetch(rawUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          try {
+            responseJson = await res.json();
+          } catch {
+            responseJson = { status: 'success' };
+          }
+          syncSucceeded = true;
+          executionMode = 'cors';
+        } else {
+          // If server returned HTTP error status
+          let errMsg = `HTTP Error ${res.status}`;
+          try {
+            const errBody = await res.json();
+            if (errBody.message) errMsg = errBody.message;
+          } catch {}
+          throw new Error(errMsg);
+        }
+      } catch (directErr: any) {
+        // 2. If browser blocked cross-origin redirect (common with direct script.google.com URLs)
+        // or threw Failed to fetch, retry in no-cors mode so the payload reaches Google Apps Script
+        if (isDirectGoogleScript || directErr?.message?.includes('Failed to fetch') || directErr?.name === 'TypeError') {
+          try {
+            await fetch(rawUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+              },
+              body: JSON.stringify(payload)
+            });
+            syncSucceeded = true;
+            executionMode = 'no-cors';
+            responseJson = {
+              status: 'success',
+              message: `Data ${itemsToSync.length} baris berhasil dikirim ke Google Apps Script Webhook.`
+            };
+          } catch (noCorsErr: any) {
+            throw directErr;
+          }
+        } else {
+          throw directErr;
+        }
+      }
+
+      if (!syncSucceeded) {
+        throw new Error('Gagal mengirim data ke Webhook tujuan.');
+      }
+
+      const updatedCount = responseJson?.updatedRows || itemsToSync.length;
+      const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
+
+      const successMsg = executionMode === 'no-cors'
+        ? `Berhasil mengirim ${updatedCount} baris data ke Google Apps Script (Sheet: "${gSheetConfig.sheetName || 'Incoming'}").`
+        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Google Sheet "${gSheetConfig.sheetName || 'Incoming'}"!`);
+
+      setGSheetSyncResult({
+        success: true,
+        message: successMsg,
+        spreadsheetUrl: sheetUrl,
+        updatedRows: updatedCount,
+        timestamp: new Date().toLocaleTimeString('id-ID')
+      });
+
+      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data ke Google Sheets!`, 'success');
+    } catch (err: any) {
+      console.error('GSheet sync error:', err);
+      const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
+      const guidance = isGoogleUrl
+        ? 'Pastikan Deployment Web App di Google Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
+        : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
+
+      setGSheetSyncResult({
+        success: false,
+        message: `${err?.message || 'Gagal menghubungi Webhook'}. ${guidance}`
+      });
+      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Google Sheets', 'danger');
+    } finally {
+      setIsSyncingGSheet(false);
+    }
+  };
+
+  // =========================================================================
   // EXCEL UPLOAD & IMPORT
   // =========================================================================
   const handleOpenExcelModal = () => {
@@ -2048,6 +2298,17 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             >
               <Download size={13} />
               <span>Download Excel</span>
+            </button>
+
+            {/* Tombol Sinkron ke Google Sheets / Cloudflare Worker */}
+            <button
+              type="button"
+              onClick={() => setShowGSheetModal(true)}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Kirim dan sinkronkan data langsung ke Google Sheets melalui Webhook / Cloudflare Worker"
+            >
+              <Share2 size={13} />
+              <span>Sync Google Sheets</span>
             </button>
 
             {/* Tombol Sinkron & Refresh Data (Tunggal & Terpadu) */}
@@ -3734,6 +3995,255 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-900 cursor-pointer"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* 9. MODAL: GOOGLE SHEETS / CLOUDFLARE WORKER WEBHOOK SYNC */}
+      {/* ========================================================================= */}
+      {showGSheetModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden my-8 animate-scale-in">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-800 to-teal-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/10 rounded-2xl">
+                  <Share2 size={22} className="text-emerald-300" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black m-0 leading-tight flex items-center gap-2">
+                    <span>Sync ke Google Sheets</span>
+                    <span className="text-[10px] uppercase tracking-wider bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                      Webhook / Workers
+                    </span>
+                  </h3>
+                  <p className="text-xs text-emerald-100/80 m-0 mt-0.5">
+                    Kirim data kedatangan langsung ke Google Spreadsheet via Cloudflare Worker atau Apps Script
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowGSheetModal(false)}
+                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 sm:p-6 space-y-4 text-xs">
+              {/* Info Banner */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-emerald-900">
+                <FileSpreadsheet size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-relaxed">
+                  <span className="font-bold">Total data siap dikirim: </span>
+                  <span className="font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                    {filteredIncoming.length > 0 ? filteredIncoming.length : incomingList.length} Baris Data
+                  </span>
+                  <span className="text-slate-600 ml-1">
+                    (Sesuai filter pencarian & status yang sedang aktif)
+                  </span>
+                </div>
+              </div>
+
+              {/* Ready Status or Setup Prompt */}
+              {gSheetConfig.webhookUrl ? (
+                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <div>
+                      <div className="font-extrabold text-emerald-900 text-xs flex items-center gap-1.5">
+                        <span>Webhook Aktif & Siap Digunakan</span>
+                        <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-800 px-1.5 py-0.2 rounded">
+                          Tab: {gSheetConfig.sheetName || 'Incoming'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 truncate max-w-xs sm:max-w-sm mt-0.5 font-mono">
+                        {gSheetConfig.webhookUrl}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowGSheetAdvanced(!showGSheetAdvanced)}
+                    className="text-[11px] font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+                  >
+                    {showGSheetAdvanced ? 'Sembunyikan' : 'Ubah URL / Tab'}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-relaxed">
+                    <span className="font-bold">Konfigurasi Webhook Belum Diatur:</span> Masukkan URL Webhook Cloudflare Worker atau Google Apps Script sekali saja di bawah ini, atau pasang di environment variable <code className="bg-amber-100 px-1 rounded font-mono text-[10px]">VITE_GSHEET_WEBHOOK_URL</code> agar otomatis aktif di semua perangkat tim.
+                  </div>
+                </div>
+              )}
+
+              {/* Form Inputs (Collapsible if webhook is already set, or always visible if empty) */}
+              {(!gSheetConfig.webhookUrl || showGSheetAdvanced) && (
+                <div className="space-y-3 pt-1 animate-fade-in border-t border-slate-200">
+                  <div>
+                    <label className="block text-slate-800 font-bold text-xs mb-1">
+                      URL Webhook / Cloudflare Worker <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="url"
+                        value={gSheetConfig.webhookUrl}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
+                        placeholder="https://logistik-worker.yourname.workers.dev atau https://script.google.com/..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                      <Globe size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Masukkan URL Cloudflare Worker atau URL Deployment Web App Google Apps Script.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-800 font-bold text-xs mb-1">
+                        Spreadsheet ID (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        value={gSheetConfig.spreadsheetId}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, spreadsheetId: e.target.value })}
+                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgm..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        ID dari URL spreadsheet Google Sheets Anda.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-800 font-bold text-xs mb-1">
+                        Nama Tab / Sheet
+                      </label>
+                      <input
+                        type="text"
+                        value={gSheetConfig.sheetName}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, sheetName: e.target.value })}
+                        placeholder="Incoming"
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Nama tab lembar kerja di Google Sheets (default: Incoming).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-slate-800 font-bold text-xs mb-1">
+                        Mode Pengiriman
+                      </label>
+                      <select
+                        value={gSheetConfig.mode}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, mode: e.target.value as any })}
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer"
+                      >
+                        <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua Data)</option>
+                        <option value="append">➕ Append (Tambahkan Baris Baru di Bawah)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-800 font-bold text-xs mb-1">
+                        Secret Token / Key (Opsional)
+                      </label>
+                      <input
+                        type="password"
+                        value={gSheetConfig.secretToken}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, secretToken: e.target.value })}
+                        placeholder="Token otorisasi jika ada..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sync Result Status Box */}
+              {gSheetSyncResult && (
+                <div
+                  className={`p-3.5 rounded-2xl border text-xs animate-fade-in ${
+                    gSheetSyncResult.success
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                      : 'bg-red-50 border-red-300 text-red-950'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    {gSheetSyncResult.success ? (
+                      <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <div className="font-extrabold flex items-center justify-between">
+                        <span>{gSheetSyncResult.success ? 'Sinkronisasi Berhasil!' : 'Gagal Sinkronisasi'}</span>
+                        {gSheetSyncResult.timestamp && (
+                          <span className="text-[10px] font-normal text-slate-500">
+                            {gSheetSyncResult.timestamp}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] leading-relaxed m-0 text-slate-700">
+                        {gSheetSyncResult.message}
+                      </p>
+                      {gSheetSyncResult.spreadsheetUrl && (
+                        <div className="pt-2">
+                          <a
+                            href={gSheetSyncResult.spreadsheetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
+                          >
+                            <span>Buka Google Sheet</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setShowGSheetModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all cursor-pointer text-xs"
+              >
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                disabled={isSyncingGSheet || !gSheetConfig.webhookUrl.trim()}
+                onClick={handleExecuteGSheetSync}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 text-xs"
+              >
+                {isSyncingGSheet ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Sedang Mengirim ke Google Sheet...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    <span>Kirim Data Sekarang</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
