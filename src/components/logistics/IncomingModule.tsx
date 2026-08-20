@@ -147,10 +147,6 @@ export function IncomingModule() {
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showSqlSetupModal, setShowSqlSetupModal] = useState(false);
   const [showGSheetModal, setShowGSheetModal] = useState(false);
-  const [showCloseStatusModal, setShowCloseStatusModal] = useState(false);
-  const [statusTargetItem, setStatusTargetItem] = useState<IncomingItem | null>(null);
-  const [quickDocNumber, setQuickDocNumber] = useState('');
-  const [formDocNumber, setFormDocNumber] = useState('');
 
   // Google Sheets / Cloudflare Worker Webhook Sync State
   const [gSheetConfig, setGSheetConfig] = useState(() => {
@@ -1089,7 +1085,6 @@ export function IncomingModule() {
       tujuan: '',
       note: ''
     });
-    setFormDocNumber('');
     setShowFormModal(true);
   };
 
@@ -1102,22 +1097,9 @@ export function IncomingModule() {
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
     const itemNote = item.note || (item.tujuan && item.tujuan !== '-' ? item.tujuan : '');
-    
-    // Extract document number if status is already CLOSE - [DOC] or CLOSE + [DOC]
-    const rawStatus = (item.status || 'OPEN').trim();
-    const isClosed = rawStatus.toUpperCase().startsWith('CLOSE');
-    let extractedDoc = '';
-    if (isClosed) {
-      const match = rawStatus.match(/^CLOSE\s*[-:+ ]\s*(.*)$/i);
-      if (match && match[1]) {
-        extractedDoc = match[1].trim();
-      }
-    }
-    setFormDocNumber(extractedDoc);
-
     setFormData({
       ...item,
-      status: isClosed ? 'CLOSE' : 'OPEN',
+      status: (item.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
       tujuan: itemNote,
       note: itemNote
     });
@@ -1125,29 +1107,11 @@ export function IncomingModule() {
   };
 
   // Quick inline update status proses (OPEN <-> CLOSE) directly from table
-  const handleTriggerStatusChange = (item: IncomingItem, targetStatus: string) => {
-    if (targetStatus === 'CLOSE') {
-      // Prompt modal for document number input
-      setStatusTargetItem(item);
-      const rawStatus = (item.status || '').trim();
-      let extractedDoc = '';
-      if (rawStatus.toUpperCase().startsWith('CLOSE')) {
-        const match = rawStatus.match(/^CLOSE\s*[-:+ ]\s*(.*)$/i);
-        if (match && match[1]) extractedDoc = match[1].trim();
-      }
-      setQuickDocNumber(extractedDoc);
-      setShowCloseStatusModal(true);
-    } else {
-      // Revert to OPEN immediately
-      handleSaveProsesStatusDirect(item, 'OPEN');
-    }
-  };
-
-  const handleSaveProsesStatusDirect = async (item: IncomingItem, finalStatusString: string) => {
+  const handleUpdateProsesStatus = async (item: IncomingItem, newStatus: 'OPEN' | 'CLOSE') => {
     const nowIso = new Date().toISOString();
     const updatedItem: IncomingItem = {
       ...item,
-      status: finalStatusString,
+      status: newStatus,
       updated_at: nowIso
     };
 
@@ -1156,8 +1120,8 @@ export function IncomingModule() {
 
     showToast(
       'Status Proses Diperbarui',
-      `Status kedatangan ${item.id_incoming} diubah menjadi ${finalStatusString}`,
-      finalStatusString.toUpperCase().startsWith('CLOSE') ? 'success' : 'info'
+      `Status kedatangan ${item.id_incoming} diubah menjadi ${newStatus}`,
+      newStatus === 'CLOSE' ? 'success' : 'info'
     );
 
     // 2. Persist to Supabase if connected
@@ -1165,7 +1129,7 @@ export function IncomingModule() {
       try {
         const { error } = await supabase
           .from('incoming')
-          .update({ status: finalStatusString, updated_at: nowIso })
+          .update({ status: newStatus, updated_at: nowIso })
           .eq('id_incoming', item.id_incoming);
 
         if (error) {
@@ -1176,18 +1140,6 @@ export function IncomingModule() {
         console.error('Failed to update status in supabase:', err);
       }
     }
-  };
-
-  const handleConfirmCloseWithDoc = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!statusTargetItem) return;
-
-    const trimmedDoc = quickDocNumber.trim();
-    const finalStatus = trimmedDoc ? `CLOSE - ${trimmedDoc}` : 'CLOSE';
-    await handleSaveProsesStatusDirect(statusTargetItem, finalStatus);
-    setShowCloseStatusModal(false);
-    setStatusTargetItem(null);
-    setQuickDocNumber('');
   };
 
   const handleOpenDetailModal = (item: IncomingItem) => {
@@ -1333,11 +1285,7 @@ export function IncomingModule() {
     const cleanBatch = formData.batch?.trim() || '-';
     const cleanQty = Number(formData.last_qty) || 0;
 
-    const isFormClosed = (formData.status || 'OPEN').trim().toUpperCase().startsWith('CLOSE');
-    const trimmedFormDoc = formDocNumber.trim();
-    const finalFormStatus = isFormClosed
-      ? (trimmedFormDoc ? `CLOSE - ${trimmedFormDoc}` : 'CLOSE')
-      : 'OPEN';
+    const finalStatus = (formData.status || 'OPEN').trim().toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN';
     const finalNote = formData.note !== undefined ? (formData.note.trim() || '-') : (formData.tujuan?.trim() || '-');
 
     const recordToSave: IncomingItem = {
@@ -1367,7 +1315,7 @@ export function IncomingModule() {
       source: formData.source?.trim() || '-',
       user_input: currentUser?.nama || formData.user_input?.trim() || '-',
       tanggal_update: nowIso,
-      status: finalFormStatus,
+      status: finalStatus,
       tujuan: finalNote,
       note: finalNote,
       created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso,
@@ -2883,32 +2831,21 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : (item.tanggal_update || '-')}
                       </td>
 
-                      {/* 12. Kolom Status Proses (OPEN / CLOSE + No. Dokumen) */}
+                      {/* 12. Kolom Status Proses (Dropdown OPEN / CLOSE) */}
                       <td className="py-2.5 px-3 text-center" onClick={e => e.stopPropagation()}>
-                        <div className="inline-flex flex-col items-center gap-1">
-                          <select
-                            value={isClosed ? 'CLOSE' : 'OPEN'}
-                            onChange={e => handleTriggerStatusChange(item, e.target.value)}
-                            className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
-                              isClosed
-                                ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                                : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
-                            }`}
-                            title="Klik untuk mengubah status proses (OPEN / CLOSE)"
-                          >
-                            <option value="OPEN" className="bg-white text-slate-800 font-bold">OPEN</option>
-                            <option value="CLOSE" className="bg-white text-slate-800 font-bold">CLOSE</option>
-                          </select>
-                          {isClosed && (
-                            <span 
-                              className="text-[9px] font-mono font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 max-w-[130px] truncate cursor-pointer hover:bg-emerald-200"
-                              title={`Status lengkap: ${item.status}. Klik untuk edit no dokumen.`}
-                              onClick={() => handleTriggerStatusChange(item, 'CLOSE')}
-                            >
-                              {item.status}
-                            </span>
-                          )}
-                        </div>
+                        <select
+                          value={rowStatus}
+                          onChange={e => handleUpdateProsesStatus(item, e.target.value as 'OPEN' | 'CLOSE')}
+                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
+                            isClosed
+                              ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                              : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                          }`}
+                          title="Klik untuk mengubah status proses (OPEN / CLOSE)"
+                        >
+                          <option value="OPEN" className="bg-white text-slate-800 font-bold">OPEN</option>
+                          <option value="CLOSE" className="bg-white text-slate-800 font-bold">CLOSE</option>
+                        </select>
                       </td>
 
                       {/* 13. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
@@ -3734,48 +3671,27 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               </div>
 
               {/* Row 7: Status Proses (OPEN / CLOSE - Standar: OPEN) */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div>
-                    <label className="block text-slate-800 font-bold text-xs">
-                      Status Proses
-                    </label>
-                    <p className="text-[11px] text-slate-500 m-0">
-                      Standar berstatus OPEN. Ubah ke CLOSE bila penerimaan sudah selesai.
-                    </p>
-                  </div>
-                  <select
-                    value={(formData.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN'}
-                    onChange={e => setFormData({ ...formData, status: e.target.value })}
-                    className={`text-xs font-black px-4 py-2 rounded-xl border outline-none cursor-pointer font-mono shadow-2xs transition-all shrink-0 ${
-                      (formData.status || 'OPEN').toUpperCase() === 'CLOSE'
-                        ? 'bg-emerald-600 text-white border-emerald-700'
-                        : 'bg-amber-100 text-amber-900 border-amber-300'
-                    }`}
-                  >
-                    <option value="OPEN">OPEN (Aktif)</option>
-                    <option value="CLOSE">CLOSE (Selesai)</option>
-                  </select>
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <label className="block text-slate-800 font-bold text-xs">
+                    Status Proses
+                  </label>
+                  <p className="text-[11px] text-slate-500 m-0">
+                    Standar berstatus OPEN. Ubah ke CLOSE bila penerimaan sudah selesai.
+                  </p>
                 </div>
-
-                {/* Input Nomor Dokumen jika Status CLOSE */}
-                {(formData.status || 'OPEN').toUpperCase() === 'CLOSE' && (
-                  <div className="pt-2 border-t border-slate-200 space-y-1 animate-fade-in">
-                    <label className="block text-slate-800 font-bold text-xs">
-                      Nomor Dokumen <span className="text-emerald-600 font-normal">(Disimpan di Status: CLOSE - [No. Dokumen])</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formDocNumber}
-                      onChange={e => setFormDocNumber(e.target.value)}
-                      placeholder="Contoh: PO-2025/08/001 atau DO-99882..."
-                      className="w-full bg-white text-slate-800 border border-emerald-400 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
-                    />
-                    <p className="text-[10px] text-slate-500 m-0">
-                      Preview kolom proses: <span className="font-mono font-bold text-emerald-800">{formDocNumber.trim() ? `CLOSE - ${formDocNumber.trim()}` : 'CLOSE'}</span>
-                    </p>
-                  </div>
-                )}
+                <select
+                  value={(formData.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN'}
+                  onChange={e => setFormData({ ...formData, status: e.target.value })}
+                  className={`text-xs font-black px-4 py-2 rounded-xl border outline-none cursor-pointer font-mono shadow-2xs transition-all shrink-0 ${
+                    (formData.status || 'OPEN').toUpperCase() === 'CLOSE'
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-amber-100 text-amber-900 border-amber-300'
+                  }`}
+                >
+                  <option value="OPEN">OPEN (Aktif)</option>
+                  <option value="CLOSE">CLOSE (Selesai)</option>
+                </select>
               </div>
 
               {/* Row 8: Catatan / Note */}
@@ -4102,68 +4018,6 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 Ya, Hapus
               </button>
             </div>
-          </div>
-        </div>
-      , document.body)}
-
-      {/* ========================================================================= */}
-      {/* 7.5. MODAL: QUICK CLOSE STATUS WITH DOCUMENT NUMBER */}
-      {/* ========================================================================= */}
-      {showCloseStatusModal && statusTargetItem && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-emerald-700">
-                <CheckCircle2 size={20} />
-                <h3 className="text-base font-black text-slate-800 m-0">Selesaikan Proses (CLOSE)</h3>
-              </div>
-              <button
-                onClick={() => setShowCloseStatusModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 m-0">
-              Ubah status transaksi <span className="font-mono font-bold text-slate-800">{statusTargetItem.id_incoming}</span> ({statusTargetItem.item_name}) menjadi <span className="font-bold text-emerald-700">CLOSE</span>. Anda dapat memasukkan nomor dokumen di bawah ini.
-            </p>
-
-            <form onSubmit={handleConfirmCloseWithDoc} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-slate-800 font-bold text-xs">
-                  Nomor Dokumen <span className="text-slate-400 font-normal">(Opsional)</span>
-                </label>
-                <input
-                  type="text"
-                  autoFocus
-                  value={quickDocNumber}
-                  onChange={e => setQuickDocNumber(e.target.value)}
-                  placeholder="Contoh: PO-2025/08/001 atau DO-99882..."
-                  className="w-full bg-white text-slate-800 border border-emerald-400 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
-                />
-                <p className="text-[10px] text-slate-500 m-0">
-                  Akan tersimpan sebagai: <span className="font-mono font-bold text-emerald-800">{quickDocNumber.trim() ? `CLOSE - ${quickDocNumber.trim()}` : 'CLOSE'}</span>
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCloseStatusModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check size={14} />
-                  Simpan Status CLOSE
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       , document.body)}
