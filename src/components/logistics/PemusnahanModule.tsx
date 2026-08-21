@@ -258,9 +258,13 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         ascending: false
       });
 
-      if (data && data.length > 0) {
+      if (Array.isArray(data)) {
         setPemusnahanList(data);
-        localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(data));
+        if (data.length > 0) {
+          localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(data));
+        } else {
+          localStorage.removeItem('pemusnahan_cache_v1');
+        }
       }
     } catch (err: any) {
       console.error('Unexpected error fetching data_pemusnahan:', err);
@@ -310,6 +314,10 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     if (pemusnahanList.length > 0) {
       try {
         localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(pemusnahanList));
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem('pemusnahan_cache_v1');
       } catch {}
     }
   }, [pemusnahanList]);

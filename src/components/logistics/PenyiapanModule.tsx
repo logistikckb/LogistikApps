@@ -384,9 +384,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         ascending: false
       });
 
-      if (data && data.length > 0) {
+      if (Array.isArray(data)) {
         setPenyiapanList(data);
-        localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
+        if (data.length > 0) {
+          localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
+        } else {
+          localStorage.removeItem('penyiapan_cache_v1');
+        }
       }
     } catch (err: any) {
       console.error('Unexpected error fetching data_penyiapan:', err);
@@ -435,6 +439,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   useEffect(() => {
     if (penyiapanList.length > 0) {
       localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
+    } else {
+      localStorage.removeItem('penyiapan_cache_v1');
     }
   }, [penyiapanList]);
 
@@ -466,7 +472,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
   const safeBatchUpsertPenyiapan = async (
     items: PenyiapanItem[],
-    chunkSize = 50
+    chunkSize = 250
   ): Promise<{ successCount: number; error: any }> => {
     const uniqueMap = new Map<string, PenyiapanItem>();
     for (const item of items) {
@@ -480,10 +486,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     }
 
+    const nowIso = new Date().toISOString();
     const cleanItems = Array.from(uniqueMap.values()).map(item => {
-      const { ed, ...rest } = item as any;
+      const { ed, tanggal_update, updated_at, ...rest } = item as any;
       if (rest.expired_date === '-' || !rest.expired_date) {
         rest.expired_date = null;
+      }
+      if (!rest.created_at) {
+        rest.created_at = nowIso;
       }
       return rest;
     });
@@ -955,13 +965,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       sloc: 'SL02',
       expired_date: '',
       ed: '',
-      qc_code: 'QC-PASS',
-      user_tally: currentUser?.nama || 'Tally 2',
-      shelf_life: '24 Bulan',
-      source: 'Stok Gudang',
-      tujuan: 'Pengiriman Cabang',
-      user_input: currentUser?.nama || 'Admin',
-      status: 'Ready',
+      destination_code: '',
+      qc_code: '',
+      user_tally: '',
+      shelf_life: '',
+      source: '',
+      tujuan: '',
+      user_input: currentUser?.nama || '',
+      status: '',
       note: ''
     });
     setShowFormModal(true);
@@ -1055,18 +1066,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       vendor_batch: formData.vendor_batch?.trim() || '-',
       sloc: formData.sloc?.trim() || '-',
       expired_date: formData.expired_date?.trim() || '-',
-      qc_code: formData.qc_code?.trim() || 'QC-PASS',
-      user_tally: formData.user_tally?.trim() || currentUser?.nama || '-',
-      shelf_life: formData.shelf_life?.trim() || '-',
-      source: formData.source?.trim() || 'Stok Gudang',
-      tujuan: formData.tujuan?.trim() || 'Pengiriman Cabang',
-      destination_code: formData.destination_code?.trim() || '-',
-      user_input: currentUser?.nama || formData.user_input?.trim() || '-',
-      tanggal_update: nowIso,
-      status: formData.status?.trim() || 'Ada',
+      destination_code: formData.destination_code?.trim() || '',
+      qc_code: formData.qc_code?.trim() || '',
+      user_tally: formData.user_tally?.trim() || '',
+      shelf_life: formData.shelf_life?.trim() || '',
+      source: formData.source?.trim() || '',
+      tujuan: formData.tujuan?.trim() || '',
+      user_input: currentUser?.nama || formData.user_input?.trim() || '',
+      status: formData.status !== undefined ? formData.status.trim() : '',
       note: formData.note?.trim() || '',
-      created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso,
-      updated_at: nowIso
+      created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso
     };
 
     // 1. Update Local State immediately
@@ -1663,7 +1672,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     });
   };
 
-  // Download Excel Template (Exact columns from user request & image)
+  // Download Excel Template (Exact columns from user request)
   const downloadExcelTemplate = () => {
     const templateData = [
       {
@@ -1686,7 +1695,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         'QC Code': 'QC-PASS',
         'User Tally': 'Budi Santoso',
         'Shelf Life': '24 Bulan',
-        'Source': 'Stok Gudang'
+        'Source': 'Stok Gudang',
+        'Status': '',
+        'Note': ''
       },
       {
         'Item Code': '21104509',
@@ -1708,7 +1719,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         'QC Code': 'QC-PASS',
         'User Tally': 'Ahmad Fauzi',
         'Shelf Life': '24 Bulan',
-        'Source': 'Stok Gudang'
+        'Source': 'Stok Gudang',
+        'Status': '',
+        'Note': ''
       }
     ];
 
@@ -1729,11 +1742,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       { wch: 16 }, // Vendor Batch
       { wch: 12 }, // SLOC
       { wch: 16 }, // Expired Date
-      { wch: 16 }, // Destination Code
+      { wch: 18 }, // Destination Code
       { wch: 14 }, // QC Code
       { wch: 18 }, // User Tally
       { wch: 14 }, // Shelf Life
-      { wch: 16 }  // Source
+      { wch: 16 }, // Source
+      { wch: 14 }, // Status
+      { wch: 20 }  // Note
     ];
 
     const wb = XLSX.utils.book_new();
@@ -1774,7 +1789,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       'Source': item.source || '-',
       'Status': item.status || '-',
       'User Input': item.user_input || '-',
-      'Tanggal Update': item.tanggal_update || item.created_at || '-'
+      'Catatan': item.note || '-',
+      'Created At': item.created_at || '-'
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
@@ -1796,14 +1812,15 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       { wch: 16 }, // Vendor Batch
       { wch: 12 }, // SLOC
       { wch: 16 }, // Expired Date
-      { wch: 16 }, // Destination Code
+      { wch: 18 }, // Destination Code
       { wch: 14 }, // QC Code
       { wch: 18 }, // User Tally
       { wch: 14 }, // Shelf Life
       { wch: 16 }, // Source
       { wch: 14 }, // Status
       { wch: 16 }, // User Input
-      { wch: 22 }  // Tanggal Update
+      { wch: 22 }, // Catatan
+      { wch: 22 }  // Created At
     ];
 
     const wb = XLSX.utils.book_new();
@@ -1824,7 +1841,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     setShowExcelModal(true);
   };
 
-  // Handle Excel Upload Parsing with all column variations
+  // Handle High-Speed Excel Upload Parsing
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1835,11 +1852,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const buffer = evt.target?.result as ArrayBuffer;
+        const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const rawJson: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
         if (!rawJson || rawJson.length === 0) {
           showToast('File Kosong', 'File Excel tidak memiliki baris data!', 'warning');
@@ -1849,17 +1866,21 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
         const normalizeKey = (key: string) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+        const nowIso = new Date().toISOString();
+        const dateStrPrefix = nowIso.slice(0, 10).replace(/-/g, '');
+
         const rawList: PenyiapanItem[] = rawJson.map((row, idx) => {
           const normalizedRow: Record<string, any> = {};
-          Object.keys(row).forEach(k => {
+          for (const k of Object.keys(row)) {
             normalizedRow[normalizeKey(k)] = row[k];
-          });
+          }
 
           const getVal = (candidates: string[]) => {
             for (const c of candidates) {
               const norm = normalizeKey(c);
-              if (normalizedRow[norm] !== undefined && normalizedRow[norm] !== '') {
-                return normalizedRow[norm];
+              const val = normalizedRow[norm];
+              if (val !== undefined && val !== null && String(val).trim() !== '') {
+                return val;
               }
             }
             return '';
@@ -1895,7 +1916,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           const sloc = String(getVal(['sloc', 'SLOC', 'SLoc', 'storage_location']) || 'SL02').trim();
 
           // 15. expired_date
-          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date', 'exp_date', 'tanggal_ed', 'kadaluwarsa']) || '').trim();
+          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date', 'exp_date', 'tanggal_ed', 'kadaluwarsa', 'ed']) || '').trim();
           if (/^\d{5}$/.test(expDate)) {
             const excelEpoch = new Date(1899, 11, 30);
             const dateObj = new Date(excelEpoch.getTime() + Number(expDate) * 86400000);
@@ -1903,7 +1924,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           }
 
           // 16. destination_code
-          const destCode = String(getVal(['destination_code', 'destinationcode', 'Destination Code', 'kode_tujuan']) || 'DST-02').trim();
+          const destCode = String(getVal(['destination_code', 'destinationcode', 'Destination Code', 'dest_code', 'destcode', 'kode_tujuan']) || '').trim();
+          // 17. qc_code
+          const qcCode = String(getVal(['qc_code', 'qccode', 'QC Code', 'Status QC', 'qc', 'kondisi_qc']) || '').trim().toUpperCase();
+          // 18. user_tally
+          const userTally = String(getVal(['user_tally', 'usertally', 'User Tally', 'Petugas Tally', 'tally', 'checker']) || '').trim();
 
           // 19. shelf_life
           let shelfLife = String(getVal(['shelf_life', 'shelflife', 'Shelf Life', 'masa_simpan']) || '').trim();
@@ -1916,20 +1941,19 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               }
             }
           }
-          if (!shelfLife) shelfLife = '24 Bulan';
 
-          // 17. qc_code
-          const qcCode = String(getVal(['qc_code', 'qccode', 'QC Code', 'Status QC', 'qc', 'kondisi_qc']) || 'QC-PASS').trim().toUpperCase();
-          // 18. user_tally
-          const userTally = String(getVal(['user_tally', 'usertally', 'User Tally', 'Petugas Tally', 'tally', 'checker']) || currentUser?.nama || 'Tally 2').trim();
           // 20. source
-          const source = String(getVal(['source', 'Source', 'Sumber', 'asal', 'source_location']) || 'Stok Gudang').trim();
+          const source = String(getVal(['source', 'Source', 'Sumber', 'asal', 'source_location']) || '').trim();
 
           const rawId = String(getVal(['id_penyiapan', 'idpenyiapan', 'ID Penyiapan', 'id', 'kode_penyiapan']) || '').trim();
-          const idGenerated = rawId || `PEN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(idx + 1).padStart(4, '0')}`;
+          const idGenerated = rawId || `PEN-${dateStrPrefix}-${String(idx + 1).padStart(4, '0')}`;
 
-          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pengiriman']) || 'Pengiriman Cabang').trim();
-          const status = String(getVal(['status', 'Status', 'status_penyiapan']) || 'Ada').trim();
+          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pengiriman']) || '').trim();
+
+          // 21. status: Kosong atau isi status dari excel
+          const rawStatus = String(getVal(['status', 'Status', 'status_penyiapan']) || '').trim();
+          const status = rawStatus;
+
           const note = String(getVal(['note', 'Note', 'catatan', 'keterangan']) || '').trim();
 
           return {
@@ -1956,25 +1980,23 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             source,
             tujuan,
             user_input: currentUser?.nama || 'Admin',
-            tanggal_update: new Date().toISOString(),
             status,
             note,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            created_at: nowIso
           };
         }).filter(r => r.item_code && r.item_name);
 
-        // Deduplicate rows
+        // Fast Deduplication
         const penyiapanMap = new Map<string, PenyiapanItem>();
-        rawList.forEach(item => {
+        for (const item of rawList) {
           const key = item.id_penyiapan.trim().toLowerCase();
           penyiapanMap.set(key, { ...item, id_penyiapan: item.id_penyiapan.trim() });
-        });
+        }
         const formatted = Array.from(penyiapanMap.values());
 
         setParsedExcelRows(formatted);
         if (formatted.length > 0) {
-          showToast('Excel Terbaca', `${formatted.length} baris data penyiapan valid ditemukan`, 'info');
+          showToast('Excel Terbaca Cepat', `${formatted.length} baris data penyiapan valid ditemukan`, 'info');
         } else {
           showToast('Format Kolom Tidak Cocok', 'Kolom Item Code dan Item Name tidak ditemukan. Silakan unduh Template Excel.', 'warning');
         }
@@ -1986,10 +2008,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     };
 
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
-  // Commit Parsed Excel to Database & Local State
+  // Commit Parsed Excel to Database & Local State (High Speed Batching)
   const handleCommitExcelImport = async () => {
     if (parsedExcelRows.length === 0) return;
 
@@ -1997,22 +2019,22 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     try {
       // 1. Merge locally
       const mergedMap = new Map<string, PenyiapanItem>();
-      penyiapanList.forEach(item => {
+      for (const item of penyiapanList) {
         mergedMap.set(item.id_penyiapan.toLowerCase(), item);
-      });
-      parsedExcelRows.forEach(item => {
+      }
+      for (const item of parsedExcelRows) {
         mergedMap.set(item.id_penyiapan.toLowerCase(), item);
-      });
+      }
       const finalMerged = Array.from(mergedMap.values());
       setPenyiapanList(finalMerged);
 
-      // 2. Persist to Supabase if online
+      // 2. Persist to Supabase if online (Large 250 chunk size for blazing speed)
       if (isSupabaseConfigured) {
-        const { successCount, error } = await safeBatchUpsertPenyiapan(parsedExcelRows, 50);
+        const { successCount, error } = await safeBatchUpsertPenyiapan(parsedExcelRows, 250);
         if (error && successCount === 0) {
           showToast('Peringatan Database', `Tersimpan di memori lokal, namun gagal sync ke cloud: ${error.message}`, 'warning');
         } else {
-          showToast('Import Berhasil', `${successCount} data penyiapan berhasil diunggah ke Database Supabase!`, 'success');
+          showToast('Import Cepat Berhasil', `${successCount} data penyiapan berhasil diunggah ke Database Supabase!`, 'success');
           fetchPenyiapanData();
         }
       } else {
@@ -2653,12 +2675,42 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
+                <th onClick={() => handleSort('destination_code')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Destination Code</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('qc_code')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>QC Code</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('user_tally')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>User Tally</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('shelf_life')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Shelf Life</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('source')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Source</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 8 : 9} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 13 : 14} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -2667,7 +2719,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 8 : 9} className="p-6 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 13 : 14} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -2907,6 +2959,117 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                           }}
                           className="w-full px-1.5 py-1 font-mono text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all"
                           title="Klik untuk ubah Expired Date langsung (Format: YYYY-MM-DD)"
+                        />
+                      </td>
+
+                      {/* Destination Code */}
+                      <td className="px-1.5 py-1 min-w-[110px]">
+                        <input
+                          type="text"
+                          defaultValue={item.destination_code || ''}
+                          key={`dest-${item.id_penyiapan}-${item.destination_code}`}
+                          placeholder="DST-..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.destination_code || '')) {
+                              handleInlineCellUpdate(item, 'destination_code', e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 font-mono text-xs text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                          title="Klik untuk ubah Destination Code"
+                        />
+                      </td>
+
+                      {/* QC Code */}
+                      <td className="px-1.5 py-1 min-w-[90px]">
+                        <input
+                          type="text"
+                          defaultValue={item.qc_code || ''}
+                          key={`qc-${item.id_penyiapan}-${item.qc_code}`}
+                          placeholder="QC-..."
+                          onBlur={(e) => {
+                            const val = e.target.value.trim().toUpperCase();
+                            if (val !== (item.qc_code || '')) {
+                              handleInlineCellUpdate(item, 'qc_code', val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 font-bold text-xs text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                          title="Klik untuk ubah QC Code"
+                        />
+                      </td>
+
+                      {/* User Tally */}
+                      <td className="px-1.5 py-1 min-w-[100px]">
+                        <input
+                          type="text"
+                          defaultValue={item.user_tally || ''}
+                          key={`tally-${item.id_penyiapan}-${item.user_tally}`}
+                          placeholder="User Tally..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.user_tally || '')) {
+                              handleInlineCellUpdate(item, 'user_tally', e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 text-xs text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                          title="Klik untuk ubah User Tally"
+                        />
+                      </td>
+
+                      {/* Shelf Life */}
+                      <td className="px-1.5 py-1 min-w-[90px]">
+                        <input
+                          type="text"
+                          defaultValue={item.shelf_life || ''}
+                          key={`shelf-${item.id_penyiapan}-${item.shelf_life}`}
+                          placeholder="24 Bulan..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.shelf_life || '')) {
+                              handleInlineCellUpdate(item, 'shelf_life', e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 text-xs text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                          title="Klik untuk ubah Shelf Life"
+                        />
+                      </td>
+
+                      {/* Source */}
+                      <td className="px-1.5 py-1 min-w-[100px]">
+                        <input
+                          type="text"
+                          defaultValue={item.source || ''}
+                          key={`src-${item.id_penyiapan}-${item.source}`}
+                          placeholder="Stok Gudang..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.source || '')) {
+                              handleInlineCellUpdate(item, 'source', e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 text-xs text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
+                          title="Klik untuk ubah Source"
                         />
                       </td>
                     </tr>
@@ -3404,6 +3567,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                           <th className="p-2">Expired Date</th>
                           <th className="p-2">Dest. Code</th>
                           <th className="p-2">QC Code</th>
+                          <th className="p-2">User Tally</th>
+                          <th className="p-2">Shelf Life</th>
+                          <th className="p-2">Source</th>
+                          <th className="p-2">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -3421,6 +3588,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                             <td className="p-2 font-mono">{r.expired_date}</td>
                             <td className="p-2 font-mono">{r.destination_code}</td>
                             <td className="p-2">{r.qc_code}</td>
+                            <td className="p-2">{r.user_tally}</td>
+                            <td className="p-2">{r.shelf_life}</td>
+                            <td className="p-2">{r.source}</td>
+                            <td className="p-2">{r.status || ''}</td>
                           </tr>
                         ))}
                       </tbody>

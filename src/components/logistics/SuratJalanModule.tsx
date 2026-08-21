@@ -169,7 +169,7 @@ export function SuratJalanModule() {
         fetchAllRowsFromSupabase('items')
       ]);
 
-      if (docsData && docsData.length > 0) {
+      if (Array.isArray(docsData)) {
         const mappedDocs: DocumentSJ[] = docsData.map((d: any) => {
           const matchedItems = (itemsData || []).filter((it: any) => it.doc_id === d.id);
           return {

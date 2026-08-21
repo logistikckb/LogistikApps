@@ -98,7 +98,11 @@ export function DatabaseMasterModule() {
   // Save to cache
   useEffect(() => {
     try {
-      localStorage.setItem(CACHE_KEY_BARANG, JSON.stringify(barangList));
+      if (barangList.length > 0) {
+        localStorage.setItem(CACHE_KEY_BARANG, JSON.stringify(barangList));
+      } else {
+        localStorage.removeItem(CACHE_KEY_BARANG);
+      }
     } catch {
       // ignore
     }
@@ -106,7 +110,11 @@ export function DatabaseMasterModule() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CACHE_KEY_DISTRIBUTOR, JSON.stringify(distributorList));
+      if (distributorList.length > 0) {
+        localStorage.setItem(CACHE_KEY_DISTRIBUTOR, JSON.stringify(distributorList));
+      } else {
+        localStorage.removeItem(CACHE_KEY_DISTRIBUTOR);
+      }
     } catch {
       // ignore
     }
@@ -123,9 +131,12 @@ export function DatabaseMasterModule() {
         ascending: true
       });
 
-      if (data && data.length > 0) {
+      if (Array.isArray(data)) {
         setDbSynced(true);
         setBarangList(data);
+        if (data.length === 0) {
+          localStorage.removeItem(CACHE_KEY_BARANG);
+        }
       }
     } catch (err) {
       console.warn('Error fetching data_barang from Supabase:', err);
@@ -140,9 +151,12 @@ export function DatabaseMasterModule() {
         ascending: true
       });
 
-      if (data && data.length > 0) {
+      if (Array.isArray(data)) {
         setDbSynced(true);
         setDistributorList(data);
+        if (data.length === 0) {
+          localStorage.removeItem(CACHE_KEY_DISTRIBUTOR);
+        }
       }
     } catch (err) {
       console.warn('Error fetching data_distributor from Supabase:', err);

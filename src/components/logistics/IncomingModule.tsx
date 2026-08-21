@@ -842,9 +842,13 @@ export function IncomingModule() {
         ascending: false
       });
 
-      if (data && data.length > 0) {
+      if (Array.isArray(data)) {
         setIncomingList(data);
-        localStorage.setItem('incoming_cache_v1', JSON.stringify(data));
+        if (data.length > 0) {
+          localStorage.setItem('incoming_cache_v1', JSON.stringify(data));
+        } else {
+          localStorage.removeItem('incoming_cache_v1');
+        }
       }
     } catch (err: any) {
       console.error('Unexpected error fetching incoming:', err);
@@ -887,10 +891,13 @@ export function IncomingModule() {
     };
     window.addEventListener('storage', handleStorage);
 
-    // Supabase Realtime channel for master data updates
+    // Supabase Realtime channel for incoming & master data updates
     if (isSupabaseConfigured) {
       const channel = supabase
         .channel('incoming_master_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'incoming' }, () => {
+          fetchIncomingData();
+        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'data_barang' }, () => {
           fetchMasterData();
         })
@@ -914,6 +921,8 @@ export function IncomingModule() {
   useEffect(() => {
     if (incomingList.length > 0) {
       localStorage.setItem('incoming_cache_v1', JSON.stringify(incomingList));
+    } else {
+      localStorage.removeItem('incoming_cache_v1');
     }
   }, [incomingList]);
 
