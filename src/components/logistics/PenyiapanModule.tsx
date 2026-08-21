@@ -52,7 +52,10 @@ import {
   ArrowRightLeft,
   Truck,
   Share2,
-  CheckCheck
+  CheckCheck,
+  Target,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
@@ -205,6 +208,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [qcFilter, setQcFilter] = useState<string>('ALL');
   const [slocFilter, setSlocFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
   const [sortField, setSortField] = useState<keyof PenyiapanItem>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -217,6 +221,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [excelUploadTujuan, setExcelUploadTujuan] = useState<string>('');
   const [showPemusnahanModal, setShowPemusnahanModal] = useState(false);
   const [pemusnahanTargetItem, setPemusnahanTargetItem] = useState<PenyiapanItem | null>(null);
   const [pemusnahanFormData, setPemusnahanFormData] = useState<any>({});
@@ -808,6 +813,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return Array.from(set).sort();
   }, [penyiapanList]);
 
+  const uniqueTujuanList = useMemo(() => {
+    const set = new Set<string>();
+    penyiapanList.forEach(item => {
+      if (item.tujuan && item.tujuan.trim() !== '' && item.tujuan.trim() !== '-') {
+        set.add(item.tujuan.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [penyiapanList]);
+
   const uniqueLocationsList = useMemo(() => {
     const set = new Set<string>();
     penyiapanList.forEach(item => {
@@ -866,6 +881,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
       // Status
       if (statusFilter !== 'ALL' && (item.status || '').trim().toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+
+      // Tujuan
+      if (tujuanFilter !== 'ALL' && (item.tujuan || '').trim().toLowerCase() !== tujuanFilter.toLowerCase()) {
         return false;
       }
 
@@ -931,7 +951,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     }
 
-    // 3. Sorting
+    // 3. Sorting (supports natural alphanumeric sort for locations like RAK-01, RAK-02, RAK-10 and item names)
     return searchedList.sort((a, b) => {
       const valA = a[sortField] ?? '';
       const valB = b[sortField] ?? '';
@@ -940,11 +960,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         return sortOrder === 'asc' ? valA - valB : valB - valA;
       }
 
-      const strA = String(valA).toLowerCase();
-      const strB = String(valB).toLowerCase();
-      return sortOrder === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+      const strA = String(valA).trim();
+      const strB = String(valB).trim();
+      return sortOrder === 'asc'
+        ? strA.localeCompare(strB, 'id-ID', { numeric: true, sensitivity: 'base' })
+        : strB.localeCompare(strA, 'id-ID', { numeric: true, sensitivity: 'base' });
     });
-  }, [penyiapanList, searchQuery, categoryFilter, locationFilter, qcFilter, slocFilter, statusFilter, sortField, sortOrder]);
+  }, [penyiapanList, searchQuery, categoryFilter, locationFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, sortField, sortOrder]);
 
   // Paginated View
   const paginatedData = useMemo(() => {
@@ -960,11 +982,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return Boolean(locationFilter.trim());
   }, [locationFilter]);
 
-  // Check if any filters are currently active (Lokasi & Status Penyiapan)
+  // Check if any filters are currently active (Lokasi, Status Penyiapan, & Tujuan)
   const hasActiveFilters = Boolean(
     searchQuery.trim() ||
     locationFilter.trim() ||
-    statusFilter !== 'ALL'
+    statusFilter !== 'ALL' ||
+    tujuanFilter !== 'ALL'
   );
 
   // Quick count of items with status "Ada"
@@ -1099,6 +1122,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     setQcFilter('ALL');
     setSlocFilter('ALL');
     setStatusFilter('ALL');
+    setTujuanFilter('ALL');
     setCurrentPage(1);
   };
 
@@ -1950,7 +1974,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         'Shelf Life': '24 Bulan',
         'Source': 'Stok Gudang',
         'Status': '',
-        'Note': ''
+        'Note': '',
+        'Tujuan': 'SPK Reguler'
       },
       {
         'Item Code': '21104509',
@@ -1974,7 +1999,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         'Shelf Life': '24 Bulan',
         'Source': 'Stok Gudang',
         'Status': '',
-        'Note': ''
+        'Note': '',
+        'Tujuan': 'Pesanan Cabang'
       }
     ];
 
@@ -2001,7 +2027,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       { wch: 14 }, // Shelf Life
       { wch: 16 }, // Source
       { wch: 14 }, // Status
-      { wch: 20 }  // Note
+      { wch: 20 }, // Note
+      { wch: 20 }  // Tujuan
     ];
 
     const wb = XLSX.utils.book_new();
@@ -2043,6 +2070,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       'Status': item.status || '-',
       'User Input': item.user_input || '-',
       'Catatan': item.note || '-',
+      'Tujuan': item.tujuan || '-',
       'Created At': item.created_at || '-'
     }));
 
@@ -2073,6 +2101,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       { wch: 14 }, // Status
       { wch: 16 }, // User Input
       { wch: 22 }, // Catatan
+      { wch: 20 }, // Tujuan
       { wch: 22 }  // Created At
     ];
 
@@ -2122,7 +2151,27 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         const nowIso = new Date().toISOString();
         const dateStrPrefix = nowIso.slice(0, 10).replace(/-/g, '');
 
-        const rawList: PenyiapanItem[] = rawJson.map((row, idx) => {
+        // Calculate sequence number continuing from existing database rows so data is never overwritten
+        const existingIds = new Set(penyiapanList.map(p => (p.id_penyiapan || '').trim().toLowerCase()));
+
+        let maxSeq = 0;
+        const prefixRegex = new RegExp(`^PEN-${dateStrPrefix}-(\\d+)$`, 'i');
+        for (const item of penyiapanList) {
+          const match = (item.id_penyiapan || '').match(prefixRegex);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num) && num > maxSeq) {
+              maxSeq = num;
+            }
+          }
+        }
+        if (maxSeq === 0 && penyiapanList.length > 0) {
+          maxSeq = penyiapanList.length;
+        }
+
+        let runningSeq = maxSeq;
+
+        const rawList: PenyiapanItem[] = rawJson.map((row) => {
           const normalizedRow: Record<string, any> = {};
           for (const k of Object.keys(row)) {
             normalizedRow[normalizeKey(k)] = row[k];
@@ -2208,8 +2257,18 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           // 20. source
           const source = String(getVal(['source', 'Source', 'Sumber', 'asal', 'source_location']) || '').trim();
 
+          // Continuous unique ID generation
           const rawId = String(getVal(['id_penyiapan', 'idpenyiapan', 'ID Penyiapan', 'id', 'kode_penyiapan']) || '').trim();
-          const idGenerated = rawId || `PEN-${dateStrPrefix}-${String(idx + 1).padStart(4, '0')}`;
+          let idGenerated = rawId;
+          if (!idGenerated || existingIds.has(idGenerated.toLowerCase())) {
+            runningSeq++;
+            idGenerated = `PEN-${dateStrPrefix}-${String(runningSeq).padStart(5, '0')}`;
+            while (existingIds.has(idGenerated.toLowerCase())) {
+              runningSeq++;
+              idGenerated = `PEN-${dateStrPrefix}-${String(runningSeq).padStart(5, '0')}`;
+            }
+          }
+          existingIds.add(idGenerated.toLowerCase());
 
           const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pengiriman']) || '').trim();
 
@@ -2249,17 +2308,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           };
         }).filter(r => r.item_code && r.item_name);
 
-        // Fast Deduplication
-        const penyiapanMap = new Map<string, PenyiapanItem>();
-        for (const item of rawList) {
-          const key = item.id_penyiapan.trim().toLowerCase();
-          penyiapanMap.set(key, { ...item, id_penyiapan: item.id_penyiapan.trim() });
-        }
-        const formatted = Array.from(penyiapanMap.values());
-
-        setParsedExcelRows(formatted);
-        if (formatted.length > 0) {
-          showToast('Excel Terbaca Cepat', `${formatted.length} baris data penyiapan valid ditemukan`, 'info');
+        setParsedExcelRows(rawList);
+        if (rawList.length > 0) {
+          showToast('Excel Terbaca Cepat', `${rawList.length} baris data penyiapan valid ditemukan (Lanjut dari baris terakhir)`, 'info');
         } else {
           showToast('Format Kolom Tidak Cocok', 'Kolom Item Code dan Item Name tidak ditemukan. Silakan unduh Template Excel.', 'warning');
         }
@@ -2274,41 +2325,76 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     reader.readAsArrayBuffer(file);
   };
 
-  // Commit Parsed Excel to Database & Local State (High Speed Batching & Seamless Sync)
+  // Commit Parsed Excel to Database & Local State (Appended to the end without overwriting)
   const handleCommitExcelImport = async () => {
     if (parsedExcelRows.length === 0) return;
+
+    // Recalculate unique sequential IDs starting after current penyiapanList to guarantee no overwrites
+    const existingIds = new Set(penyiapanList.map(p => (p.id_penyiapan || '').trim().toLowerCase()));
+    const nowIso = new Date().toISOString();
+    const dateStrPrefix = nowIso.slice(0, 10).replace(/-/g, '');
+
+    let maxSeq = 0;
+    const prefixRegex = new RegExp(`^PEN-${dateStrPrefix}-(\\d+)$`, 'i');
+    for (const item of penyiapanList) {
+      const match = (item.id_penyiapan || '').match(prefixRegex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+    if (maxSeq === 0 && penyiapanList.length > 0) {
+      maxSeq = penyiapanList.length;
+    }
+
+    let runningSeq = maxSeq;
+
+    // Apply destination and ensure unique continuous IDs
+    const finalUploadRows: PenyiapanItem[] = parsedExcelRows.map(row => {
+      let finalId = (row.id_penyiapan || '').trim();
+      if (!finalId || existingIds.has(finalId.toLowerCase())) {
+        runningSeq++;
+        finalId = `PEN-${dateStrPrefix}-${String(runningSeq).padStart(5, '0')}`;
+        while (existingIds.has(finalId.toLowerCase())) {
+          runningSeq++;
+          finalId = `PEN-${dateStrPrefix}-${String(runningSeq).padStart(5, '0')}`;
+        }
+      }
+      existingIds.add(finalId.toLowerCase());
+
+      return {
+        ...row,
+        id_penyiapan: finalId,
+        tujuan: (row.tujuan && row.tujuan.trim() !== '') ? row.tujuan.trim() : (excelUploadTujuan ? excelUploadTujuan.trim() : '')
+      };
+    });
 
     isImportingRef.current = true;
     setIsProcessingExcel(true);
     setUploadProgress({
       isUploading: true,
       current: 0,
-      total: parsedExcelRows.length,
+      total: finalUploadRows.length,
       percentage: 0,
       statusText: 'Mempersiapkan data penyiapan...'
     });
 
     try {
-      // 1. Merge locally for instant display
-      const mergedMap = new Map<string, PenyiapanItem>();
-      for (const item of penyiapanList) {
-        mergedMap.set(item.id_penyiapan.toLowerCase(), item);
-      }
-      for (const item of parsedExcelRows) {
-        mergedMap.set(item.id_penyiapan.toLowerCase(), item);
-      }
-      const finalMerged = Array.from(mergedMap.values());
+      // 1. Strictly append to local list (Lanjut dari baris akhir, tidak tertimpa)
+      const finalMerged = [...penyiapanList, ...finalUploadRows];
       setPenyiapanList(finalMerged);
 
       // 2. Persist to Supabase with chunk size 500 & live progress indicator
       if (isSupabaseConfigured) {
         setUploadProgress(prev => ({
           ...prev,
-          statusText: `Mengunggah ${parsedExcelRows.length.toLocaleString('id-ID')} data ke Database Supabase...`
+          statusText: `Mengunggah ${finalUploadRows.length.toLocaleString('id-ID')} data ke Database Supabase...`
         }));
 
         const { successCount, error } = await safeBatchUpsertPenyiapan(
-          parsedExcelRows,
+          finalUploadRows,
           500,
           (processed, total) => {
             const pct = Math.round((processed / total) * 100);
@@ -2327,24 +2413,30 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         } else {
           setUploadProgress({
             isUploading: true,
-            current: parsedExcelRows.length,
-            total: parsedExcelRows.length,
+            current: finalUploadRows.length,
+            total: finalUploadRows.length,
             percentage: 100,
             statusText: 'Unggah selesai! Memfinalisasi data...'
           });
-          showToast('Import Selesai', `${successCount.toLocaleString('id-ID')} data penyiapan berhasil diunggah ke Database Supabase!`, 'success');
+          showToast('Import Selesai', `${successCount.toLocaleString('id-ID')} data penyiapan berhasil ditambahkan ke Database Supabase (Lanjut dari baris akhir)!`, 'success');
           // Silent refresh: background fetch without unmounting table or blinking screen
           await fetchPenyiapanData(true);
         }
       } else {
         setUploadProgress({
           isUploading: true,
-          current: parsedExcelRows.length,
-          total: parsedExcelRows.length,
+          current: finalUploadRows.length,
+          total: finalUploadRows.length,
           percentage: 100,
           statusText: 'Tersimpan di penyimpanan lokal!'
         });
-        showToast('Import Lokal Selesai', `${parsedExcelRows.length} data penyiapan berhasil disimpan di penyimpanan lokal!`, 'success');
+        showToast('Import Lokal Selesai', `${finalUploadRows.length} data penyiapan berhasil ditambahkan ke penyimpanan lokal!`, 'success');
+      }
+
+      // Automatically activate filter for the uploaded tujuan if provided
+      if (excelUploadTujuan.trim()) {
+        setTujuanFilter(excelUploadTujuan.trim());
+        setCurrentPage(1);
       }
 
       // Smooth transition to close modal without screen flash
@@ -2361,11 +2453,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         });
         setIsProcessingExcel(false);
         isImportingRef.current = false;
-      }, 400);
-
+      }, 500);
     } catch (err: any) {
-      console.error('Error committing excel import:', err);
-      showToast('Gagal Import', err?.message || 'Terjadi kesalahan saat menyimpan data import', 'danger');
+      console.error('Error committing excel rows:', err);
+      showToast('Gagal Mengimpor', err?.message || 'Terjadi kesalahan saat menyimpan data.', 'danger');
       setIsProcessingExcel(false);
       isImportingRef.current = false;
       setUploadProgress(prev => ({ ...prev, isUploading: false }));
@@ -2518,8 +2609,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           </div>
         )}
 
-        {/* Filter Dropdowns (Hanya Lokasi & Status Penyiapan) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+        {/* Filter Dropdowns (Lokasi, Status Penyiapan, & Tujuan Penyiapan) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
           {/* Filter Lokasi (Ketik & Dropdown) */}
           <div>
             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Lokasi</label>
@@ -2572,10 +2663,43 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               ))}
             </select>
           </div>
+
+          {/* Filter Tujuan Penyiapan */}
+          <div>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Tujuan Penyiapan</label>
+            <div className="relative flex items-center">
+              <select
+                value={tujuanFilter}
+                onChange={(e) => {
+                  setTujuanFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-blue-900 pr-6"
+              >
+                <option value="ALL">Semua Tujuan</option>
+                {uniqueTujuanList.map(tuj => (
+                  <option key={tuj} value={tuj}>{tuj}</option>
+                ))}
+              </select>
+              {tujuanFilter !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTujuanFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                  title="Clear Filter Tujuan"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Quick Action Strip for Status "Ada" & Bulk Selection */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
+        {/* Quick Action Strip for Status "Ada", Bulk Selection & Quick Sorting */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 flex items-center gap-1">
               <Zap size={11} className="text-amber-500" />
@@ -2633,6 +2757,68 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <span>Batal Pilih ({selectedIds.length})</span>
               </button>
             )}
+
+            <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+            {/* Quick Sort By Location (Urutkan Lokasi A-Z / Z-A) */}
+            <button
+              type="button"
+              onClick={() => handleSort('location')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                sortField === 'location'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+              }`}
+              title="Urutkan data berdasarkan Lokasi Rak / Bin (A-Z / Z-A)"
+            >
+              <MapPin size={12} />
+              <span>Sort: Lokasi</span>
+              {sortField === 'location' ? (
+                <span className="px-1.5 py-0.2 rounded bg-indigo-800 text-white text-[10px] font-black flex items-center gap-0.5">
+                  {sortOrder === 'asc' ? <>A-Z <ArrowUp size={10} /></> : <>Z-A <ArrowDown size={10} /></>}
+                </span>
+              ) : (
+                <ArrowUpDown size={11} className="text-indigo-400" />
+              )}
+            </button>
+
+            {/* Quick Sort By Item Name (Urutkan Nama Barang A-Z / Z-A) */}
+            <button
+              type="button"
+              onClick={() => handleSort('item_name')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                sortField === 'item_name'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200'
+              }`}
+              title="Urutkan data berdasarkan Nama Barang (A-Z / Z-A)"
+            >
+              <Package size={12} />
+              <span>Sort: Nama Barang</span>
+              {sortField === 'item_name' ? (
+                <span className="px-1.5 py-0.2 rounded bg-blue-800 text-white text-[10px] font-black flex items-center gap-0.5">
+                  {sortOrder === 'asc' ? <>A-Z <ArrowUp size={10} /></> : <>Z-A <ArrowDown size={10} /></>}
+                </span>
+              ) : (
+                <ArrowUpDown size={11} className="text-blue-400" />
+              )}
+            </button>
+
+            {/* Reset Sort Button */}
+            {(sortField !== 'created_at' || sortOrder !== 'desc') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSortField('created_at');
+                  setSortOrder('desc');
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer"
+                title="Reset urutan ke urutan default (Waktu input / Baris akhir)"
+              >
+                <RotateCcw size={11} />
+                <span className="hidden sm:inline">Reset Urutan</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Bulk Transfer Trigger when items selected */}
@@ -2648,13 +2834,34 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           )}
         </div>
 
-        {/* Active Filter Badges & Clear Filters */}
-        {hasActiveFilters && (
+        {/* Active Filter & Sorting Badges */}
+        {(hasActiveFilters || sortField !== 'created_at' || sortOrder !== 'desc') && (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
             <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
               <Filter size={12} className="text-blue-900" />
-              Filter Aktif:
+              Filter & Urutan Aktif:
             </span>
+
+            {/* Active Sort Badge */}
+            {(sortField !== 'created_at' || sortOrder !== 'desc') && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-300">
+                <ArrowUpDown size={11} className="text-indigo-600" />
+                <span>
+                  Urutan: {sortField === 'location' ? 'Lokasi' : sortField === 'item_name' ? 'Nama Barang' : sortField} ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSortField('created_at');
+                    setSortOrder('desc');
+                  }}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Reset urutan"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
 
             {searchQuery && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold">
@@ -2707,13 +2914,31 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               </span>
             )}
 
+            {tujuanFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold border border-blue-200">
+                <Target size={11} className="text-blue-700" />
+                <span>Tujuan: {tujuanFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTujuanFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-blue-700 cursor-pointer"
+                  title="Hapus filter tujuan"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
             <button
               type="button"
               onClick={handleClearAllFilters}
               className="ml-auto inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200"
             >
               <RotateCcw size={11} />
-              Reset Semua Filter
+              Reset Semua Filter & Urutan
             </button>
           </div>
         )}
@@ -2878,47 +3103,117 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <th className="px-2 py-1.5 text-center w-10">No</th>
                 <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
                 {!isLocationFiltered && (
-                  <th onClick={() => handleSort('location')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <th onClick={() => handleSort('location')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'location' ? 'bg-indigo-50/80 text-indigo-950 font-black' : ''}`}>
                     <div className="flex items-center gap-1">
                       <span>Location</span>
-                      <ArrowUpDown size={11} className="text-slate-400" />
+                      {sortField === 'location' ? (
+                        sortOrder === 'asc' ? (
+                          <ArrowUp size={12} className="text-indigo-700 font-black" />
+                        ) : (
+                          <ArrowDown size={12} className="text-indigo-700 font-black" />
+                        )
+                      ) : (
+                        <ArrowUpDown size={11} className="text-slate-400" />
+                      )}
                     </div>
                   </th>
                 )}
-                <th onClick={() => handleSort('item_name')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('item_name')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'item_name' ? 'bg-blue-50/80 text-blue-950 font-black' : ''}`}>
                   <div className="flex items-center gap-1">
                     <span>Item Name</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
+                    {sortField === 'item_name' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-blue-700 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-blue-700 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
                   </div>
                 </th>
-                <th onClick={() => handleSort('last_qty')} className="px-2.5 py-1.5 text-right cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('last_qty')} className={`px-2.5 py-1.5 text-right cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'last_qty' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
                   <div className="flex items-center justify-end gap-1">
                     <span>Last Qty</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
+                    {sortField === 'last_qty' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-slate-900 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-slate-900 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
                   </div>
                 </th>
-                <th onClick={() => handleSort('uom')} className="px-2.5 py-1.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('uom')} className={`px-2.5 py-1.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'uom' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
                   <div className="flex items-center justify-center gap-1">
                     <span>Uom</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
+                    {sortField === 'uom' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-slate-900 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-slate-900 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
                   </div>
                 </th>
-                <th onClick={() => handleSort('batch')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('batch')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'batch' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
                   <div className="flex items-center gap-1">
                     <span>Batch</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
+                    {sortField === 'batch' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-slate-900 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-slate-900 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
                   </div>
                 </th>
-                <th onClick={() => handleSort('expired_date')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('expired_date')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'expired_date' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
                   <div className="flex items-center gap-1">
                     <span>Expired Date</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
+                    {sortField === 'expired_date' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-slate-900 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-slate-900 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
                   </div>
                 </th>
-                <th onClick={() => handleSort('note')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('note')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'note' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
                   <div className="flex items-center gap-1">
                     <span>Note</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
+                    {sortField === 'note' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-slate-900 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-slate-900 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('tujuan')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'tujuan' ? 'bg-blue-50/80 text-blue-950 font-black' : ''}`}>
+                  <div className="flex items-center gap-1">
+                    <span>Tujuan</span>
+                    {sortField === 'tujuan' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-blue-700 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-blue-700 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
                   </div>
                 </th>
               </tr>
@@ -2926,7 +3221,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -2935,7 +3230,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -3055,6 +3350,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                       {/* Note */}
                       <td className="px-2.5 py-1.5 min-w-[140px] max-w-xs text-xs text-slate-600 truncate" title={item.note || '-'}>
                         {item.note || '-'}
+                      </td>
+
+                      {/* Tujuan (Kolom Paling Ujung Setelah Note) */}
+                      <td className="px-2.5 py-1.5 min-w-[130px] max-w-xs text-xs">
+                        {item.tujuan ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md font-bold text-[11px] bg-blue-50 text-blue-900 border border-blue-200" title={item.tujuan}>
+                            {item.tujuan}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">-</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -3575,6 +3881,31 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     </p>
                   )}
                 </div>
+
+                {/* Input Tujuan Penyiapan */}
+                <div className="pt-2 border-t border-slate-200/80">
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    Tujuan Penyiapan (Tujuan Pengiriman / Alokasi)
+                  </label>
+                  <input
+                    type="text"
+                    list="modal-form-tujuan-suggestions"
+                    value={formData.tujuan || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tujuan: e.target.value }))}
+                    placeholder="Contoh: SPK Reguler, Pesanan Cabang Surabaya, Order Toko A..."
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-800 text-xs focus:ring-2 focus:ring-blue-800 placeholder:text-slate-400"
+                  />
+                  <datalist id="modal-form-tujuan-suggestions">
+                    {uniqueTujuanList.map(t => (
+                      <option key={t} value={t} />
+                    ))}
+                    <option value="SPK Reguler" />
+                    <option value="Pesanan Cabang" />
+                    <option value="Order Toko" />
+                    <option value="Transfer Depo" />
+                    <option value="Buffer Picking" />
+                  </datalist>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -3648,36 +3979,119 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
-              {/* Kolom yang Dikenali Banner */}
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-emerald-900">
-                <span className="font-black block mb-1">Struktur 20 Kolom Excel yang Didukung:</span>
-                <p className="text-[11px] leading-relaxed m-0 text-emerald-800 font-mono">
-                  item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source
+              {/* Step 1: Isi Tujuan Upload Penyiapan */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50/80 border border-blue-200/90 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-blue-900 text-white font-black text-[11px] flex items-center justify-center">
+                      1
+                    </span>
+                    <label className="text-xs font-black text-blue-950 uppercase tracking-tight">
+                      Tentukan Tujuan Penyiapan (Tujuan Upload)
+                    </label>
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-800 bg-white/90 border border-blue-200 px-2 py-0.5 rounded-full">
+                    Grup & Filter Tujuan
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-blue-900/80 m-0 leading-relaxed">
+                  Isi tujuan penyiapan untuk data yang akan diunggah (misal: <strong>SPK Reguler</strong>, <strong>Pesanan Cabang Surabaya</strong>, <strong>Order Toko</strong>, dll). Nilai ini akan disematkan ke setiap baris data sehingga Anda dapat memfilter dan mengelolanya per tujuan secara terpisah.
                 </p>
+
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                  <input
+                    type="text"
+                    list="excel-upload-tujuan-datalist"
+                    value={excelUploadTujuan}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setExcelUploadTujuan(val);
+                      if (parsedExcelRows.length > 0) {
+                        setParsedExcelRows(prev => prev.map(r => ({
+                          ...r,
+                          tujuan: val.trim() || r.tujuan
+                        })));
+                      }
+                    }}
+                    placeholder="Ketik tujuan penyiapan, misal: SPK Reguler, Pesanan Cabang, Transfer Gudang..."
+                    className="flex-1 px-3.5 py-2 rounded-xl border border-blue-300 bg-white font-bold text-xs text-blue-950 focus:ring-2 focus:ring-blue-600 outline-none shadow-xs"
+                  />
+                  <datalist id="excel-upload-tujuan-datalist">
+                    {uniqueTujuanList.map(t => (
+                      <option key={t} value={t} />
+                    ))}
+                    <option value="SPK Reguler" />
+                    <option value="Pesanan Cabang" />
+                    <option value="Order Toko" />
+                    <option value="Transfer Depo" />
+                    <option value="Buffer Picking" />
+                    <option value="Relokasi Gudang" />
+                  </datalist>
+                </div>
+
+                {/* Quick preset chips */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] font-bold text-slate-500">Pilihan Cepat:</span>
+                  {['SPK Reguler', 'Pesanan Cabang', 'Order Toko', 'Transfer Depo', 'Buffer Picking'].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setExcelUploadTujuan(preset);
+                        if (parsedExcelRows.length > 0) {
+                          setParsedExcelRows(prev => prev.map(r => ({
+                            ...r,
+                            tujuan: preset
+                          })));
+                        }
+                      }}
+                      className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                        excelUploadTujuan === preset
+                          ? 'bg-blue-900 text-white border-blue-900 shadow-xs'
+                          : 'bg-white text-blue-900 border-blue-200 hover:bg-blue-100/70'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Upload Dropzone */}
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="p-6 border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl bg-slate-50/70 hover:bg-emerald-50/30 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors text-center"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx, .xls, .csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
-                  <Upload size={22} />
+              {/* Step 2: Dropzone Upload */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-800 text-white font-black text-[11px] flex items-center justify-center">
+                    2
+                  </span>
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
+                    Pilih / Tarik File Excel (.xlsx / .xls / .csv)
+                  </span>
                 </div>
-                <div>
-                  <span className="font-black text-slate-800 text-xs sm:text-sm block">
-                    {excelFileName ? excelFileName : 'Klik atau Tarik File Excel (.xlsx / .xls / .csv) ke Sini'}
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-medium">
-                    Maksimal 50,000 baris data per upload
-                  </span>
+
+                {/* Upload Dropzone */}
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-5 border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl bg-slate-50/70 hover:bg-emerald-50/30 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors text-center"
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
+                    <Upload size={20} />
+                  </div>
+                  <div>
+                    <span className="font-black text-slate-800 text-xs sm:text-sm block">
+                      {excelFileName ? excelFileName : 'Klik atau Tarik File Excel (.xlsx / .xls / .csv) ke Sini'}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Maksimal 50,000 baris data per upload
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -3685,8 +4099,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               {parsedExcelRows.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between font-bold text-slate-700">
-                    <span>Pratinjau Data ({parsedExcelRows.length} Baris Valid)</span>
-                    <span className="text-emerald-700 font-mono">Siap disimpan ke Database Supabase</span>
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-700 text-white font-black text-[11px] flex items-center justify-center">
+                        3
+                      </span>
+                      <span>Pratinjau Data ({parsedExcelRows.length} Baris Valid)</span>
+                    </div>
+                    <span className="text-emerald-700 font-mono text-[11px]">Siap disimpan ke Database Supabase</span>
                   </div>
 
                   <div className="max-h-60 overflow-x-auto overflow-y-auto border border-slate-200 rounded-xl">
@@ -3709,6 +4128,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                           <th className="p-2">Shelf Life</th>
                           <th className="p-2">Source</th>
                           <th className="p-2">Status</th>
+                          <th className="p-2 bg-blue-50 text-blue-900">Tujuan</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -3730,6 +4150,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                             <td className="p-2">{r.shelf_life}</td>
                             <td className="p-2">{r.source}</td>
                             <td className="p-2">{r.status || ''}</td>
+                            <td className="p-2 font-bold text-blue-900 bg-blue-50/50">
+                              {r.tujuan || excelUploadTujuan || '-'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -3929,6 +4352,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                   <span className="text-[10px] text-slate-400 font-bold block uppercase">Source</span>
                   <span className="font-medium text-slate-800">{selectedItem.source || 'Stok Gudang'}</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 col-span-2 sm:col-span-3">
+                  <span className="text-[10px] text-blue-900 font-bold block uppercase">Tujuan Penyiapan</span>
+                  <span className="font-bold text-blue-950 text-xs">{selectedItem.tujuan || '-'}</span>
                 </div>
               </div>
 
