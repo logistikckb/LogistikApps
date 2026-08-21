@@ -990,6 +990,105 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return selectedItemsData.reduce((acc, curr) => acc + (Number(curr.last_qty) || 0), 0);
   }, [selectedItemsData]);
 
+  // Summary of Total Qty PCS for the selected SKU at the filtered / item location
+  const skuLocationSummary = useMemo(() => {
+    // Current SKU
+    const targetItemCode = (formData.item_code || selectedItem?.item_code || '').trim();
+    const targetItemName = (formData.item_name || selectedItem?.item_name || '').trim();
+    if (!targetItemCode && !targetItemName) return null;
+
+    const targetCodeLower = targetItemCode.toLowerCase();
+    const targetNameLower = targetItemName.toLowerCase();
+
+    // Current Location (prioritize active locationFilter if present, otherwise formData.location or selectedItem.location)
+    const filterLoc = locationFilter.trim();
+    const itemLoc = (formData.location || selectedItem?.location || '').trim();
+    const activeLoc = filterLoc || itemLoc;
+    if (!activeLoc || activeLoc === '-') return null;
+
+    const activeLocLower = activeLoc.toLowerCase();
+
+    // Find all matching rows from penyiapanList
+    const matchingRows = penyiapanList.filter(item => {
+      // Match SKU by item_code or item_name
+      const rowCode = (item.item_code || '').trim().toLowerCase();
+      const rowName = (item.item_name || '').trim().toLowerCase();
+      const isSkuMatch = (targetCodeLower && rowCode === targetCodeLower) ||
+                         (targetNameLower && rowName === targetNameLower);
+      if (!isSkuMatch) return false;
+
+      // Match Location
+      const rowLoc = (item.location || '').trim().toLowerCase();
+      if (!rowLoc || rowLoc === '-') return false;
+
+      if (filterLoc) {
+        return rowLoc.includes(filterLoc.toLowerCase());
+      }
+      return rowLoc === activeLocLower;
+    });
+
+    if (matchingRows.length === 0) return null;
+
+    let totalQtyConvertPcs = 0;
+    let totalLastQty = 0;
+    let totalFirstQty = 0;
+    const batchDetails: Array<{
+      id_penyiapan: string;
+      batch: string;
+      last_qty: number;
+      uom: string;
+      qty_convert: number;
+      uom_convert: string;
+      expired_date: string;
+      status: string;
+      isCurrent: boolean;
+    }> = [];
+
+    matchingRows.forEach(item => {
+      const lQty = Number(item.last_qty) || 0;
+      const fQty = Number(item.first_qty) || 0;
+      const cQty = Number(item.qty_convert) || lQty || fQty || 0;
+
+      totalLastQty += lQty;
+      totalFirstQty += fQty;
+      totalQtyConvertPcs += cQty;
+
+      const isCurrent = Boolean(
+        (formData.id_penyiapan && item.id_penyiapan === formData.id_penyiapan) ||
+        (selectedItem?.id_penyiapan && item.id_penyiapan === selectedItem.id_penyiapan)
+      );
+
+      batchDetails.push({
+        id_penyiapan: item.id_penyiapan,
+        batch: item.batch || '-',
+        last_qty: lQty,
+        uom: item.uom || 'CTN',
+        qty_convert: cQty,
+        uom_convert: item.uom_convert || 'PCS',
+        expired_date: item.expired_date || '-',
+        status: item.status || '-',
+        isCurrent
+      });
+    });
+
+    const distinctBatches = Array.from(new Set(matchingRows.map(m => (m.batch || '-').trim()))).length;
+
+    return {
+      location: activeLoc,
+      isFilterActive: Boolean(filterLoc),
+      itemCode: targetItemCode || '-',
+      itemName: targetItemName || '-',
+      totalRows: matchingRows.length,
+      distinctBatches,
+      totalQtyConvertPcs,
+      totalLastQty,
+      totalFirstQty,
+      uom: formData.uom || selectedItem?.uom || 'CTN',
+      uom_convert: formData.uom_convert || selectedItem?.uom_convert || 'PCS',
+      batchDetails
+    };
+  }, [formData.item_code, formData.item_name, formData.location, formData.id_penyiapan, formData.uom, formData.uom_convert, selectedItem, locationFilter, penyiapanList]);
+
   // Checkbox master toggle states
   const isAllFilteredSelected = useMemo(() => {
     if (filteredPenyiapan.length === 0) return false;
@@ -3139,6 +3238,131 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             {/* Modal Form Body */}
             <form onSubmit={handleSaveForm} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               
+              {/* ========================================================================= */}
+              {/* TOTAL QTY PCS SUMMARY FOR SKU AT (FILTERED) LOCATION (LIGHTWEIGHT UI) */}
+              {/* ========================================================================= */}
+              {skuLocationSummary && (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                        <Layers size={15} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-slate-800">
+                            Total Akumulasi SKU di Lokasi
+                          </span>
+                          {skuLocationSummary.isFilterActive ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              <Filter size={10} /> Filter: {skuLocationSummary.location}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-semibold">
+                              Lokasi: {skuLocationSummary.location}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-semibold text-slate-600 m-0">
+                          {skuLocationSummary.itemCode} - {skuLocationSummary.itemName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Location Badge */}
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-700">
+                      <MapPin size={13} className="text-blue-600 shrink-0" />
+                      <span className="text-[11px] font-bold font-mono text-slate-900">{skuLocationSummary.location}</span>
+                    </div>
+                  </div>
+
+                  {/* Metric Highlights (Flat & Lightweight) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* Total Qty PCS */}
+                    <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <span className="text-[10px] font-semibold uppercase text-emerald-800 block">Total Qty PCS</span>
+                      <div className="text-base sm:text-lg font-bold text-emerald-700 font-mono leading-tight">
+                        {skuLocationSummary.totalQtyConvertPcs.toLocaleString('id-ID')} <span className="text-[11px] font-medium text-emerald-800">{skuLocationSummary.uom_convert}</span>
+                      </div>
+                    </div>
+
+                    {/* Total Qty CTN */}
+                    <div className="p-2 rounded-lg bg-blue-50 border border-blue-200">
+                      <span className="text-[10px] font-semibold uppercase text-blue-800 block">Total Qty ({skuLocationSummary.uom})</span>
+                      <div className="text-base sm:text-lg font-bold text-blue-700 font-mono leading-tight">
+                        {skuLocationSummary.totalLastQty.toLocaleString('id-ID')} <span className="text-[11px] font-medium text-blue-800">{skuLocationSummary.uom}</span>
+                      </div>
+                    </div>
+
+                    {/* Jumlah Batch */}
+                    <div className="col-span-2 sm:col-span-1 p-2 rounded-lg bg-slate-100 border border-slate-200">
+                      <span className="text-[10px] font-semibold uppercase text-slate-600 block">Variasi Batch</span>
+                      <div className="text-xs sm:text-sm font-bold text-slate-800 font-mono leading-tight mt-0.5">
+                        {skuLocationSummary.totalRows} Baris ({skuLocationSummary.distinctBatches} Batch)
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Batch Breakdown List if multiple batches exist */}
+                  {skuLocationSummary.batchDetails.length > 0 && (
+                    <div className="pt-1.5 space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600">
+                        <span>Daftar Batch di Lokasi {skuLocationSummary.location}:</span>
+                        <span>{skuLocationSummary.batchDetails.length} Batch</span>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto rounded-lg bg-white border border-slate-200 divide-y divide-slate-100">
+                        {skuLocationSummary.batchDetails.map((b, idx) => (
+                          <div
+                            key={b.id_penyiapan || idx}
+                            onClick={() => {
+                              const targetRow = penyiapanList.find(p => p.id_penyiapan === b.id_penyiapan);
+                              if (targetRow) {
+                                setSelectedItem(targetRow);
+                                setFormData({ ...targetRow });
+                                setBarangSearchText(targetRow.item_code ? `${targetRow.item_code} - ${targetRow.item_name}` : '');
+                              }
+                            }}
+                            className={`p-1.5 px-2 flex items-center justify-between gap-2 text-[11px] cursor-pointer ${
+                              b.isCurrent
+                                ? 'bg-blue-50 text-blue-950 font-bold border-l-2 border-blue-600'
+                                : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                            title="Klik untuk memilih batch ini"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono font-bold text-slate-900 shrink-0">
+                                {b.batch}
+                              </span>
+                              {b.isCurrent ? (
+                                <span className="px-1 py-0.2 rounded bg-blue-600 text-white text-[9px] font-bold shrink-0">
+                                  Aktif
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-blue-600 underline shrink-0 hidden sm:inline">
+                                  Pilih
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-500 truncate hidden sm:inline">
+                                Exp: {b.expired_date}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                              <span className="text-slate-600">
+                                {b.last_qty.toLocaleString('id-ID')} {b.uom}
+                              </span>
+                              <span className="text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
+                                {b.qty_convert.toLocaleString('id-ID')} PCS
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 1. Cari Master SKU / Nama Barang */}
               <div ref={barangSearchContainerRef} className="relative">
                 <div className="flex items-center justify-between mb-1">
@@ -3288,8 +3512,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </div>
               </div>
 
-              {/* 3. Location, Last Qty, Batch, Expired Date */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* 3. Location, Last Qty, Qty Convert (PCS), Batch, Expired Date */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Location</label>
                   <input
@@ -3301,12 +3525,22 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Last Qty</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Last Qty ({formData.uom || 'CTN'})</label>
                   <input
                     type="number"
                     value={formData.last_qty ?? 0}
                     onChange={(e) => setFormData(prev => ({ ...prev, last_qty: Number(e.target.value) }))}
                     className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-black text-emerald-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Qty Convert (PCS)</label>
+                  <input
+                    type="number"
+                    value={formData.qty_convert ?? 0}
+                    onChange={(e) => setFormData(prev => ({ ...prev, qty_convert: Number(e.target.value) }))}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-mono font-black text-blue-900"
                   />
                 </div>
 
