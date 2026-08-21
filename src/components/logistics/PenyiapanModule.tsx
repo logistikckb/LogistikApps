@@ -955,23 +955,15 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
   const totalPages = rowsPerPage === 'ALL' ? 1 : Math.max(1, Math.ceil(filteredPenyiapan.length / rowsPerPage));
 
-  // Check if location is filtered via location filter input or via search query matching a location
+  // Check if location is filtered via location filter input
   const isLocationFiltered = useMemo(() => {
-    if (locationFilter.trim() !== '') return true;
-    if (!searchQuery.trim()) return false;
-    const q = searchQuery.trim().toLowerCase();
-    return uniqueLocationsList.some(
-      loc => loc.toLowerCase() === q || (q.length >= 3 && loc.toLowerCase().includes(q))
-    );
-  }, [locationFilter, searchQuery, uniqueLocationsList]);
+    return Boolean(locationFilter.trim());
+  }, [locationFilter]);
 
-  // Check if any filters are currently active
+  // Check if any filters are currently active (Lokasi & Status Penyiapan)
   const hasActiveFilters = Boolean(
     searchQuery.trim() ||
     locationFilter.trim() ||
-    categoryFilter !== 'ALL' ||
-    qcFilter !== 'ALL' ||
-    slocFilter !== 'ALL' ||
     statusFilter !== 'ALL'
   );
 
@@ -2526,26 +2518,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           </div>
         )}
 
-        {/* Filter Dropdowns */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-xs">
-          {/* Filter Kategori */}
-          <div>
-            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Kategori</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
-            >
-              <option value="ALL">Semua ({penyiapanList.length})</option>
-              {uniqueCategories.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
+        {/* Filter Dropdowns (Hanya Lokasi & Status Penyiapan) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           {/* Filter Lokasi (Ketik & Dropdown) */}
           <div>
             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Lokasi</label>
@@ -2579,42 +2553,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <option key={loc} value={loc} />
               ))}
             </datalist>
-          </div>
-
-          {/* Filter QC Code */}
-          <div>
-            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Status QC</label>
-            <select
-              value={qcFilter}
-              onChange={(e) => {
-                setQcFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
-            >
-              <option value="ALL">Semua Status QC</option>
-              {uniqueQcCodes.map(qc => (
-                <option key={qc} value={qc}>{qc}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter SLOC */}
-          <div>
-            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">SLOC</label>
-            <select
-              value={slocFilter}
-              onChange={(e) => {
-                setSlocFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
-            >
-              <option value="ALL">Semua SLOC</option>
-              {uniqueSlocs.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
           </div>
 
           {/* Filter Status */}
@@ -2747,54 +2685,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   }}
                   className="hover:text-indigo-700 cursor-pointer"
                   title="Hapus filter lokasi"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-
-            {categoryFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-bold">
-                <span>Kategori: {categoryFilter}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCategoryFilter('ALL');
-                    setCurrentPage(1);
-                  }}
-                  className="hover:text-slate-900 cursor-pointer"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-
-            {qcFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-bold">
-                <span>QC: {qcFilter}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQcFilter('ALL');
-                    setCurrentPage(1);
-                  }}
-                  className="hover:text-emerald-700 cursor-pointer"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-
-            {slocFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold">
-                <span>SLOC: {slocFilter}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSlocFilter('ALL');
-                    setCurrentPage(1);
-                  }}
-                  className="hover:text-amber-700 cursor-pointer"
                 >
                   <X size={12} />
                 </button>
@@ -2987,12 +2877,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </th>
                 <th className="px-2 py-1.5 text-center w-10">No</th>
                 <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
-                <th onClick={() => handleSort('location')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                  <div className="flex items-center gap-1">
-                    <span>Location</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
-                  </div>
-                </th>
+                {!isLocationFiltered && (
+                  <th onClick={() => handleSort('location')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                    <div className="flex items-center gap-1">
+                      <span>Location</span>
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    </div>
+                  </th>
+                )}
                 <th onClick={() => handleSort('item_name')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Item Name</span>
@@ -3034,7 +2926,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -3043,7 +2935,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-6 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -3117,13 +3009,15 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         </select>
                       </td>
 
-                      {/* Location */}
-                      <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs min-w-[100px]">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin size={12} className="text-slate-400 shrink-0" />
-                          <span>{item.location || '-'}</span>
-                        </div>
-                      </td>
+                      {/* Location (Sembunyikan jika lokasi sedang di-filter) */}
+                      {!isLocationFiltered && (
+                        <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs min-w-[100px]">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin size={12} className="text-slate-400 shrink-0" />
+                            <span>{item.location || '-'}</span>
+                          </div>
+                        </td>
+                      )}
 
                       {/* Item Name */}
                       <td className="px-2.5 py-1.5 min-w-[180px] max-w-xs">
