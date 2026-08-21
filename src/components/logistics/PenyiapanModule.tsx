@@ -299,7 +299,21 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [parsedExcelRows, setParsedExcelRows] = useState<PenyiapanItem[]>([]);
   const [excelFileName, setExcelFileName] = useState('');
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    isUploading: boolean;
+    current: number;
+    total: number;
+    percentage: number;
+    statusText: string;
+  }>({
+    isUploading: false,
+    current: 0,
+    total: 0,
+    percentage: 0,
+    statusText: ''
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isImportingRef = useRef(false);
 
   // Cleanup speech recognition on unmount
   useEffect(() => {
@@ -369,12 +383,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   }, [loadMasterBarangLocally]);
 
   // Fetch data_penyiapan from Supabase
-  const fetchPenyiapanData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchPenyiapanData = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
     setLastSupabaseError(null);
 
     if (!isSupabaseConfigured) {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
       return;
     }
 
@@ -387,7 +403,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (Array.isArray(data)) {
         setPenyiapanList(data);
         if (data.length > 0) {
-          localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
+          try {
+            localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
+          } catch {}
         } else {
           localStorage.removeItem('penyiapan_cache_v1');
         }
@@ -396,7 +414,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       console.error('Unexpected error fetching data_penyiapan:', err);
       setLastSupabaseError(err?.message || 'Gagal terhubung ke tabel data_penyiapan');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
@@ -425,7 +443,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const channel = supabase
         .channel('penyiapan_realtime_channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'data_penyiapan' }, () => {
-          fetchPenyiapanData();
+          // If currently performing bulk import, suppress realtime updates to avoid screen flickering & high load
+          if (isImportingRef.current) return;
+          // Silent refresh so existing table rows do not unmount or flash
+          fetchPenyiapanData(true);
         })
         .subscribe();
 
@@ -438,7 +459,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   // Save to local storage whenever penyiapanList changes
   useEffect(() => {
     if (penyiapanList.length > 0) {
-      localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
+      try {
+        localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
+      } catch {}
     } else {
       localStorage.removeItem('penyiapan_cache_v1');
     }
@@ -472,7 +495,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
   const safeBatchUpsertPenyiapan = async (
     items: PenyiapanItem[],
-    chunkSize = 250
+    chunkSize = 500,
+    onProgress?: (processed: number, total: number) => void
   ): Promise<{ successCount: number; error: any }> => {
     const uniqueMap = new Map<string, PenyiapanItem>();
     for (const item of items) {
@@ -489,13 +513,38 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     const nowIso = new Date().toISOString();
     const cleanItems = Array.from(uniqueMap.values()).map(item => {
       const { ed, tanggal_update, updated_at, ...rest } = item as any;
-      if (rest.expired_date === '-' || !rest.expired_date) {
-        rest.expired_date = null;
+      let expDate = rest.expired_date;
+      if (expDate === '-' || expDate === '' || expDate === undefined || expDate === 'null') {
+        expDate = null;
       }
-      if (!rest.created_at) {
-        rest.created_at = nowIso;
-      }
-      return rest;
+      return {
+        id_penyiapan: String(rest.id_penyiapan || '').trim(),
+        item_code: String(rest.item_code || '').trim(),
+        item_name: String(rest.item_name || '').trim(),
+        category: String(rest.category || 'Finished Good').trim(),
+        location: String(rest.location || '-').trim(),
+        location_type: String(rest.location_type || '-').trim(),
+        first_qty: Number(rest.first_qty) || 0,
+        last_qty: Number(rest.last_qty) || 0,
+        uom: String(rest.uom || 'CTN').trim(),
+        qty_convert: Number(rest.qty_convert) || 0,
+        uom_convert: String(rest.uom_convert || '-').trim(),
+        lpn_serial_number: String(rest.lpn_serial_number || '-').trim(),
+        batch: String(rest.batch || '-').trim(),
+        vendor_batch: String(rest.vendor_batch || '-').trim(),
+        sloc: String(rest.sloc || '-').trim(),
+        expired_date: expDate,
+        destination_code: rest.destination_code ? String(rest.destination_code).trim() : '',
+        qc_code: rest.qc_code ? String(rest.qc_code).trim() : '',
+        user_tally: rest.user_tally ? String(rest.user_tally).trim() : '',
+        shelf_life: rest.shelf_life ? String(rest.shelf_life).trim() : '',
+        source: rest.source ? String(rest.source).trim() : '',
+        tujuan: rest.tujuan ? String(rest.tujuan).trim() : '',
+        user_input: rest.user_input ? String(rest.user_input).trim() : '',
+        status: rest.status ? String(rest.status).trim() : '',
+        note: rest.note ? String(rest.note).trim() : '',
+        created_at: rest.created_at || nowIso
+      };
     });
     if (cleanItems.length === 0) return { successCount: 0, error: null };
 
@@ -503,33 +552,30 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     let totalSuccess = 0;
     let lastErr: any = null;
 
-    for (const chunk of chunks) {
-      const { error } = await supabase
-        .from('data_penyiapan')
-        .upsert(chunk as any, { onConflict: 'id_penyiapan' });
-
-      if (error) {
-        console.warn('Upsert warning on data_penyiapan chunk, trying single upsert fallback:', error);
-        let fallbackSuccess = 0;
-        for (const singleItem of chunk) {
-          const { error: singleErr } = await supabase
+    // Concurrent batch processing (2 concurrent chunks for maximum throughput without server overload)
+    const concurrency = 2;
+    for (let i = 0; i < chunks.length; i += concurrency) {
+      const currentBatch = chunks.slice(i, i + concurrency);
+      const results = await Promise.all(
+        currentBatch.map(async (chunk) => {
+          const { error } = await supabase
             .from('data_penyiapan')
-            .upsert([singleItem] as any, { onConflict: 'id_penyiapan' });
+            .upsert(chunk as any, { onConflict: 'id_penyiapan' });
+          return { chunkLength: chunk.length, error };
+        })
+      );
 
-          if (!singleErr) {
-            fallbackSuccess++;
-          } else {
-            lastErr = singleErr;
-            console.error('Single upsert failed on data_penyiapan:', singleErr);
-          }
+      for (const res of results) {
+        if (res.error) {
+          lastErr = res.error;
+          console.warn('Upsert warning on data_penyiapan chunk:', res.error);
+        } else {
+          totalSuccess += res.chunkLength;
         }
-        totalSuccess += fallbackSuccess;
-        if (fallbackSuccess === 0) {
-          lastErr = error;
-          break;
-        }
-      } else {
-        totalSuccess += chunk.length;
+      }
+
+      if (onProgress) {
+        onProgress(Math.min(totalSuccess, cleanItems.length), cleanItems.length);
       }
     }
 
@@ -701,11 +747,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   }, [penyiapanList]);
 
   const uniqueQcCodes = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(['QC-PASS', 'QC-HOLD', 'QC-REJECT', 'Lulus', 'PHE']);
     penyiapanList.forEach(item => {
       if (item.qc_code && item.qc_code !== '-') set.add(item.qc_code.trim());
     });
-    if (set.size === 0) return ['QC-PASS', 'QC-HOLD', 'QC-REJECT', 'Lulus'];
     return Array.from(set).sort();
   }, [penyiapanList]);
 
@@ -1640,13 +1685,73 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
   };
 
-  // Clear All Data
-  const handleClearAllData = async () => {
+  // Bulk Delete Penyiapan (Khusus Admin)
+  const handleBulkDeletePenyiapan = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus massal data penyiapan hanya dapat dilakukan oleh Admin!', 'danger');
+      return;
+    }
+
+    if (selectedIds.length === 0) {
+      showToast('Data Kosong', 'Pilih minimal satu baris data penyiapan untuk dihapus', 'warning');
+      return;
+    }
+
+    const count = selectedIds.length;
     showConfirm({
-      title: 'Hapus Semua Data',
-      message: 'Apakah Anda yakin ingin menghapus SEMUA data penyiapan? Tindakan ini tidak dapat dibatalkan.',
-      confirmText: 'Ya, Hapus Semua',
+      title: 'Hapus Massal Data Penyiapan',
+      message: `Apakah Anda yakin ingin menghapus ${count} data penyiapan terpilih secara permanen dari tabel dan database? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: `Ya, Hapus ${count} Data`,
       cancelText: 'Batal',
+      type: 'danger',
+      onConfirm: async () => {
+        const idsToDelete = [...selectedIds];
+        const idSet = new Set(idsToDelete);
+
+        setPenyiapanList(prev => prev.filter(item => !idSet.has(item.id_penyiapan)));
+        setSelectedIds([]);
+
+        if (isSupabaseConfigured) {
+          try {
+            const chunkSize = 50;
+            for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+              const chunk = idsToDelete.slice(i, i + chunkSize);
+              const { error } = await supabase
+                .from('data_penyiapan')
+                .delete()
+                .in('id_penyiapan', chunk);
+
+              if (error) {
+                console.error('Error batch deleting from data_penyiapan:', error);
+              }
+            }
+          } catch (err: any) {
+            console.error('Database batch delete error:', err);
+          }
+        }
+
+        showToast('Hapus Massal Sukses', `${count} data penyiapan berhasil dihapus`, 'success');
+      }
+    });
+  };
+
+  // Clear All Data (Khusus Admin)
+  const handleClearAllData = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus semua data penyiapan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
+    if (penyiapanList.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data penyiapan untuk dihapus', 'info');
+      return;
+    }
+
+    showConfirm({
+      title: 'Hapus Semua Data Penyiapan',
+      message: `PERINGATAN TINGGI: Apakah Anda yakin ingin menghapus SEMUA (${penyiapanList.length}) data penyiapan dari aplikasi dan database cloud? Tindakan ini TIDAK DAPAT DIBATALKAN.`,
+      confirmText: `Ya, Kosongkan Semua (${penyiapanList.length} Item)`,
+      cancelText: 'Batal / Amankan Data',
       type: 'danger',
       onConfirm: async () => {
         if (isSupabaseConfigured) {
@@ -1654,7 +1759,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             const { error } = await supabase
               .from('data_penyiapan')
               .delete()
-              .neq('id_penyiapan', 'some_dummy_value'); // Delete all rows
+              .neq('id_penyiapan', '___NON_EXISTENT_ID___'); // Delete all rows
 
             if (error) {
               showToast('Error Database', error.message, 'danger');
@@ -1666,8 +1771,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           }
         }
         setPenyiapanList([]);
+        setSelectedIds([]);
         localStorage.removeItem('penyiapan_cache_v1');
-        showToast('Terhapus', 'Semua data penyiapan berhasil dihapus', 'success');
+        showToast('Terhapus', 'Semua data penyiapan berhasil dibersihkan dari database', 'success');
       }
     });
   };
@@ -2011,13 +2117,22 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     reader.readAsArrayBuffer(file);
   };
 
-  // Commit Parsed Excel to Database & Local State (High Speed Batching)
+  // Commit Parsed Excel to Database & Local State (High Speed Batching & Seamless Sync)
   const handleCommitExcelImport = async () => {
     if (parsedExcelRows.length === 0) return;
 
+    isImportingRef.current = true;
     setIsProcessingExcel(true);
+    setUploadProgress({
+      isUploading: true,
+      current: 0,
+      total: parsedExcelRows.length,
+      percentage: 0,
+      statusText: 'Mempersiapkan data penyiapan...'
+    });
+
     try {
-      // 1. Merge locally
+      // 1. Merge locally for instant display
       const mergedMap = new Map<string, PenyiapanItem>();
       for (const item of penyiapanList) {
         mergedMap.set(item.id_penyiapan.toLowerCase(), item);
@@ -2028,27 +2143,75 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const finalMerged = Array.from(mergedMap.values());
       setPenyiapanList(finalMerged);
 
-      // 2. Persist to Supabase if online (Large 250 chunk size for blazing speed)
+      // 2. Persist to Supabase with chunk size 500 & live progress indicator
       if (isSupabaseConfigured) {
-        const { successCount, error } = await safeBatchUpsertPenyiapan(parsedExcelRows, 250);
+        setUploadProgress(prev => ({
+          ...prev,
+          statusText: `Mengunggah ${parsedExcelRows.length.toLocaleString('id-ID')} data ke Database Supabase...`
+        }));
+
+        const { successCount, error } = await safeBatchUpsertPenyiapan(
+          parsedExcelRows,
+          500,
+          (processed, total) => {
+            const pct = Math.round((processed / total) * 100);
+            setUploadProgress({
+              isUploading: true,
+              current: processed,
+              total,
+              percentage: pct,
+              statusText: `Mengunggah ${processed.toLocaleString('id-ID')} dari ${total.toLocaleString('id-ID')} baris (${pct}%)...`
+            });
+          }
+        );
+
         if (error && successCount === 0) {
           showToast('Peringatan Database', `Tersimpan di memori lokal, namun gagal sync ke cloud: ${error.message}`, 'warning');
         } else {
-          showToast('Import Cepat Berhasil', `${successCount} data penyiapan berhasil diunggah ke Database Supabase!`, 'success');
-          fetchPenyiapanData();
+          setUploadProgress({
+            isUploading: true,
+            current: parsedExcelRows.length,
+            total: parsedExcelRows.length,
+            percentage: 100,
+            statusText: 'Unggah selesai! Memfinalisasi data...'
+          });
+          showToast('Import Selesai', `${successCount.toLocaleString('id-ID')} data penyiapan berhasil diunggah ke Database Supabase!`, 'success');
+          // Silent refresh: background fetch without unmounting table or blinking screen
+          await fetchPenyiapanData(true);
         }
       } else {
+        setUploadProgress({
+          isUploading: true,
+          current: parsedExcelRows.length,
+          total: parsedExcelRows.length,
+          percentage: 100,
+          statusText: 'Tersimpan di penyimpanan lokal!'
+        });
         showToast('Import Lokal Selesai', `${parsedExcelRows.length} data penyiapan berhasil disimpan di penyimpanan lokal!`, 'success');
       }
 
-      setShowExcelModal(false);
-      setParsedExcelRows([]);
-      setExcelFileName('');
+      // Smooth transition to close modal without screen flash
+      setTimeout(() => {
+        setShowExcelModal(false);
+        setParsedExcelRows([]);
+        setExcelFileName('');
+        setUploadProgress({
+          isUploading: false,
+          current: 0,
+          total: 0,
+          percentage: 0,
+          statusText: ''
+        });
+        setIsProcessingExcel(false);
+        isImportingRef.current = false;
+      }, 400);
+
     } catch (err: any) {
       console.error('Error committing excel import:', err);
       showToast('Gagal Import', err?.message || 'Terjadi kesalahan saat menyimpan data import', 'danger');
-    } finally {
       setIsProcessingExcel(false);
+      isImportingRef.current = false;
+      setUploadProgress(prev => ({ ...prev, isUploading: false }));
     }
   };
 
@@ -2411,7 +2574,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 text-[11px] font-bold border border-indigo-200">
                 <MapPin size={11} />
                 <span>Lokasi: {locationFilter}</span>
-                <span className="text-[9px] bg-indigo-200/80 px-1 py-0.2 rounded text-indigo-800 font-semibold">(Kolom Disembunyikan)</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -2550,6 +2712,19 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               <span>Pindah Data Massal</span>
             </button>
 
+            {/* Hapus Terpilih Button (Khusus Admin) */}
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={handleBulkDeletePenyiapan}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                title="Hapus permanen semua data penyiapan terpilih (Akses Khusus Admin)"
+              >
+                <Trash2 size={14} />
+                <span>Hapus Terpilih ({selectedIds.length})</span>
+              </button>
+            )}
+
             {/* Clear Selection */}
             <button
               type="button"
@@ -2581,7 +2756,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             {isLocationFiltered && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-900 text-[9px] font-extrabold border border-indigo-200">
                 <MapPin size={10} />
-                <span>Lokasi Terwakili: {locationFilter || searchQuery} (Kolom Disembunyikan)</span>
+                <span>Lokasi: {locationFilter || searchQuery}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -2592,7 +2767,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     setCurrentPage(1);
                   }}
                   className="ml-1 p-0.5 rounded-full hover:bg-indigo-200 text-indigo-800 cursor-pointer"
-                  title="Tampilkan kembali kolom lokasi (Reset filter lokasi)"
+                  title="Reset filter lokasi"
                 >
                   <X size={10} />
                 </button>
@@ -2647,15 +2822,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </th>
                 <th className="px-2 py-1.5 text-center w-10">No</th>
                 <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
-                <th className="px-2 py-1.5 text-center w-20">Aksi</th>
-                {!isLocationFiltered && (
-                  <th onClick={() => handleSort('location')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                    <div className="flex items-center gap-1">
-                      <span>Location</span>
-                      <ArrowUpDown size={11} className="text-slate-400" />
-                    </div>
-                  </th>
-                )}
+                <th onClick={() => handleSort('location')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Location</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
                 <th onClick={() => handleSort('item_name')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Item Name</span>
@@ -2668,40 +2840,27 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
-                <th className="px-2.5 py-1.5">Uom</th>
+                <th onClick={() => handleSort('uom')} className="px-2.5 py-1.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Uom</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('batch')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Batch</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
                 <th onClick={() => handleSort('expired_date')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
                     <span>Expired Date</span>
                     <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
-                <th onClick={() => handleSort('destination_code')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                <th onClick={() => handleSort('note')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
-                    <span>Destination Code</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
-                  </div>
-                </th>
-                <th onClick={() => handleSort('qc_code')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                  <div className="flex items-center gap-1">
-                    <span>QC Code</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
-                  </div>
-                </th>
-                <th onClick={() => handleSort('user_tally')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                  <div className="flex items-center gap-1">
-                    <span>User Tally</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
-                  </div>
-                </th>
-                <th onClick={() => handleSort('shelf_life')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                  <div className="flex items-center gap-1">
-                    <span>Shelf Life</span>
-                    <ArrowUpDown size={11} className="text-slate-400" />
-                  </div>
-                </th>
-                <th onClick={() => handleSort('source')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
-                  <div className="flex items-center gap-1">
-                    <span>Source</span>
+                    <span>Note</span>
                     <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
@@ -2710,7 +2869,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 13 : 14} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={10} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -2719,7 +2878,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 13 : 14} className="p-6 text-center text-slate-500">
+                  <td colSpan={10} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -2739,12 +2898,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   return (
                     <tr
                       key={item.id_penyiapan || index}
-                      className={`transition-colors group ${
-                        isItemSelected ? 'bg-blue-50/70 hover:bg-blue-100/60 font-semibold' : 'hover:bg-slate-50/80'
+                      onClick={() => handleOpenEditModal(item)}
+                      className={`transition-colors group cursor-pointer ${
+                        isItemSelected ? 'bg-blue-50/80 hover:bg-blue-100/70 font-semibold' : 'hover:bg-blue-50/40'
                       }`}
+                      title="Klik baris untuk melihat / edit detail data"
                     >
                       {/* Checkbox Select Row */}
-                      <td className="px-2 py-1.5 text-center">
+                      <td 
+                        className="px-2 py-1.5 text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <button
                           type="button"
                           onClick={() => handleToggleSelectItem(item.id_penyiapan)}
@@ -2765,9 +2929,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                       </td>
 
                       {/* Status Sticky Column */}
-                      <td className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${
-                        isItemSelected ? 'bg-blue-50 group-hover:bg-blue-100/80' : 'bg-white group-hover:bg-slate-50'
-                      }`}>
+                      <td 
+                        className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${
+                          isItemSelected ? 'bg-blue-50 group-hover:bg-blue-100/80' : 'bg-white group-hover:bg-slate-50'
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <select
                           value={item.status || ''}
                           onChange={(e) => handleUpdateStatus(item, e.target.value)}
@@ -2785,292 +2952,50 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         </select>
                       </td>
 
-                      {/* Aksi */}
-                      <td className="px-1.5 py-1 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {/* Tombol Kirim ke Pemusnahan (Relasi ke Menu Pemusnahan) */}
-                          <button
-                            onClick={() => handleOpenSendToPemusnahan(item)}
-                            className={`p-1 rounded-md transition-colors cursor-pointer ${
-                              (item.status || '').toLowerCase().includes('pemusnahan')
-                                ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
-                                : 'bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800'
-                            }`}
-                            title="Kirim Data ke Menu Pemusnahan (public.data_pemusnahan)"
-                          >
-                            <Flame size={12} className={(item.status || '').toLowerCase().includes('pemusnahan') ? 'text-rose-600 animate-pulse' : ''} />
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenEditModal(item)}
-                            className="p-1 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
-                            title="Edit / Lihat Data"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-
-                          {/* Aksi Hapus khusus Admin */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setShowDeleteModal(true);
-                              }}
-                              className="p-1 rounded-md bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer"
-                              title="Hapus Data (Khusus Admin)"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
+                      {/* Location */}
+                      <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs min-w-[100px]">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin size={12} className="text-slate-400 shrink-0" />
+                          <span>{item.location || '-'}</span>
                         </div>
                       </td>
 
-                      {/* Location (Hidden when location is filtered) */}
-                      {!isLocationFiltered && (
-                        <td className="px-2 py-1 font-bold text-slate-700 text-xs min-w-[120px]">
-                          <div className="flex items-center gap-1">
-                            <MapPin size={11} className="text-slate-400 shrink-0" />
-                            <input
-                              type="text"
-                              defaultValue={item.location || ''}
-                              key={`loc-${item.id_penyiapan}-${item.location}`}
-                              placeholder="Lokasi..."
-                              onBlur={(e) => {
-                                if (e.target.value !== (item.location || '')) {
-                                  handleInlineCellUpdate(item, 'location', e.target.value);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  (e.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              className="w-full px-1 py-0.5 text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                              title="Klik untuk ubah Lokasi langsung"
-                            />
-                          </div>
-                        </td>
-                      )}
-
-                      {/* Item Name & Note */}
-                      <td className="px-2 py-1 min-w-[180px] max-w-xs">
-                        <div className="font-extrabold text-slate-800 text-xs">
-                          <input
-                            type="text"
-                            defaultValue={item.item_name}
-                            key={`item_name-${item.id_penyiapan}-${item.item_name}`}
-                            onBlur={(e) => {
-                              if (e.target.value.trim() && e.target.value !== item.item_name) {
-                                handleInlineCellUpdate(item, 'item_name', e.target.value.trim());
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className="w-full px-1 py-0.5 text-xs font-extrabold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                            title="Klik untuk ubah Nama Barang langsung"
-                          />
-                        </div>
-                        <div className="mt-0.5">
-                          <input
-                            type="text"
-                            defaultValue={item.note || ''}
-                            key={`note-${item.id_penyiapan}-${item.note}`}
-                            placeholder="+ Catatan..."
-                            onBlur={(e) => {
-                              if (e.target.value !== (item.note || '')) {
-                                handleInlineCellUpdate(item, 'note', e.target.value);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className="w-full px-1 py-0.5 text-[9.5px] font-medium text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate placeholder:text-slate-300"
-                            title="Klik untuk ubah Catatan langsung"
-                          />
+                      {/* Item Name */}
+                      <td className="px-2.5 py-1.5 min-w-[180px] max-w-xs">
+                        <div className="font-extrabold text-slate-800 text-xs truncate" title={item.item_name}>
+                          {item.item_name}
                         </div>
                       </td>
 
                       {/* Last Qty */}
-                      <td className="px-1.5 py-1 text-right min-w-[90px]">
-                        <input
-                          type="number"
-                          defaultValue={item.last_qty !== undefined && item.last_qty !== null ? item.last_qty : 0}
-                          key={`qty-${item.id_penyiapan}-${item.last_qty}`}
-                          onBlur={(e) => {
-                            const val = Number(e.target.value);
-                            if (!isNaN(val) && val !== item.last_qty) {
-                              handleInlineCellUpdate(item, 'last_qty', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 text-right font-mono font-black text-emerald-800 bg-emerald-50/50 hover:bg-emerald-100/60 focus:bg-white focus:ring-1.5 focus:ring-emerald-500 rounded border border-emerald-200/60 focus:border-emerald-400 outline-none text-xs transition-all"
-                          title="Klik untuk ubah Qty langsung"
-                        />
+                      <td className="px-2.5 py-1.5 text-right min-w-[80px]">
+                        <span className="font-mono font-black text-emerald-800 bg-emerald-50/70 px-2 py-0.5 rounded border border-emerald-200/60 text-xs inline-block">
+                          {Number(item.last_qty || 0).toLocaleString('id-ID')}
+                        </span>
                       </td>
 
                       {/* Uom */}
-                      <td className="px-1.5 py-1 text-center min-w-[70px]">
-                        <input
-                          type="text"
-                          defaultValue={item.uom || 'CTN'}
-                          key={`uom-${item.id_penyiapan}-${item.uom}`}
-                          onBlur={(e) => {
-                            const val = e.target.value.trim().toUpperCase();
-                            if (val && val !== item.uom) {
-                              handleInlineCellUpdate(item, 'uom', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1 py-1 text-center font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none text-xs transition-all uppercase"
-                          title="Klik untuk ubah Satuan UOM langsung"
-                        />
+                      <td className="px-2.5 py-1.5 text-center min-w-[65px]">
+                        <span className="font-bold text-slate-700 text-xs uppercase">
+                          {item.uom || 'CTN'}
+                        </span>
+                      </td>
+
+                      {/* Batch */}
+                      <td className="px-2.5 py-1.5 min-w-[90px] font-mono text-xs font-semibold text-slate-700">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800">
+                          {item.batch || '-'}
+                        </span>
                       </td>
 
                       {/* Expired Date */}
-                      <td className="px-1.5 py-1 min-w-[110px]">
-                        <input
-                          type="text"
-                          defaultValue={item.expired_date || ''}
-                          key={`ed-${item.id_penyiapan}-${item.expired_date}`}
-                          placeholder="YYYY-MM-DD"
-                          onBlur={(e) => {
-                            const val = e.target.value.trim() || '-';
-                            if (val !== item.expired_date) {
-                              handleInlineCellUpdate(item, 'expired_date', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 font-mono text-xs font-bold text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all"
-                          title="Klik untuk ubah Expired Date langsung (Format: YYYY-MM-DD)"
-                        />
+                      <td className="px-2.5 py-1.5 min-w-[100px] font-mono text-xs font-semibold text-slate-700">
+                        {item.expired_date || '-'}
                       </td>
 
-                      {/* Destination Code */}
-                      <td className="px-1.5 py-1 min-w-[110px]">
-                        <input
-                          type="text"
-                          defaultValue={item.destination_code || ''}
-                          key={`dest-${item.id_penyiapan}-${item.destination_code}`}
-                          placeholder="DST-..."
-                          onBlur={(e) => {
-                            if (e.target.value !== (item.destination_code || '')) {
-                              handleInlineCellUpdate(item, 'destination_code', e.target.value);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 font-mono text-xs text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                          title="Klik untuk ubah Destination Code"
-                        />
-                      </td>
-
-                      {/* QC Code */}
-                      <td className="px-1.5 py-1 min-w-[90px]">
-                        <input
-                          type="text"
-                          defaultValue={item.qc_code || ''}
-                          key={`qc-${item.id_penyiapan}-${item.qc_code}`}
-                          placeholder="QC-..."
-                          onBlur={(e) => {
-                            const val = e.target.value.trim().toUpperCase();
-                            if (val !== (item.qc_code || '')) {
-                              handleInlineCellUpdate(item, 'qc_code', val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 font-bold text-xs text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                          title="Klik untuk ubah QC Code"
-                        />
-                      </td>
-
-                      {/* User Tally */}
-                      <td className="px-1.5 py-1 min-w-[100px]">
-                        <input
-                          type="text"
-                          defaultValue={item.user_tally || ''}
-                          key={`tally-${item.id_penyiapan}-${item.user_tally}`}
-                          placeholder="User Tally..."
-                          onBlur={(e) => {
-                            if (e.target.value !== (item.user_tally || '')) {
-                              handleInlineCellUpdate(item, 'user_tally', e.target.value);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 text-xs text-slate-700 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                          title="Klik untuk ubah User Tally"
-                        />
-                      </td>
-
-                      {/* Shelf Life */}
-                      <td className="px-1.5 py-1 min-w-[90px]">
-                        <input
-                          type="text"
-                          defaultValue={item.shelf_life || ''}
-                          key={`shelf-${item.id_penyiapan}-${item.shelf_life}`}
-                          placeholder="24 Bulan..."
-                          onBlur={(e) => {
-                            if (e.target.value !== (item.shelf_life || '')) {
-                              handleInlineCellUpdate(item, 'shelf_life', e.target.value);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 text-xs text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                          title="Klik untuk ubah Shelf Life"
-                        />
-                      </td>
-
-                      {/* Source */}
-                      <td className="px-1.5 py-1 min-w-[100px]">
-                        <input
-                          type="text"
-                          defaultValue={item.source || ''}
-                          key={`src-${item.id_penyiapan}-${item.source}`}
-                          placeholder="Stok Gudang..."
-                          onBlur={(e) => {
-                            if (e.target.value !== (item.source || '')) {
-                              handleInlineCellUpdate(item, 'source', e.target.value);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-full px-1.5 py-1 text-xs text-slate-600 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1.5 focus:ring-blue-500 rounded border border-transparent hover:border-slate-200 focus:border-blue-400 outline-none transition-all truncate"
-                          title="Klik untuk ubah Source"
-                        />
+                      {/* Note */}
+                      <td className="px-2.5 py-1.5 min-w-[140px] max-w-xs text-xs text-slate-600 truncate" title={item.note || '-'}>
+                        {item.note || '-'}
                       </td>
                     </tr>
                   );
@@ -3459,20 +3384,39 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setShowFormModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white font-black shadow-md cursor-pointer"
-                >
-                  {isEditMode ? 'Simpan Perubahan' : 'Simpan Penyiapan'}
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                <div>
+                  {isEditMode && isSuperAdmin && selectedItem && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowFormModal(false);
+                        setShowDeleteModal(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 transition-colors cursor-pointer flex items-center gap-1.5 text-xs"
+                      title="Hapus data penyiapan ini (Khusus Admin)"
+                    >
+                      <Trash2 size={13} />
+                      <span>Hapus Data</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFormModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white font-black shadow-md cursor-pointer"
+                  >
+                    {isEditMode ? 'Simpan Perubahan' : 'Simpan Penyiapan'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -3605,12 +3549,41 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </div>
               )}
 
+              {/* Upload Progress Bar Indicator (Enterprise Grade) */}
+              {uploadProgress.isUploading && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 shadow-sm space-y-2.5 animate-fade-in">
+                  <div className="flex items-center justify-between font-bold text-xs">
+                    <div className="flex items-center gap-2 text-emerald-950">
+                      <RefreshCw size={14} className="animate-spin text-emerald-700" />
+                      <span>{uploadProgress.statusText}</span>
+                    </div>
+                    <span className="font-mono text-xs font-black text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                      {uploadProgress.percentage}%
+                    </span>
+                  </div>
+
+                  {/* Progress Track */}
+                  <div className="w-full h-2.5 bg-slate-200/80 rounded-full overflow-hidden p-0.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress.percentage}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium pt-0.5">
+                    <span>Proses: {uploadProgress.current.toLocaleString('id-ID')} dari {uploadProgress.total.toLocaleString('id-ID')} baris</span>
+                    <span className="text-emerald-700 font-semibold">Menggunakan High-Speed Batch Stream</span>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                 <button
                   type="button"
+                  disabled={uploadProgress.isUploading}
                   onClick={downloadExcelTemplate}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 cursor-pointer disabled:opacity-40"
                 >
                   <FileSpreadsheet size={14} className="text-emerald-700" />
                   <span>Download Template Excel</span>
@@ -3619,19 +3592,28 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    disabled={uploadProgress.isUploading}
                     onClick={() => setShowExcelModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer"
+                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer disabled:opacity-40"
                   >
                     Batal
                   </button>
                   <button
                     type="button"
-                    disabled={parsedExcelRows.length === 0 || isProcessingExcel}
+                    disabled={parsedExcelRows.length === 0 || isProcessingExcel || uploadProgress.isUploading}
                     onClick={handleCommitExcelImport}
                     className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-black shadow-md cursor-pointer disabled:opacity-50"
                   >
-                    {isProcessingExcel ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
-                    <span>{isProcessingExcel ? 'Mengunggah...' : `Simpan ${parsedExcelRows.length} Data Penyiapan`}</span>
+                    {isProcessingExcel || uploadProgress.isUploading ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <Check size={14} />
+                    )}
+                    <span>
+                      {uploadProgress.isUploading
+                        ? `Mengunggah (${uploadProgress.percentage}%)...`
+                        : `Simpan ${parsedExcelRows.length.toLocaleString('id-ID')} Data Penyiapan`}
+                    </span>
                   </button>
                 </div>
               </div>

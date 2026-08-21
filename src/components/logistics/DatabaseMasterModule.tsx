@@ -319,6 +319,11 @@ export function DatabaseMasterModule() {
   };
 
   const handleDeleteBarang = (itemCode: string, itemName: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus master barang hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Master Barang',
       message: `Apakah Anda yakin ingin menghapus "${itemName}" (${itemCode}) dari database? Tindakan ini tidak dapat dibatalkan.`,
@@ -356,6 +361,11 @@ export function DatabaseMasterModule() {
   };
 
   const handleBatchDeleteBarang = () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus massal master barang hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     if (selectedBarangCodes.length === 0) return;
 
     const count = selectedBarangCodes.length;
@@ -409,6 +419,11 @@ export function DatabaseMasterModule() {
 
   // Reset / Wipe All Barang (Super Admin Danger Tool)
   const handleClearAllBarang = () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi mengosongkan seluruh master barang hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     if (barangList.length === 0) {
       showToast('Data Kosong', 'Tidak ada data master barang untuk dihapus', 'info');
       return;
@@ -565,6 +580,11 @@ export function DatabaseMasterModule() {
   };
 
   const handleDeleteDistributor = (kodeLd: string, namaDistributor: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus master distributor hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Distributor',
       message: `Apakah Anda yakin ingin menghapus distributor "${namaDistributor}" (${kodeLd}) dari database?`,
@@ -599,6 +619,11 @@ export function DatabaseMasterModule() {
   };
 
   const handleBatchDeleteDistributor = () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus massal master distributor hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     if (selectedDistributorCodes.length === 0) return;
 
     const count = selectedDistributorCodes.length;
@@ -648,6 +673,11 @@ export function DatabaseMasterModule() {
 
   // Reset / Wipe All Distributor (Super Admin Danger Tool)
   const handleClearAllDistributor = () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi mengosongkan seluruh master distributor hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     if (distributorList.length === 0) {
       showToast('Data Kosong', 'Tidak ada data master distributor untuk dihapus', 'info');
       return;

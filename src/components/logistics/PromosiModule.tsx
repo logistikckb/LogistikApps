@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../supabase';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 
 export interface PromosiData {
   id: string;
@@ -24,7 +25,10 @@ export interface PromosiData {
 }
 
 export function PromosiModule() {
+  const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
+
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
 
   const [promosiList, setPromosiList] = useState<PromosiData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -345,6 +349,11 @@ export function PromosiModule() {
   };
 
   const handleDelete = (id: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data penerimaan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Data Penerimaan',
       message: 'Yakin ingin menghapus data penerimaan ini dari Database?',
@@ -956,13 +965,15 @@ export function PromosiModule() {
                         >
                           <Edit size={12} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(row.id)}
-                          className="p-1 rounded bg-white hover:bg-red-50 border border-slate-200 text-slate-700 hover:text-red-600 cursor-pointer transition-all shadow-2xs"
-                          title="Hapus"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => handleDelete(row.id)}
+                            className="p-1 rounded bg-white hover:bg-red-50 border border-slate-200 text-slate-700 hover:text-red-600 cursor-pointer transition-all shadow-2xs"
+                            title="Hapus (Khusus Admin)"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -58,6 +58,8 @@ export function IncomingModule() {
   const { currentUser, isAdmin } = useAuth();
   const { showToast } = useNotification();
 
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
+
   // Helper to load all cached master data from multiple local storage keys and merge with incoming history
   const loadAllMasterDataLocally = useCallback(() => {
     let loadedBarang: DataBarang[] = [];
@@ -740,16 +742,13 @@ export function IncomingModule() {
   }, [incomingList, getItemDateFormatted]);
 
   const uniqueQcStatuses = useMemo(() => {
-    const qcSet = new Set<string>();
+    const qcSet = new Set<string>(['Lulus', 'Karantina', 'Repack', 'Reject', 'PHE']);
     incomingList.forEach(item => {
       const qc = item.qc_code?.trim();
       if (qc && qc !== '-') {
         qcSet.add(qc);
       }
     });
-    if (qcSet.size === 0) {
-      return ['Lulus', 'Karantina', 'Repack', 'Reject'];
-    }
     return Array.from(qcSet).sort();
   }, [incomingList]);
 
@@ -1157,6 +1156,10 @@ export function IncomingModule() {
   };
 
   const handleOpenDeleteModal = (item: IncomingItem) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
     setSelectedItem(item);
     setShowDeleteModal(true);
   };
@@ -1379,6 +1382,12 @@ export function IncomingModule() {
   };
 
   const handleDeleteItem = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      setShowDeleteModal(false);
+      return;
+    }
+
     if (!selectedItem) return;
 
     const idToDelete = selectedItem.id_incoming;
@@ -2100,6 +2109,8 @@ export function IncomingModule() {
           if (itemQc !== 'karantina' && itemQc !== 'qc-hold' && itemQc !== 'hold') return false;
         } else if (targetQc === 'repack' || targetQc === 'qc-reject') {
           if (itemQc !== 'repack' && itemQc !== 'qc-reject' && itemQc !== 'reject') return false;
+        } else if (targetQc === 'phe') {
+          if (itemQc !== 'phe') return false;
         } else {
           if (itemQc !== targetQc) return false;
         }
@@ -2753,6 +2764,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   if (qc === 'KARANTINA' || qc === 'QC-HOLD' || qc === 'HOLD') qcBadgeClass = 'bg-amber-50 text-amber-800 border-amber-300';
                   else if (qc === 'REPACK' || qc === 'QC-REJECT' || qc === 'REJECT') qcBadgeClass = 'bg-orange-50 text-orange-800 border-orange-300';
                   else if (qc === 'PENDING') qcBadgeClass = 'bg-blue-50 text-blue-800 border-blue-200';
+                  else if (qc === 'PHE') qcBadgeClass = 'bg-purple-50 text-purple-800 border-purple-300 font-bold';
 
                   const isClosed = (item.status || '').trim().toUpperCase() === 'CLOSE';
                   const rowStatus = isClosed ? 'CLOSE' : 'OPEN';
@@ -2870,16 +2882,18 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           >
                             <Edit2 size={13} />
                           </button>
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleOpenDeleteModal(item);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
-                            title="Hapus Transaksi"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleOpenDeleteModal(item);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Hapus Transaksi (Khusus Admin)"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -3672,7 +3686,8 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     <option value="Karantina">Karantina</option>
                     <option value="Repack">Repack</option>
                     <option value="Reject">Reject</option>
-                    {formData.qc_code && !['Lulus', 'Karantina', 'Repack', 'Reject'].includes(formData.qc_code) && (
+                    <option value="PHE">PHE</option>
+                    {formData.qc_code && !['Lulus', 'Karantina', 'Repack', 'Reject', 'PHE'].includes(formData.qc_code) && (
                       <option value={formData.qc_code}>{formData.qc_code}</option>
                     )}
                   </select>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase, fetchAllRowsFromSupabase } from '../../supabase';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 
 const KINO_LOGO_URL = 'https://res.cloudinary.com/dedtb3vnj/image/upload/v1782568576/kino_yrhkmc.png';
 
@@ -76,7 +77,10 @@ export interface SavedRekapSJ {
 type SJSubTab = 'dashboard' | 'form' | 'rekap' | 'settings' | 'print';
 
 export function SuratJalanModule() {
+  const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
+
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
 
   const [activeTab, setActiveTab] = useState<SJSubTab>('dashboard');
   const [loading, setLoading] = useState<boolean>(true);
@@ -415,6 +419,11 @@ export function SuratJalanModule() {
 
   // Delete Document
   const handleDeleteDocument = (id: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus dokumen Surat Jalan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Dokumen SJ',
       message: 'Yakin ingin menghapus dokumen Surat Jalan ini dari Database?',
@@ -539,6 +548,11 @@ export function SuratJalanModule() {
   };
 
   const handleDeleteJenis = (id: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus master jenis Surat Jalan hanya dapat dilakukan oleh Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Jenis Surat Jalan',
       message: 'Yakin ingin menghapus Jenis Surat Jalan ini dari Database?',
@@ -636,6 +650,11 @@ export function SuratJalanModule() {
   };
 
   const handleDeleteTujuanMaster = (id: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus master tujuan hanya dapat dilakukan oleh Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Tujuan Pengiriman',
       message: 'Yakin ingin menghapus Tujuan Pengiriman ini dari Database?',
@@ -911,6 +930,11 @@ export function SuratJalanModule() {
 
   // Delete Saved Rekap
   const handleDeleteSavedRekap = (id: string, judul: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus rekapan SJ hanya dapat dilakukan oleh Admin!', 'danger');
+      return;
+    }
+
     showConfirm({
       title: 'Hapus Rekapan Ter simpan',
       message: `Yakin ingin menghapus rekapan "${judul}" dari Database Supabase?`,
@@ -1167,13 +1191,15 @@ export function SuratJalanModule() {
                               >
                                 <Edit size={13} />
                               </button>
-                              <button
-                                onClick={() => handleDeleteDocument(doc.id)}
-                                className="p-1 rounded bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 cursor-pointer transition-colors"
-                                title="Hapus"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => handleDeleteDocument(doc.id)}
+                                  className="p-1 rounded bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 cursor-pointer transition-colors"
+                                  title="Hapus (Khusus Admin)"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1957,13 +1983,15 @@ export function SuratJalanModule() {
                           <Download size={11} />
                           <span>Excel</span>
                         </button>
-                        <button
-                          onClick={() => handleDeleteSavedRekap(rk.id, rk.judul)}
-                          className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
-                          title="Hapus Rekapan"
-                        >
-                          <Trash2 size={11} />
-                        </button>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => handleDeleteSavedRekap(rk.id, rk.judul)}
+                            className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-0.5"
+                            title="Hapus Rekapan (Khusus Admin)"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2158,13 +2186,15 @@ export function SuratJalanModule() {
                         >
                           <Edit size={12} />
                         </button>
-                        <button
-                          onClick={() => handleDeleteJenis(j.id)}
-                          className="p-1 rounded bg-white hover:bg-red-100 text-slate-600 hover:text-red-700 cursor-pointer border border-slate-200"
-                          title="Hapus Jenis"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => handleDeleteJenis(j.id)}
+                            className="p-1 rounded bg-white hover:bg-red-100 text-slate-600 hover:text-red-700 cursor-pointer border border-slate-200"
+                            title="Hapus Jenis (Khusus Admin)"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -2230,13 +2260,15 @@ export function SuratJalanModule() {
                             >
                               <Edit size={12} />
                             </button>
-                            <button
-                              onClick={() => handleDeleteTujuanMaster(t.id)}
-                              className="p-1 rounded bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 cursor-pointer"
-                              title="Hapus Tujuan"
-                            >
-                              <Trash2 size={12} />
-                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                onClick={() => handleDeleteTujuanMaster(t.id)}
+                                className="p-1 rounded bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 cursor-pointer"
+                                title="Hapus Tujuan (Khusus Admin)"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
