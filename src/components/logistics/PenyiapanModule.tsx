@@ -510,13 +510,50 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     }
 
+    const normalizeToDbDate = (val: any): string | null => {
+      if (!val) return null;
+      const str = String(val).trim();
+      if (!str || str === '-' || str === 'null' || str === 'undefined' || str === 'Invalid Date') return null;
+
+      // Handle Excel integer serial date if passed as number or numeric string (e.g. 45678)
+      if (/^\d{5}$/.test(str)) {
+        const excelEpoch = new Date(1899, 11, 30);
+        const dateObj = new Date(excelEpoch.getTime() + Number(str) * 86400000);
+        if (!isNaN(dateObj.getTime())) {
+          return dateObj.toISOString().slice(0, 10);
+        }
+      }
+
+      // Handle DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+      const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+      if (dmyMatch) {
+        const [, d, m, y] = dmyMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
+      // Handle YYYY/MM/DD or YYYY-MM-DD or YYYY.MM.DD
+      const ymdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+      if (ymdMatch) {
+        const [, y, m, d] = ymdMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
+      // Fallback: Date parse
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const d = String(parsed.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      return null;
+    };
+
     const nowIso = new Date().toISOString();
     const cleanItems = Array.from(uniqueMap.values()).map(item => {
       const { ed, tanggal_update, updated_at, ...rest } = item as any;
-      let expDate = rest.expired_date;
-      if (expDate === '-' || expDate === '' || expDate === undefined || expDate === 'null') {
-        expDate = null;
-      }
+      const expDate = normalizeToDbDate(rest.expired_date);
       return {
         id_penyiapan: String(rest.id_penyiapan || '').trim(),
         item_code: String(rest.item_code || '').trim(),
@@ -1139,9 +1176,28 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     if (isSupabaseConfigured) {
       try {
         const { ed, ...dbRecord } = recordToSave as any;
-        if (dbRecord.expired_date === '-' || !dbRecord.expired_date) {
-          dbRecord.expired_date = null;
+        let expDateVal: string | null = null;
+        const rawDate = dbRecord.expired_date ? String(dbRecord.expired_date).trim() : '';
+        if (rawDate && rawDate !== '-' && rawDate !== 'null' && rawDate !== 'undefined') {
+          if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(rawDate)) {
+            const delimiter = rawDate.includes('/') ? '/' : (rawDate.includes('-') ? '-' : '.');
+            const [d, m, y] = rawDate.split(delimiter);
+            expDateVal = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          } else if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(rawDate)) {
+            const delimiter = rawDate.includes('/') ? '/' : (rawDate.includes('-') ? '-' : '.');
+            const [y, m, d] = rawDate.split(delimiter);
+            expDateVal = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          } else {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) {
+              const y = parsed.getFullYear();
+              const m = String(parsed.getMonth() + 1).padStart(2, '0');
+              const d = String(parsed.getDate()).padStart(2, '0');
+              expDateVal = `${y}-${m}-${d}`;
+            }
+          }
         }
+        dbRecord.expired_date = expDateVal;
 
         const { error } = await supabase
           .from('data_penyiapan')
@@ -2026,7 +2082,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           if (/^\d{5}$/.test(expDate)) {
             const excelEpoch = new Date(1899, 11, 30);
             const dateObj = new Date(excelEpoch.getTime() + Number(expDate) * 86400000);
-            expDate = dateObj.toISOString().slice(0, 10);
+            if (!isNaN(dateObj.getTime())) {
+              expDate = dateObj.toISOString().slice(0, 10);
+            }
+          } else if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(expDate)) {
+            const delimiter = expDate.includes('/') ? '/' : (expDate.includes('-') ? '-' : '.');
+            const [d, m, y] = expDate.split(delimiter);
+            expDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          } else if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(expDate)) {
+            const delimiter = expDate.includes('/') ? '/' : (expDate.includes('-') ? '-' : '.');
+            const [y, m, d] = expDate.split(delimiter);
+            expDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
           }
 
           // 16. destination_code
