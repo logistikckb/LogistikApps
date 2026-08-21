@@ -51,7 +51,7 @@ import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSetting
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
-import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult } from '../../utils/logisticsCalculations';
+import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 export function IncomingModule() {
@@ -3666,21 +3666,35 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               {/* Row 6: Rak & Status QC */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Rak</label>
-                  <input
-                    type="text"
-                    value={formData.location || ''}
-                    onChange={e => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="Contoh: WH-A-01"
-                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-700 font-bold">Rak / Lokasi</label>
+                    <span className="text-[10px] text-blue-900 bg-blue-50 px-2 py-0.2 rounded-full font-bold border border-blue-200">
+                      Format: CKB-FG1-XX-YY-ZZ
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.location || ''}
+                      onChange={e => {
+                        const raw = e.target.value;
+                        const formatted = formatRakLocation(raw);
+                        setFormData(prev => ({ ...prev, location: formatted }));
+                      }}
+                      placeholder="Input 6 karakter (cth: ae22ia) -> CKB-FG1-AE-22-1A"
+                      className="w-full bg-white text-slate-800 font-mono font-bold uppercase border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs text-xs"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 m-0">
+                    💡 Cukup ketik 6 karakter (huruf/angka), otomatis diformat ke <span className="font-mono font-bold text-emerald-800">CKB-FG1-XX-YY-ZZ</span>
+                  </p>
                 </div>
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">Status QC</label>
                   <select
                     value={formData.qc_code || 'Lulus'}
                     onChange={e => setFormData({ ...formData, qc_code: e.target.value })}
-                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 font-bold outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 font-bold outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500 text-xs"
                   >
                     <option value="Lulus">Lulus</option>
                     <option value="Karantina">Karantina</option>

@@ -491,3 +491,37 @@ export function compareLargoAndSap(
     no: idx + 1
   }));
 }
+
+/**
+ * Otomatis memformat input kode rak 6 digit huruf/angka menjadi format standar:
+ * CKB-FG1-XX-YY-ZZ
+ * Contoh: "ae22ia" -> "CKB-FG1-AE-22-IA" / "ae221a" -> "CKB-FG1-AE-22-1A"
+ */
+export function formatRakLocation(input: string): string {
+  if (!input) return '';
+  let str = input.trim().toUpperCase();
+
+  // Strip prefix yang mungkin sudah ada (misal: CKB-FG1- atau CKB-FG1)
+  if (str.startsWith('CKB-FG1-')) {
+    str = str.slice(8);
+  } else if (str.startsWith('CKBFG1-')) {
+    str = str.slice(7);
+  } else if (str.startsWith('CKB-FG1')) {
+    str = str.slice(7);
+  } else if (str.startsWith('CKBFG1')) {
+    str = str.slice(6);
+  }
+
+  // Hapus semua karakter selain huruf A-Z dan angka 0-9
+  const clean = str.replace(/[^A-Z0-9]/g, '').slice(0, 6);
+
+  if (!clean) return '';
+
+  if (clean.length <= 2) {
+    return `CKB-FG1-${clean}`;
+  } else if (clean.length <= 4) {
+    return `CKB-FG1-${clean.slice(0, 2)}-${clean.slice(2)}`;
+  } else {
+    return `CKB-FG1-${clean.slice(0, 2)}-${clean.slice(2, 4)}-${clean.slice(4)}`;
+  }
+}
