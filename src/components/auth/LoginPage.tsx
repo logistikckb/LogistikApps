@@ -22,12 +22,17 @@ import {
   X,
   ChevronDown,
   Search,
-  Check
+  Check,
+  Heart
 } from 'lucide-react';
 import { InstallPwaButton } from '../common/InstallPwaButton';
 import { SupabaseConnectionModal } from '../common/SupabaseConnectionModal';
 
-export function LoginPage() {
+interface LoginPageProps {
+  onOpenBroadcast?: () => void;
+}
+
+export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
   const { login, usersList, refreshUsers, isLoadingUsers, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
 
   const [username, setUsername] = useState('');
@@ -169,6 +174,19 @@ export function LoginPage() {
               <Radio size={12} className={isSupabaseConfigured ? 'animate-pulse' : ''} />
               <span>{isSupabaseConfigured ? 'Server Cloud Online' : 'Mode Offline-Ready'}</span>
             </button>
+
+            {/* Broadcast Intercom Button */}
+            {onOpenBroadcast && (
+              <button
+                type="button"
+                onClick={onOpenBroadcast}
+                className="bg-pink-600 hover:bg-pink-700 text-white text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                title="Buka Pesan Siaran Intercom"
+              >
+                <Heart size={12} className="fill-white animate-pulse" />
+                <span>Siaran Publik</span>
+              </button>
+            )}
 
             <InstallPwaButton variant="header" />
           </div>

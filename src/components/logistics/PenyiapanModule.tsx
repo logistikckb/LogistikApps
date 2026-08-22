@@ -3381,14 +3381,58 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 paginatedData.map((item, index) => {
                   const rowNumber = rowsPerPage === 'ALL' ? index + 1 : (currentPage - 1) * rowsPerPage + index + 1;
                   const isItemSelected = selectedIds.includes(item.id_penyiapan);
+                  const statusKey = (item.status || '').toLowerCase().trim();
+                  const isAda = statusKey === 'ada';
+                  const isBeda = statusKey === 'beda';
+                  const isTidak = statusKey === 'tidak';
+
+                  // Row background based on Status & Selection
+                  let rowBgClass = 'hover:bg-blue-50/40';
+                  let stickyCellBgClass = 'bg-white group-hover:bg-slate-50';
+                  let locationCellClass = 'text-slate-700';
+                  let locationIconClass = 'text-slate-400';
+                  let itemNameClass = 'text-slate-800';
+
+                  if (isItemSelected) {
+                    rowBgClass = isAda
+                      ? 'bg-emerald-100/80 hover:bg-emerald-200/70 font-semibold'
+                      : isBeda
+                      ? 'bg-blue-100/80 hover:bg-blue-200/70 font-semibold'
+                      : isTidak
+                      ? 'bg-amber-100/80 hover:bg-amber-200/70 font-semibold'
+                      : 'bg-blue-50/80 hover:bg-blue-100/70 font-semibold';
+                    stickyCellBgClass = isAda
+                      ? 'bg-emerald-100 group-hover:bg-emerald-200/80'
+                      : isBeda
+                      ? 'bg-blue-100 group-hover:bg-blue-200/80'
+                      : isTidak
+                      ? 'bg-amber-100 group-hover:bg-amber-200/80'
+                      : 'bg-blue-50 group-hover:bg-blue-100/80';
+                  } else if (isAda) {
+                    rowBgClass = 'bg-emerald-50/60 hover:bg-emerald-100/60';
+                    stickyCellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100/80';
+                    locationCellClass = 'text-emerald-950 font-bold bg-emerald-100/40';
+                    locationIconClass = 'text-emerald-700';
+                    itemNameClass = 'text-emerald-950 font-black';
+                  } else if (isBeda) {
+                    rowBgClass = 'bg-blue-50/60 hover:bg-blue-100/60';
+                    stickyCellBgClass = 'bg-blue-50 group-hover:bg-blue-100/80';
+                    locationCellClass = 'text-blue-950 font-bold bg-blue-100/40';
+                    locationIconClass = 'text-blue-700';
+                    itemNameClass = 'text-blue-950 font-black';
+                  } else if (isTidak) {
+                    rowBgClass = 'bg-amber-50/60 hover:bg-amber-100/60';
+                    stickyCellBgClass = 'bg-amber-50 group-hover:bg-amber-100/80';
+                    locationCellClass = 'text-amber-950 font-bold bg-amber-100/40';
+                    locationIconClass = 'text-amber-700';
+                    itemNameClass = 'text-amber-950 font-black';
+                  }
 
                   return (
                     <tr
                       key={item.id_penyiapan || index}
                       onClick={() => handleOpenEditModal(item)}
-                      className={`transition-colors group cursor-pointer ${
-                        isItemSelected ? 'bg-blue-50/80 hover:bg-blue-100/70 font-semibold' : 'hover:bg-blue-50/40'
-                      }`}
+                      className={`transition-colors group cursor-pointer ${rowBgClass}`}
                       title="Klik baris untuk melihat / edit detail data"
                     >
                       {/* Checkbox Select Row */}
@@ -3417,18 +3461,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
                       {/* Status Sticky Column */}
                       <td 
-                        className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${
-                          isItemSelected ? 'bg-blue-50 group-hover:bg-blue-100/80' : 'bg-white group-hover:bg-slate-50'
-                        }`}
+                        className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${stickyCellBgClass}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <select
                           value={item.status || ''}
                           onChange={(e) => handleUpdateStatus(item, e.target.value)}
-                          className={`px-1.5 py-1 rounded text-[10px] font-bold border outline-none cursor-pointer text-center appearance-none w-full ${
-                            (item.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                            (item.status || '').toLowerCase() === 'beda' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                            (item.status || '').toLowerCase() === 'tidak' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                          className={`px-1.5 py-1 rounded text-[10px] font-bold border outline-none cursor-pointer text-center appearance-none w-full shadow-2xs ${
+                            isAda ? 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-1 ring-emerald-400/50' :
+                            isBeda ? 'bg-blue-100 text-blue-800 border-blue-300 ring-1 ring-blue-400/50' :
+                            isTidak ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400/50' :
                             'bg-slate-100 text-slate-700 border-slate-300'
                           }`}
                         >
@@ -3441,17 +3483,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
                       {/* Location (Sembunyikan jika lokasi sedang di-filter) */}
                       {!isLocationFiltered && (
-                        <td className="px-2.5 py-1.5 font-bold text-slate-700 text-xs min-w-[100px]">
+                        <td className={`px-2.5 py-1.5 font-bold text-xs min-w-[100px] rounded-sm ${locationCellClass}`}>
                           <div className="flex items-center gap-1.5">
-                            <MapPin size={12} className="text-slate-400 shrink-0" />
+                            <MapPin size={12} className={`shrink-0 ${locationIconClass}`} />
                             <span>{item.location || '-'}</span>
                           </div>
                         </td>
                       )}
 
                       {/* Item Name */}
-                      <td className="px-2.5 py-1.5 min-w-[180px] max-w-xs">
-                        <div className="font-extrabold text-slate-800 text-xs truncate" title={item.item_name}>
+                      <td className={`px-2.5 py-1.5 min-w-[180px] max-w-xs ${isAda ? 'bg-emerald-50/40' : isBeda ? 'bg-blue-50/40' : isTidak ? 'bg-amber-50/40' : ''}`}>
+                        <div className={`text-xs truncate ${itemNameClass}`} title={item.item_name}>
                           {item.item_name}
                         </div>
                       </td>

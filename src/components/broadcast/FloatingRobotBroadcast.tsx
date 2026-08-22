@@ -1,5 +1,4 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
 import { Heart, Volume2, X, Reply, Sparkles, Send } from 'lucide-react';
 import { BroadcastMessage } from '../../types';
 import { playBroadcastSound } from '../../utils/broadcastSound';
@@ -17,26 +16,6 @@ export function FloatingRobotBroadcast({
   onReply,
   soundEnabled
 }: FloatingRobotBroadcastProps) {
-  const [autoCloseTimer, setAutoCloseTimer] = useState<number>(25);
-
-  useEffect(() => {
-    if (!broadcast) return;
-
-    setAutoCloseTimer(25);
-    const interval = setInterval(() => {
-      setAutoCloseTimer(prev => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    const timeout = setTimeout(() => {
-      onClose();
-    }, 25000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [broadcast, onClose]);
-
   if (!broadcast) return null;
 
   const timeFormatted = new Date(broadcast.created_at).toLocaleTimeString('id-ID', {
@@ -46,7 +25,7 @@ export function FloatingRobotBroadcast({
 
   return typeof document !== "undefined" ? createPortal(
     <div 
-      className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/45 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
@@ -145,6 +124,7 @@ export function FloatingRobotBroadcast({
                 type="button"
                 onClick={onClose}
                 className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all cursor-pointer"
+                title="Tutup Pesan"
               >
                 <X size={15} />
               </button>
@@ -157,18 +137,15 @@ export function FloatingRobotBroadcast({
               "{broadcast.message}"
             </div>
 
-            {/* Auto Close Timer Bar with Heart Indicator */}
-            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 font-medium px-1">
-              <span className="flex items-center gap-1 text-pink-600 font-semibold">
+            {/* Persistent Waiting Indicator - No auto close */}
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 font-medium px-1">
+              <span className="flex items-center gap-1.5 text-pink-700 font-bold">
                 <Heart size={12} className="fill-pink-500 text-pink-500 animate-pulse" />
-                Robot menutup otomatis dalam {autoCloseTimer}s
+                Siaran Terbuka • Menunggu konfirmasi Anda
               </span>
-              <div className="w-24 bg-pink-100 h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 transition-all duration-1000"
-                  style={{ width: `${(autoCloseTimer / 25) * 100}%` }}
-                />
-              </div>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Klik tombol untuk menutup
+              </span>
             </div>
           </div>
 
