@@ -209,8 +209,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [slocFilter, setSlocFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
-  const [sortField, setSortField] = useState<keyof PenyiapanItem>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  // Sort State: null = TANPA SORT OTOMATIS (sesuai urutan asli data / upload)
+  const [sortField, setSortField] = useState<keyof PenyiapanItem | 'location_then_name' | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Pagination & Display
   const [currentPage, setCurrentPage] = useState(1);
@@ -402,11 +403,37 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     try {
       const data = await fetchAllRowsFromSupabase<PenyiapanItem>('data_penyiapan', {
         orderBy: 'created_at',
-        ascending: false
+        ascending: true
       });
 
       if (Array.isArray(data)) {
-        setPenyiapanList(data);
+        setPenyiapanList(prev => {
+          if (!prev || prev.length === 0) {
+            return data;
+          }
+          // Merge incoming data into existing array preserving original row sequence
+          const incomingMap = new Map<string, PenyiapanItem>();
+          data.forEach(item => {
+            if (item.id_penyiapan) {
+              incomingMap.set(String(item.id_penyiapan).toLowerCase(), item);
+            }
+          });
+
+          // Update existing rows in place without changing their index/position
+          const updatedList = prev.map(existing => {
+            const incoming = incomingMap.get(String(existing.id_penyiapan).toLowerCase());
+            if (incoming) {
+              incomingMap.delete(String(existing.id_penyiapan).toLowerCase());
+              return { ...existing, ...incoming };
+            }
+            return existing;
+          });
+
+          // Append any newly added rows to the end
+          const newRows = Array.from(incomingMap.values());
+          return [...updatedList, ...newRows];
+        });
+
         if (data.length > 0) {
           try {
             localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
@@ -443,15 +470,35 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     fetchMasterData();
     fetchPenyiapanData();
 
-    // Supabase Realtime channel
+    // Supabase Realtime channel (in-place updates to guarantee row positions never jump)
     if (isSupabaseConfigured) {
       const channel = supabase
         .channel('penyiapan_realtime_channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_penyiapan' }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_penyiapan' }, (payload: any) => {
           // If currently performing bulk import, suppress realtime updates to avoid screen flickering & high load
           if (isImportingRef.current) return;
-          // Silent refresh so existing table rows do not unmount or flash
-          fetchPenyiapanData(true);
+          
+          if (payload.eventType === 'UPDATE' && payload.new && payload.new.id_penyiapan) {
+            const updated = payload.new as PenyiapanItem;
+            setPenyiapanList(prev =>
+              prev.map(p => (p.id_penyiapan === updated.id_penyiapan ? { ...p, ...updated } : p))
+            );
+          } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id_penyiapan) {
+            const deletedId = payload.old.id_penyiapan;
+            setPenyiapanList(prev => prev.filter(p => p.id_penyiapan !== deletedId));
+          } else if (payload.eventType === 'INSERT' && payload.new && payload.new.id_penyiapan) {
+            const newItem = payload.new as PenyiapanItem;
+            setPenyiapanList(prev => {
+              const exists = prev.some(p => p.id_penyiapan === newItem.id_penyiapan);
+              if (exists) {
+                return prev.map(p => (p.id_penyiapan === newItem.id_penyiapan ? { ...p, ...newItem } : p));
+              }
+              return [...prev, newItem];
+            });
+          } else {
+            // Fallback silent refresh
+            fetchPenyiapanData(true);
+          }
         })
         .subscribe();
 
@@ -951,10 +998,54 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     }
 
-    // 3. Sorting (supports natural alphanumeric sort for locations like RAK-01, RAK-02, RAK-10 and item names)
-    return searchedList.sort((a, b) => {
-      const valA = a[sortField] ?? '';
-      const valB = b[sortField] ?? '';
+    // 3. Sorting - JANGAN sort otomatis jika sortField null (tampilkan sesuai urutan asli data / upload)
+    if (!sortField) {
+      return searchedList;
+    }
+
+    return [...searchedList].sort((a, b) => {
+      // Sorting Kombinasi: Lokasi lalu Nama Barang
+      if (sortField === 'location_then_name') {
+        const locA = String(a.location || '').trim();
+        const locB = String(b.location || '').trim();
+        const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        if (locComp !== 0) {
+          return sortOrder === 'asc' ? locComp : -locComp;
+        }
+        const nameA = String(a.item_name || '').trim();
+        const nameB = String(b.item_name || '').trim();
+        const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        return sortOrder === 'asc' ? nameComp : -nameComp;
+      }
+
+      // Sorting Lokasi (dengan tie-breaker Nama Barang)
+      if (sortField === 'location') {
+        const locA = String(a.location || '').trim();
+        const locB = String(b.location || '').trim();
+        const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        if (locComp !== 0) {
+          return sortOrder === 'asc' ? locComp : -locComp;
+        }
+        const nameA = String(a.item_name || '').trim();
+        const nameB = String(b.item_name || '').trim();
+        return nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+      }
+
+      // Sorting Nama Barang (dengan tie-breaker Lokasi)
+      if (sortField === 'item_name') {
+        const nameA = String(a.item_name || '').trim();
+        const nameB = String(b.item_name || '').trim();
+        const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        if (nameComp !== 0) {
+          return sortOrder === 'asc' ? nameComp : -nameComp;
+        }
+        const locA = String(a.location || '').trim();
+        const locB = String(b.location || '').trim();
+        return locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+      }
+
+      const valA = a[sortField as keyof PenyiapanItem] ?? '';
+      const valB = b[sortField as keyof PenyiapanItem] ?? '';
 
       if (typeof valA === 'number' && typeof valB === 'number') {
         return sortOrder === 'asc' ? valA - valB : valB - valA;
@@ -1114,7 +1205,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return filteredPenyiapan.some(item => selectedIds.includes(item.id_penyiapan)) && !isAllFilteredSelected;
   }, [filteredPenyiapan, selectedIds, isAllFilteredSelected]);
 
-  // Clear all filters
+  // Clear all filters & sorting
   const handleClearAllFilters = () => {
     setSearchQuery('');
     setLocationFilter('');
@@ -1123,13 +1214,21 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     setSlocFilter('ALL');
     setStatusFilter('ALL');
     setTujuanFilter('ALL');
+    setSortField(null);
+    setSortOrder('asc');
     setCurrentPage(1);
   };
 
-  // Sort Toggle
-  const handleSort = (field: keyof PenyiapanItem) => {
+  // Sort Toggle (null -> asc -> desc -> null)
+  const handleSort = (field: keyof PenyiapanItem | 'location_then_name') => {
     if (sortField === field) {
-      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+      if (sortOrder === 'asc') {
+        setSortOrder('desc');
+      } else {
+        // Toggle off back to unsorted (urutan asli)
+        setSortField(null);
+        setSortOrder('asc');
+      }
     } else {
       setSortField(field);
       setSortOrder('asc');
@@ -1322,8 +1421,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           console.error('Error saving data_penyiapan to database:', error);
           setLastSupabaseError(error.message);
           showToast('Peringatan Database', `Tersimpan lokal, sinkronisasi DB: ${error.message}`, 'warning');
-        } else {
-          fetchPenyiapanData();
+        } else if (!isEditMode) {
+          fetchPenyiapanData(true);
         }
       } catch (err: any) {
         console.error('Database save error:', err);
@@ -2760,6 +2859,28 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
             <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block"></div>
 
+            {/* Quick Sort Kombinasi: Lokasi lalu Nama Barang */}
+            <button
+              type="button"
+              onClick={() => handleSort('location_then_name')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                sortField === 'location_then_name'
+                  ? 'bg-purple-700 text-white shadow-2xs'
+                  : 'bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200'
+              }`}
+              title="Urutkan data berdasarkan Lokasi lalu Nama Barang (A-Z / Z-A)"
+            >
+              <Layers size={12} />
+              <span>Sort: Lokasi & Nama Barang</span>
+              {sortField === 'location_then_name' ? (
+                <span className="px-1.5 py-0.2 rounded bg-purple-900 text-white text-[10px] font-black flex items-center gap-0.5">
+                  {sortOrder === 'asc' ? <>A-Z <ArrowUp size={10} /></> : <>Z-A <ArrowDown size={10} /></>}
+                </span>
+              ) : (
+                <ArrowUpDown size={11} className="text-purple-400" />
+              )}
+            </button>
+
             {/* Quick Sort By Location (Urutkan Lokasi A-Z / Z-A) */}
             <button
               type="button"
@@ -2804,19 +2925,19 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               )}
             </button>
 
-            {/* Reset Sort Button */}
-            {(sortField !== 'created_at' || sortOrder !== 'desc') && (
+            {/* Reset Sort Button (Urutan Asli Tanpa Sort Otomatis) */}
+            {sortField !== null && (
               <button
                 type="button"
                 onClick={() => {
-                  setSortField('created_at');
-                  setSortOrder('desc');
+                  setSortField(null);
+                  setSortOrder('asc');
                 }}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer"
-                title="Reset urutan ke urutan default (Waktu input / Baris akhir)"
+                title="Kembalikan ke urutan asli data (tanpa sort otomatis)"
               >
                 <RotateCcw size={11} />
-                <span className="hidden sm:inline">Reset Urutan</span>
+                <span className="hidden sm:inline">Urutan Asli</span>
               </button>
             )}
           </div>
@@ -2835,7 +2956,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         </div>
 
         {/* Active Filter & Sorting Badges */}
-        {(hasActiveFilters || sortField !== 'created_at' || sortOrder !== 'desc') && (
+        {(hasActiveFilters || sortField !== null) && (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
             <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
               <Filter size={12} className="text-blue-900" />
@@ -2843,20 +2964,34 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             </span>
 
             {/* Active Sort Badge */}
-            {(sortField !== 'created_at' || sortOrder !== 'desc') && (
+            {sortField !== null && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-300">
                 <ArrowUpDown size={11} className="text-indigo-600" />
                 <span>
-                  Urutan: {sortField === 'location' ? 'Lokasi' : sortField === 'item_name' ? 'Nama Barang' : sortField} ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+                  Urutan:{' '}
+                  {sortField === 'location_then_name'
+                    ? 'Lokasi & Nama Barang'
+                    : sortField === 'location'
+                    ? 'Lokasi'
+                    : sortField === 'item_name'
+                    ? 'Nama Barang'
+                    : sortField === 'last_qty'
+                    ? 'Last Qty'
+                    : sortField === 'expired_date'
+                    ? 'Expired Date'
+                    : sortField === 'batch'
+                    ? 'Batch'
+                    : sortField}{' '}
+                  ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
                 </span>
                 <button
                   type="button"
                   onClick={() => {
-                    setSortField('created_at');
-                    setSortOrder('desc');
+                    setSortField(null);
+                    setSortOrder('asc');
                   }}
-                  className="hover:text-rose-600 cursor-pointer"
-                  title="Reset urutan"
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                  title="Kembalikan ke urutan asli tanpa sort"
                 >
                   <X size={12} />
                 </button>
