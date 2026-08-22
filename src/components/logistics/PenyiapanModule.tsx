@@ -203,6 +203,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
+  const [itemNameFilter, setItemNameFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [qcFilter, setQcFilter] = useState<string>('ALL');
@@ -878,6 +879,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return Array.from(set).sort();
   }, [penyiapanList]);
 
+  // Unique Item Names for filtering & autocomplete datalist (only item name)
+  const uniqueItemNamesList = useMemo(() => {
+    const set = new Set<string>();
+    penyiapanList.forEach(item => {
+      if (item.item_name && item.item_name.trim() !== '' && item.item_name.trim() !== '-') {
+        set.add(item.item_name.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'id-ID'));
+  }, [penyiapanList]);
+
   // KPI Calculations
   const metrics = useMemo(() => {
     let totalFirstQty = 0;
@@ -909,8 +921,18 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
   // Filtered & Sorted Penyiapan Data with Fuse.js Intelligent Fuzzy Match
   const filteredPenyiapan = useMemo(() => {
-    // 1. Initial category/QC/SLoc/Status/Location baseline filtering
+    // 1. Initial category/QC/SLoc/Status/Location/ItemName baseline filtering
     let baseList = penyiapanList.filter(item => {
+      // Item Name / SKU Filter
+      if (itemNameFilter && itemNameFilter.trim()) {
+        const cleanItem = itemNameFilter.trim().toLowerCase();
+        const matchCode = (item.item_code || '').toLowerCase().includes(cleanItem);
+        const matchName = (item.item_name || '').toLowerCase().includes(cleanItem);
+        if (!matchCode && !matchName) {
+          return false;
+        }
+      }
+
       // Category
       if (categoryFilter !== 'ALL' && (item.category || '').trim().toLowerCase() !== categoryFilter.toLowerCase()) {
         return false;
@@ -1057,7 +1079,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         ? strA.localeCompare(strB, 'id-ID', { numeric: true, sensitivity: 'base' })
         : strB.localeCompare(strA, 'id-ID', { numeric: true, sensitivity: 'base' });
     });
-  }, [penyiapanList, searchQuery, categoryFilter, locationFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, sortField, sortOrder]);
+  }, [penyiapanList, searchQuery, itemNameFilter, categoryFilter, locationFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, sortField, sortOrder]);
 
   // Paginated View
   const paginatedData = useMemo(() => {
@@ -1073,9 +1095,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return Boolean(locationFilter.trim());
   }, [locationFilter]);
 
-  // Check if any filters are currently active (Lokasi, Status Penyiapan, & Tujuan)
+  // Check if any filters are currently active (Nama Barang, Search, Lokasi, Status Penyiapan, & Tujuan)
   const hasActiveFilters = Boolean(
     searchQuery.trim() ||
+    itemNameFilter.trim() ||
     locationFilter.trim() ||
     statusFilter !== 'ALL' ||
     tujuanFilter !== 'ALL'
@@ -1095,6 +1118,146 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const selectedTotalQty = useMemo(() => {
     return selectedItemsData.reduce((acc, curr) => acc + (Number(curr.last_qty) || 0), 0);
   }, [selectedItemsData]);
+
+  // Summary Metrics for Filtered Items (Last Qty, Qty Convert, Row Count, Locations, etc.)
+  const filteredItemSummary = useMemo(() => {
+    if (filteredPenyiapan.length === 0) return null;
+
+    let totalLastQty = 0;
+    let totalQtyConvert = 0;
+    let totalFirstQty = 0;
+
+    const itemGroupMap = new Map<string, {
+      item_code: string;
+      item_name: string;
+      uom: string;
+      uom_convert: string;
+      last_qty: number;
+      qty_convert: number;
+      first_qty: number;
+      rowCount: number;
+      locations: Set<string>;
+      batches: Set<string>;
+    }>();
+
+    const uomSet = new Set<string>();
+    const uomConvertSet = new Set<string>();
+    const allLocations = new Set<string>();
+    const allBatches = new Set<string>();
+
+    filteredPenyiapan.forEach(item => {
+      const lQty = Number(item.last_qty) || 0;
+      const fQty = Number(item.first_qty) || 0;
+      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && item.qty_convert !== ''
+        ? (Number(item.qty_convert) || 0)
+        : lQty || fQty || 0;
+
+      totalLastQty += lQty;
+      totalFirstQty += fQty;
+      totalQtyConvert += cQty;
+
+      const uomStr = (item.uom || '').trim().toUpperCase() || 'CTN';
+      const uomConvStr = (item.uom_convert || '').trim().toUpperCase() || 'PCS';
+      if (item.uom && item.uom !== '-') uomSet.add(uomStr);
+      if (item.uom_convert && item.uom_convert !== '-') uomConvertSet.add(uomConvStr);
+      if (item.location && item.location !== '-') allLocations.add(item.location.trim());
+      if (item.batch && item.batch !== '-') allBatches.add(item.batch.trim());
+
+      const rawName = (item.item_name || item.item_code || 'Tanpa Nama').trim();
+      const groupKey = rawName.toLowerCase();
+
+      if (!itemGroupMap.has(groupKey)) {
+        itemGroupMap.set(groupKey, {
+          item_code: item.item_code || '-',
+          item_name: rawName,
+          uom: uomStr,
+          uom_convert: uomConvStr,
+          last_qty: 0,
+          qty_convert: 0,
+          first_qty: 0,
+          rowCount: 0,
+          locations: new Set<string>(),
+          batches: new Set<string>()
+        });
+      }
+
+      const grp = itemGroupMap.get(groupKey)!;
+      grp.last_qty += lQty;
+      grp.qty_convert += cQty;
+      grp.first_qty += fQty;
+      grp.rowCount += 1;
+      if (item.location && item.location !== '-') grp.locations.add(item.location.trim());
+      if (item.batch && item.batch !== '-') grp.batches.add(item.batch.trim());
+    });
+
+    const displayUom = uomSet.size === 1 ? Array.from(uomSet)[0] : 'CTN';
+    const displayUomConvert = uomConvertSet.size === 1 ? Array.from(uomConvertSet)[0] : 'PCS';
+    const groupedItems = Array.from(itemGroupMap.values()).sort((a, b) => b.last_qty - a.last_qty);
+
+    return {
+      totalRows: filteredPenyiapan.length,
+      totalLastQty,
+      totalQtyConvert,
+      totalFirstQty,
+      displayUom,
+      displayUomConvert,
+      distinctItemCount: itemGroupMap.size,
+      distinctLocationCount: allLocations.size,
+      distinctBatchCount: allBatches.size,
+      groupedItems,
+      locationsList: Array.from(allLocations),
+      batchesList: Array.from(allBatches),
+      filterLabel: itemNameFilter.trim() || searchQuery.trim() || (locationFilter.trim() ? `Lokasi ${locationFilter}` : '')
+    };
+  }, [filteredPenyiapan, itemNameFilter, searchQuery, locationFilter]);
+
+  // Summary Metrics when rows are selected (Total Last Qty, Total Qty Convert, and Row Count)
+  const selectedSummary = useMemo(() => {
+    if (selectedIds.length === 0) return null;
+
+    let totalLastQty = 0;
+    let totalQtyConvert = 0;
+    let totalFirstQty = 0;
+    const distinctSkus = new Set<string>();
+    const distinctBatches = new Set<string>();
+    const distinctLocations = new Set<string>();
+    const uomSet = new Set<string>();
+    const uomConvertSet = new Set<string>();
+
+    selectedItemsData.forEach(item => {
+      const lQty = Number(item.last_qty) || 0;
+      const fQty = Number(item.first_qty) || 0;
+      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && item.qty_convert !== ''
+        ? (Number(item.qty_convert) || 0)
+        : lQty || fQty || 0;
+
+      totalLastQty += lQty;
+      totalFirstQty += fQty;
+      totalQtyConvert += cQty;
+
+      if (item.item_code) distinctSkus.add(item.item_code.trim().toLowerCase());
+      if (item.batch && item.batch !== '-') distinctBatches.add(item.batch.trim());
+      if (item.location && item.location !== '-') distinctLocations.add(item.location.trim());
+      if (item.uom && item.uom !== '-') uomSet.add(item.uom.trim().toUpperCase());
+      if (item.uom_convert && item.uom_convert !== '-') uomConvertSet.add(item.uom_convert.trim().toUpperCase());
+    });
+
+    const displayUom = uomSet.size === 1 ? Array.from(uomSet)[0] : 'CTN';
+    const displayUomConvert = uomConvertSet.size === 1 ? Array.from(uomConvertSet)[0] : 'PCS';
+
+    return {
+      selectedCount: selectedIds.length,
+      totalRows: filteredPenyiapan.length,
+      totalLastQty,
+      totalQtyConvert,
+      totalFirstQty,
+      displayUom,
+      displayUomConvert,
+      distinctSkuCount: distinctSkus.size,
+      distinctBatchCount: distinctBatches.size,
+      distinctLocationCount: distinctLocations.size
+    };
+  }, [selectedIds, selectedItemsData, filteredPenyiapan.length]);
 
   // Summary of Total Qty PCS for the selected SKU at the filtered / item location
   const skuLocationSummary = useMemo(() => {
@@ -1208,6 +1371,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   // Clear all filters & sorting
   const handleClearAllFilters = () => {
     setSearchQuery('');
+    setItemNameFilter('');
     setLocationFilter('');
     setCategoryFilter('ALL');
     setQcFilter('ALL');
@@ -2708,8 +2872,43 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           </div>
         )}
 
-        {/* Filter Dropdowns (Lokasi, Status Penyiapan, & Tujuan Penyiapan) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+        {/* Filter Dropdowns (Nama Barang, Lokasi, Status Penyiapan, & Tujuan Penyiapan) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+          {/* Filter Nama Barang / SKU */}
+          <div>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Nama Barang / SKU</label>
+            <div className="relative flex items-center">
+              <input
+                list="itemname-options"
+                value={itemNameFilter}
+                onChange={(e) => {
+                  setItemNameFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Cari / Pilih Nama Barang..."
+                className="w-full p-1.5 pr-6 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold text-slate-700"
+              />
+              {itemNameFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setItemNameFilter('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-1.5 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                  title="Hapus Filter Nama Barang"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <datalist id="itemname-options">
+              {uniqueItemNamesList.map(name => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </div>
+
           {/* Filter Lokasi (Ketik & Dropdown) */}
           <div>
             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Lokasi</label>
@@ -2998,6 +3197,24 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               </span>
             )}
 
+            {itemNameFilter && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-bold border border-emerald-200">
+                <Package size={11} className="text-emerald-700" />
+                <span>Barang: "{itemNameFilter}"</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setItemNameFilter('');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-emerald-700 cursor-pointer"
+                  title="Hapus filter nama barang"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
             {searchQuery && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-bold">
                 <span>Cari: "{searchQuery}"</span>
@@ -3080,75 +3297,302 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       </div>
 
       {/* ========================================================================= */}
-      {/* BULK ACTION STICKY BAR (APPSHEET BATCH OPERATIONS) */}
+      {/* SUMMARY LAST QTY DARI ITEM NAME / FILTER YANG AKTIF (TEMA RINGAN) */}
       {/* ========================================================================= */}
-      {selectedIds.length > 0 && (
-        <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white shadow-lg border border-blue-500/30 flex flex-wrap items-center justify-between gap-2.5 animate-fade-in">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300">
-              <CheckCheck size={18} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-xs sm:text-sm text-white">
-                  {selectedIds.length} Item Dipilih
-                </span>
-                <span className="px-2 py-0.2 rounded-full bg-emerald-500 text-emerald-950 font-black text-[10px]">
-                  Total: {selectedTotalQty.toLocaleString('id-ID')} CTN
-                </span>
+      {filteredItemSummary && (itemNameFilter.trim() || searchQuery.trim() || hasActiveFilters) && (
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-2 animate-fade-in">
+          {/* Header Info */}
+          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-900 flex items-center justify-center shrink-0">
+                <Package size={14} />
               </div>
-              <p className="text-[11px] text-blue-200/80 m-0 font-medium hidden sm:block">
-                Pilih menu / database tujuan untuk memindahkan seluruh data terpilih secara bersamaan
-              </p>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-tight text-blue-900 block leading-tight">
+                  Summary Last Qty Filter {filteredItemSummary.filterLabel ? `• "${filteredItemSummary.filterLabel}"` : ''}
+                </span>
+                <div className="font-extrabold text-slate-900 text-xs leading-tight flex items-center gap-1 mt-0.5">
+                  {filteredItemSummary.distinctItemCount === 1 ? (
+                    <span>
+                      {filteredItemSummary.groupedItems[0]?.item_name}{' '}
+                      {filteredItemSummary.groupedItems[0]?.item_code && filteredItemSummary.groupedItems[0]?.item_code !== '-' && (
+                        <span className="text-slate-500 text-[11px] font-mono font-normal">
+                          ({filteredItemSummary.groupedItems[0]?.item_code})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span>
+                      {filteredItemSummary.distinctItemCount} Nama Barang ({filteredItemSummary.totalRows} Baris Terfilter)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+              {/* Quick Select All Filtered */}
+              <button
+                type="button"
+                onClick={() => {
+                  const allIds = filteredPenyiapan.map(i => i.id_penyiapan);
+                  setSelectedIds(allIds);
+                }}
+                className="px-2 py-1 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                title="Pilih dan centang semua baris hasil filter ini"
+              >
+                <CheckCheck size={12} />
+                <span>Pilih Semua ({filteredPenyiapan.length})</span>
+              </button>
+
+              {/* Reset Item Filter Button */}
+              {itemNameFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setItemNameFilter('');
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                  title="Hapus filter nama barang"
+                >
+                  <X size={12} />
+                  <span>Hapus Filter</span>
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
-            {/* Set Status Ada Direct Button */}
-            <button
-              type="button"
-              onClick={() => handleBulkUpdateStatus('Ada')}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-              title="Ubah status semua item terpilih menjadi 'Ada'"
-            >
-              <Check size={13} />
-              <span className="hidden sm:inline">Set Status:</span>
-              <span>"Ada"</span>
-            </button>
+          {/* Metric Summary Cards Grid (Tema Ringan) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* 1. Total Last Qty */}
+            <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-amber-800 uppercase tracking-tight block">
+                  Total Last Qty
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-amber-950 font-mono leading-tight mt-0.5">
+                  {filteredItemSummary.totalLastQty.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-bold text-amber-800 ml-1">
+                    {filteredItemSummary.displayUom}
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <Package size={13} />
+              </div>
+            </div>
 
-            {/* Pindah Data Massal Button */}
-            <button
-              type="button"
-              onClick={handleOpenBulkTransferModal}
-              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:from-amber-700 active:to-amber-600 text-amber-950 text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-              title="Buka dialog pemilihan database tujuan untuk memindahkan data massal"
-            >
-              <Share2 size={14} />
-              <span>Pindah Data Massal</span>
-            </button>
+            {/* 2. Total Qty Convert */}
+            <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">
+                  Total Konversi
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-emerald-950 font-mono leading-tight mt-0.5">
+                  {filteredItemSummary.totalQtyConvert.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-bold text-emerald-800 ml-1">
+                    {filteredItemSummary.displayUomConvert}
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                <Boxes size={13} />
+              </div>
+            </div>
 
-            {/* Hapus Terpilih Button (Khusus Admin) */}
-            {isSuperAdmin && (
+            {/* 3. Total Baris & Lokasi */}
+            <div className="p-2 rounded-lg bg-blue-50/70 border border-blue-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-tight block">
+                  Total Baris / Lokasi
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-blue-950 font-mono leading-tight mt-0.5">
+                  {filteredItemSummary.totalRows.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-semibold text-blue-700 ml-1">
+                    ({filteredItemSummary.distinctLocationCount} Lokasi)
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                <MapPin size={13} />
+              </div>
+            </div>
+
+            {/* 4. Total First Qty / Batch */}
+            <div className="p-2 rounded-lg bg-purple-50/70 border border-purple-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-purple-800 uppercase tracking-tight block">
+                  Total First Qty / Batch
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-purple-950 font-mono leading-tight mt-0.5">
+                  {filteredItemSummary.totalFirstQty.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-bold text-purple-800 ml-1">
+                    {filteredItemSummary.displayUom} ({filteredItemSummary.distinctBatchCount} Batch)
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-purple-100 text-purple-800 flex items-center justify-center shrink-0">
+                <Layers size={13} />
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown per Item Name if there are 2 to 8 distinct items */}
+          {filteredItemSummary.distinctItemCount > 1 && filteredItemSummary.distinctItemCount <= 8 && (
+            <div className="pt-1.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-[10px] font-bold text-slate-500">Rincian Last Qty:</span>
+              {filteredItemSummary.groupedItems.map((grp, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setItemNameFilter(grp.item_name);
+                    setCurrentPage(1);
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-800 text-[11px] font-semibold border border-slate-200 transition-colors cursor-pointer"
+                  title={`Klik untuk fokus filter pada "${grp.item_name}"`}
+                >
+                  <span className="font-bold text-blue-900">{grp.item_name}:</span>
+                  <span className="font-extrabold text-amber-800 font-mono">
+                    {grp.last_qty.toLocaleString('id-ID')} {grp.uom}
+                  </span>
+                  <span className="text-[9px] text-emerald-700 font-mono">
+                    ({grp.qty_convert.toLocaleString('id-ID')} {grp.uom_convert})
+                  </span>
+                  <span className="text-[9px] text-slate-400">
+                    • {grp.rowCount} baris
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* BULK ACTION & KPI SUMMARY CARDS KETIKA PILIH BARIS */}
+      {/* ========================================================================= */}
+      {selectedSummary && (
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-2 animate-fade-in">
+          {/* Header Action & Selection Info */}
+          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-900 text-[11px] font-extrabold border border-blue-200">
+                <CheckCheck size={13} className="text-blue-700" />
+                <span>{selectedSummary.selectedCount} Baris Terpilih</span>
+              </span>
+              {selectedSummary.distinctSkuCount > 0 && (
+                <span className="text-[10px] text-slate-500 font-semibold hidden sm:inline">
+                  • {selectedSummary.distinctSkuCount} SKU • {selectedSummary.distinctBatchCount} Batch • {selectedSummary.distinctLocationCount} Lokasi
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+              {/* Set Status Ada Direct Button */}
               <button
                 type="button"
-                onClick={handleBulkDeletePenyiapan}
-                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-                title="Hapus permanen semua data penyiapan terpilih (Akses Khusus Admin)"
+                onClick={() => handleBulkUpdateStatus('Ada')}
+                className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                title="Ubah status semua baris terpilih menjadi 'Ada'"
               >
-                <Trash2 size={14} />
-                <span>Hapus Terpilih ({selectedIds.length})</span>
+                <Check size={12} className="text-emerald-700" />
+                <span>Set "Ada"</span>
               </button>
-            )}
 
-            {/* Clear Selection */}
-            <button
-              type="button"
-              onClick={handleClearSelection}
-              className="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all cursor-pointer"
-              title="Batal pilih semua item"
-            >
-              <X size={14} />
-            </button>
+              {/* Pindah Data Massal Button */}
+              <button
+                type="button"
+                onClick={handleOpenBulkTransferModal}
+                className="px-2.5 py-1 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-2xs transition-all cursor-pointer flex items-center gap-1"
+                title="Buka dialog transfer massal untuk baris terpilih"
+              >
+                <Share2 size={12} />
+                <span>Pindah Massal ({selectedSummary.selectedCount})</span>
+              </button>
+
+              {/* Hapus Terpilih Button (Khusus Admin) */}
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={handleBulkDeletePenyiapan}
+                  className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                  title="Hapus baris penyiapan terpilih (Khusus Admin)"
+                >
+                  <Trash2 size={12} />
+                  <span>Hapus</span>
+                </button>
+              )}
+
+              {/* Clear Selection */}
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                title="Batalkan semua pilihan"
+              >
+                <X size={12} />
+                <span>Batal</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Simple Small Lightweight KPI Cards (Total Baris, Total Last Qty, Total Qty Convert) */}
+          <div className="grid grid-cols-3 gap-2">
+            {/* Card 1: Total Baris */}
+            <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">
+                  Total Baris
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono leading-tight mt-0.5">
+                  {selectedSummary.selectedCount.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-semibold text-slate-500 ml-1">
+                    / {selectedSummary.totalRows.toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-slate-200/70 text-slate-700 flex items-center justify-center shrink-0">
+                <Layers size={13} />
+              </div>
+            </div>
+
+            {/* Card 2: Total Last Qty */}
+            <div className="p-2 rounded-lg bg-blue-50/70 border border-blue-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-tight block">
+                  Total Last Qty
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-blue-900 font-mono leading-tight mt-0.5">
+                  {selectedSummary.totalLastQty.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-bold text-blue-700 ml-1">
+                    {selectedSummary.displayUom}
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                <Package size={13} />
+              </div>
+            </div>
+
+            {/* Card 3: Total Qty Convert */}
+            <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">
+                  Total Qty Convert
+                </span>
+                <div className="text-xs sm:text-sm font-extrabold text-emerald-900 font-mono leading-tight mt-0.5">
+                  {selectedSummary.totalQtyConvert.toLocaleString('id-ID')}
+                  <span className="text-[10px] font-bold text-emerald-700 ml-1">
+                    {selectedSummary.displayUomConvert}
+                  </span>
+                </div>
+              </div>
+              <div className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                <Boxes size={13} />
+              </div>
+            </div>
           </div>
         </div>
       )}
