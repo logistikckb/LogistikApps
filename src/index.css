@@ -2,38 +2,56 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   /* Brand colors */
-  --color-glass-orange: #f97316;
-  --color-glass-blue: #1e3a8a;
-  --color-glass-white: rgba(255, 255, 255, 0.7);
+  --color-brand-blue: #1e3a8a;
+  --color-brand-orange: #ea580c;
+  --color-lite-bg: #f8fafc;
 }
 
 @layer utilities {
-  .glass-box {
-    @apply bg-white/50 backdrop-blur-md border border-white/60 shadow-xl shadow-black/5 text-slate-800 rounded-3xl;
+  /* Minimalism Lite Card - Instant render, zero GPU blur lag */
+  .glass-box, .lite-card {
+    @apply bg-white border border-slate-200/90 shadow-xs text-slate-800 rounded-2xl transition-colors;
   }
-  .glass-btn {
-    @apply bg-white/60 backdrop-blur-md border border-white/70 shadow-md shadow-black/5 text-slate-800 font-bold uppercase py-2 px-4 cursor-pointer inline-flex items-center justify-center gap-2 no-underline text-xs transition-all hover:-translate-y-0.5 hover:shadow-lg hover:bg-white/80 active:translate-y-0 rounded-2xl;
+  
+  /* Minimalism Lite Button */
+  .glass-btn, .lite-btn {
+    @apply bg-white border border-slate-200 text-slate-800 font-bold py-1.5 px-3 cursor-pointer inline-flex items-center justify-center gap-1.5 no-underline text-xs transition-colors hover:bg-slate-50 active:bg-slate-100 rounded-xl shadow-2xs;
   }
-  .glass-badge {
-    @apply bg-white/70 text-slate-800 backdrop-blur-md border border-white/60 shadow-sm rounded-full inline-flex items-center justify-center text-[0.65rem] font-bold w-5 h-5;
+  
+  /* Minimalism Lite Badge */
+  .glass-badge, .lite-badge {
+    @apply bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs rounded-full inline-flex items-center justify-center text-[0.65rem] font-bold w-5 h-5;
+  }
+
+  /* Ultra-lightweight modal overlay for 4GB RAM devices: zero backdrop-filter calculation overhead */
+  .backdrop-blur-xs,
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-3xl {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }
 
 body {
-  /* Soft clean modern glassmorphic gradient */
-  background: radial-gradient(circle at 15% 50%, rgba(249, 115, 22, 0.12), transparent 25%),
-              radial-gradient(circle at 85% 30%, rgba(30, 58, 138, 0.18), transparent 30%),
-              linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
-  background-attachment: fixed;
-  color: #1e293b;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Hide scrollbar for main content */
+/* Hide scrollbar for compact containers */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -42,17 +60,19 @@ body {
   scrollbar-width: none;
 }
 
+/* Lightweight smooth scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(30, 58, 138, 0.4);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(30, 58, 138, 0.6);
+  background: #94a3b8;
 }
+

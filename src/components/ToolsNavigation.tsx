@@ -231,7 +231,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
       </div>
 
       {/* Grid Menu: Mobile-first 3 columns on phone, 4 on tablet, 6 on desktop */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 sm:gap-3.5">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
         {visibleTools.map((tool) => {
           const Icon = tool.icon;
 
@@ -240,12 +240,12 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
               key={tool.id}
               type="button"
               onClick={() => onOpenTool(tool.id)}
-              className="p-3 sm:p-4 rounded-2xl transition-all duration-200 relative overflow-hidden flex flex-col items-center justify-center text-center cursor-pointer border bg-white/80 hover:bg-white active:bg-blue-50/70 border-slate-200/70 hover:border-blue-400 active:border-blue-500 shadow-2xs hover:shadow-md active:scale-95 group select-none min-h-[96px] sm:min-h-[110px]"
+              className="p-2.5 sm:p-3.5 rounded-2xl transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer border bg-slate-50 hover:bg-white active:bg-blue-50 border-slate-200 hover:border-blue-400 shadow-2xs group select-none min-h-[90px] sm:min-h-[105px]"
             >
               {/* Ready Indicator dot for active tool */}
               {tool.isReady && (
                 <span 
-                  className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white shadow-2xs" 
+                  className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" 
                   title="Modul Aktif"
                 />
               )}
@@ -262,13 +262,13 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
 
               {/* Icon Container */}
               <div 
-                className={`w-11 h-11 sm:w-13 sm:h-13 rounded-2xl ${tool.colorBg} text-white flex items-center justify-center shadow-sm group-hover:scale-105 group-active:scale-90 transition-transform shrink-0`}
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${tool.colorBg} text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform shrink-0`}
               >
-                <Icon size={22} className="sm:size-6" />
+                <Icon size={20} className="sm:size-[22px]" />
               </div>
 
               {/* Nama Menu di Bawah Icon */}
-              <span className="mt-2 text-xs sm:text-[13px] font-extrabold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
+              <span className="mt-1.5 text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
                 {tool.title}
               </span>
             </button>

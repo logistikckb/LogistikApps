@@ -32,7 +32,7 @@ import {
 export default function App() {
   const { currentUser, isAdmin } = useAuth();
 
-  // State navigasi halaman: 'home' (Daftar Menu Utama) atau 'module' (Halaman Detail Modul)
+  // Navigation: 'home' (Daftar Menu Utama) / 'module' (Halaman Detail Modul)
   const [currentView, setCurrentView] = useState<'home' | 'module'>('home');
   const [activeToolId, setActiveToolId] = useState<ToolId>('ed-checker');
 
@@ -57,45 +57,37 @@ export default function App() {
 
   const currentTool = TOOLS_LIST.find((t) => t.id === activeToolId) || TOOLS_LIST[0];
 
-  // Handler saat user mengklik icon menu dari halaman utama
   const handleOpenTool = (id: ToolId) => {
     setActiveToolId(id);
     setCurrentView('module');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
-  // Handler untuk kembali ke halaman utama (Home)
   const handleBackToHome = () => {
     setCurrentView('home');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const latestBroadcast = broadcastMessages.length > 0 ? broadcastMessages[0] : null;
 
   return (
-    <div className="min-h-screen p-0 overflow-y-auto text-[13px] font-sans bg-bg-body text-slate-800">
-      {/* Jika belum login / PIN terkunci, tampilkan Halaman Login */}
+    <div className="min-h-screen p-0 overflow-y-auto text-[13px] font-sans bg-slate-50 text-slate-800">
       {!currentUser ? (
         <LoginPage onOpenBroadcast={() => setShowBroadcastModal(true)} />
       ) : (
-        <div className="max-w-[1440px] mx-auto px-2 py-1.5 sm:px-3 sm:py-2.5 md:px-4 md:py-3">
+        <div className="max-w-[1440px] mx-auto px-2 py-2 sm:px-3 sm:py-2.5 md:px-4 md:py-3">
           
-          {/* ========================================================================= */}
           {/* VIEW 1: HALAMAN UTAMA (HOME / DASHBOARD MENU) */}
-          {/* ========================================================================= */}
           {currentView === 'home' && (
-            <div className="space-y-2.5 sm:space-y-3.5 animate-fade-in">
-              {/* Notification Permission Banner for All Devices & Browsers */}
+            <div className="space-y-2.5 sm:space-y-3">
               <NotificationPermissionBanner 
                 permission={notificationPermission}
                 onRequestPermission={requestNotificationPermission}
                 isSupported={isNotificationSupported}
               />
 
-              {/* Header & Profil Pengguna Login */}
               <Hero />
 
-              {/* Global Broadcast Message Bar (Muncul untuk semua user jika ada siaran) */}
               <BroadcastBar
                 onOpenBroadcastModal={() => setShowBroadcastModal(true)}
                 latestBroadcast={latestBroadcast}
@@ -107,71 +99,58 @@ export default function App() {
                 isNotificationSupported={isNotificationSupported}
               />
 
-              {/* Pusat Metrik & Indikator Kinerja Utama (KPI Cards Terpadu) */}
               <MainKPIDashboard onOpenTool={handleOpenTool} />
 
-              {/* Grid Menu Aplikasi (AppSheet Style) */}
-              <main className="glass-box p-2.5 sm:p-4 bg-white/70 backdrop-blur-md shadow-lg border border-white/60">
+              <main className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-xs">
                 <ToolsGridMenu onOpenTool={handleOpenTool} />
               </main>
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* VIEW 2: HALAMAN MODUL APLIKASI (DEDICATED SUB-PAGE) */}
-          {/* ========================================================================= */}
+          {/* VIEW 2: HALAMAN MODUL APLIKASI */}
           {currentView === 'module' && (
-            <div className="space-y-2 sm:space-y-2.5 animate-fade-in">
-              
-              {/* Ultra-compact AppSheet Style Top Navigation & Header Bar */}
-              <header className="glass-box p-2 sm:p-2.5 bg-white/95 backdrop-blur-md shadow-xs border border-white/90 flex items-center justify-between gap-2 sticky top-1 sm:top-2 z-30">
-                {/* Tombol Home & Judul Modul */}
+            <div className="space-y-2 sm:space-y-2.5">
+              {/* Header Navigation Bar */}
+              <header className="bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 sticky top-1 sm:top-2 z-30">
                 <div className="flex items-center gap-2 min-w-0">
                   <button
                     onClick={handleBackToHome}
-                    className="w-8 h-8 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white flex items-center justify-center transition-all cursor-pointer shadow-2xs hover:shadow-xs shrink-0"
+                    className="w-8 h-8 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
                     title="Kembali ke Menu Utama (Home)"
                   >
                     <Home size={16} />
                   </button>
 
-                  {/* Judul Modul Aktif & Ikon Langsung di Bar Header */}
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${currentTool.colorBg} text-white flex items-center justify-center shadow-2xs shrink-0`}>
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${currentTool.colorBg} text-white flex items-center justify-center shrink-0`}>
                       <currentTool.icon size={15} />
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <h1 className="text-xs sm:text-sm font-black text-slate-800 m-0 uppercase tracking-tight truncate">
-                          {currentTool.title}
-                        </h1>
-                      </div>
-                    </div>
+                    <h1 className="text-xs sm:text-sm font-black text-slate-800 m-0 uppercase tracking-tight truncate">
+                      {currentTool.title}
+                    </h1>
                   </div>
                 </div>
 
-                {/* Status Modul & Kategori */}
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="hidden md:inline-flex bg-blue-50 text-blue-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-blue-200 items-center gap-1">
+                  <span className="hidden md:inline-flex bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-slate-200 items-center gap-1">
                     <Layers size={10} /> {currentTool.category}
                   </span>
 
                   {currentTool.isReady ? (
-                    <span className="bg-emerald-50 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1">
+                    <span className="bg-emerald-50 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1">
                       <Sparkles size={10} /> Aktif
                     </span>
                   ) : (
-                    <span className="bg-amber-50 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-amber-300">
+                    <span className="bg-amber-50 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-200">
                       Draft
                     </span>
                   )}
                 </div>
               </header>
 
-              {/* Isi Halaman Modul */}
+              {/* Modul Content */}
               <main className="space-y-2 sm:space-y-2.5">
-                <div className="glass-box p-2 sm:p-3 md:p-3.5 bg-white/85 backdrop-blur-md shadow-md border border-white/70">
-                  {/* Render Halaman Sesuai Menu Yang Diklik */}
+                <div className="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs">
                   {activeToolId === 'ed-checker' ? (
                     <EdCheckerModule />
                   ) : activeToolId === 'menu-a' ? (
@@ -209,9 +188,9 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Panduan Rumus (khusus di modul Cek ED) */}
+                {/* Guide for ED Checker */}
                 {activeToolId === 'ed-checker' && (
-                  <div className="glass-box p-2.5 sm:p-3 bg-white/50 backdrop-blur-md border border-white/60">
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                     <div className="flex items-center gap-1.5 mb-2">
                       <BookOpen size={14} className="text-blue-900" />
                       <h3 className="text-xs font-bold text-slate-800 m-0 uppercase tracking-wide">
@@ -220,7 +199,7 @@ export default function App() {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-slate-600">
-                      <div className="bg-white/80 p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                         <span className="font-bold text-slate-800 block mb-0.5">1. Format Batch Unix (4 Digit)</span>
                         <p className="leading-relaxed m-0 text-[11px] text-slate-600">
                           <span className="font-mono font-bold text-blue-900">3 Digit Pertama</span> = Hari ke-N dalam tahun (DOY: 001 - 366).<br />
@@ -228,17 +207,17 @@ export default function App() {
                         </p>
                       </div>
 
-                      <div className="bg-white/80 p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                         <span className="font-bold text-slate-800 block mb-0.5">2. Perhitungan Tanggal Mixing</span>
                         <p className="leading-relaxed m-0 text-[11px] text-slate-600">
-                          Tanggal Mixing = 1 Januari Tahun Produksi + (DOY - 1) Hari. Termasuk penanganan presisi tahun kabisat (Leap Year).
+                          Tanggal Mixing = 1 Januari Tahun Produksi + (DOY - 1) Hari. Presisi tahun kabisat (Leap Year).
                         </p>
                       </div>
 
-                      <div className="bg-white/80 p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                         <span className="font-bold text-slate-800 block mb-0.5">3. Masa Simpan (Shelf Life)</span>
                         <p className="leading-relaxed m-0 text-[11px] text-slate-600">
-                          Secara default 3 tahun, produk Paper 5 tahun, Olive Oil 4 tahun, Samantha/Keset 2 tahun, Pia 1 tahun, dan Abstract non-expired.
+                          Default 3 tahun, Paper 5 tahun, Olive Oil 4 tahun, Samantha/Keset 2 tahun, Pia 1 tahun, Abstract non-expired.
                         </p>
                       </div>
                     </div>
@@ -249,7 +228,7 @@ export default function App() {
                 <div className="flex justify-center pt-1 pb-3">
                   <button
                     onClick={handleBackToHome}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300/80 text-slate-700 font-bold text-xs shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
                     title="Kembali ke Menu Utama"
                   >
                     <Home size={14} className="text-blue-900" />
@@ -262,7 +241,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Pink Love Robot Alert Delivery Popup - Selalu Siap Muncul Baik Saat Login Maupun Terkunci */}
+      {/* Floating Robot Popup */}
       <FloatingRobotBroadcast
         broadcast={incomingBroadcast}
         onClose={dismissIncomingBroadcast}

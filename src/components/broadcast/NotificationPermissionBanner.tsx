@@ -66,53 +66,42 @@ export function NotificationPermissionBanner({
   };
 
   return (
-    <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-pink-500/10 to-blue-500/15 border border-amber-400/40 shadow-md backdrop-blur-md animate-fade-in relative overflow-hidden">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 relative z-10">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-md animate-pulse">
-            <BellRing size={20} className="animate-bounce" />
-          </div>
-          <div className="min-w-0 space-y-0.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
-                <span>Aktifkan Notifikasi Layar & Getar Perangkat</span>
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-900 border border-amber-400/30 text-[10px] font-black uppercase tracking-wider">
-                Semua Browser
-              </span>
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-relaxed">
-              Izinkan browser agar pesan siaran pos logistik langsung bersuara, bergetar, dan muncul melayang di layar HP / Laptop Anda saat membuka tab lain.
-            </p>
-            <div className="flex items-center gap-3 pt-0.5 text-[10px] text-slate-500 font-semibold">
-              <span className="flex items-center gap-1">
-                <Smartphone size={11} className="text-pink-600" /> Android & iPhone
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Laptop size={11} className="text-blue-600" /> Windows, Mac & Linux
-              </span>
-            </div>
-          </div>
+    <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 shadow-2xs">
+      <div className="flex items-start gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+          <BellRing size={16} />
         </div>
+        <div className="min-w-0 space-y-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-slate-900">
+              Aktifkan Notifikasi Layar & Suara
+            </span>
+            <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-900 text-[9px] font-bold">
+              Semua Browser
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-600 leading-relaxed m-0">
+            Izinkan notifikasi agar siaran logistik berdering & muncul otomatis saat berada di tab lain.
+          </p>
+        </div>
+      </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto shrink-0 pt-2 md:pt-0 justify-end">
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="px-3 py-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 text-xs font-bold transition-all cursor-pointer"
-          >
-            Nanti
-          </button>
-          <button
-            type="button"
-            onClick={handleActivate}
-            className="flex-1 md:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-rose-600 to-pink-600 hover:from-amber-700 hover:to-pink-700 text-white text-xs font-black shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <ShieldCheck size={14} className="stroke-[2.5]" />
-            <span>Aktifkan Sekarang</span>
-          </button>
-        </div>
+      <div className="flex items-center gap-2 w-full md:w-auto shrink-0 pt-1 md:pt-0 justify-end">
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="px-2.5 py-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 text-xs font-bold transition-colors cursor-pointer"
+        >
+          Nanti
+        </button>
+        <button
+          type="button"
+          onClick={handleActivate}
+          className="flex-1 md:flex-none px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+        >
+          <ShieldCheck size={14} />
+          <span>Izinkan Notifikasi</span>
+        </button>
       </div>
     </div>
   );

@@ -133,69 +133,61 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 flex flex-col justify-center items-center bg-bg-body text-slate-800 animate-fade-in relative overflow-hidden">
-      
-      {/* Subtle Background Decorative Glows */}
-      <div className="absolute -top-28 -left-28 w-96 h-96 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-28 -right-28 w-96 h-96 bg-orange-500/15 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="w-full max-w-lg space-y-5 relative z-10">
+    <div className="min-h-screen p-4 sm:p-6 flex flex-col justify-center items-center bg-slate-50 text-slate-800 relative">
+      <div className="w-full max-w-md space-y-4 relative z-10">
         
         {/* Header Logo & Branding */}
-        <div className="text-center space-y-3">
-          {/* Main App Badge / Shield Logo */}
-          <div className="inline-flex items-center justify-center p-1.5 bg-slate-900 text-white rounded-3xl shadow-2xl border-2 border-white/80 ring-4 ring-blue-900/10 mb-1 overflow-hidden">
+        <div className="text-center space-y-2.5">
+          <div className="inline-flex items-center justify-center p-1.5 bg-slate-900 text-white rounded-2xl shadow-md mb-1">
             <img 
               src="/icons/icon.svg" 
               alt="LogistikApps Shield Logo" 
-              className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md rounded-2xl"
+              className="w-14 h-14 sm:w-16 sm:h-16 object-contain rounded-xl"
             />
           </div>
 
-          <div className="flex justify-center items-center gap-2 flex-wrap">
-            <span className="bg-blue-900 text-white text-[10px] sm:text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1.5">
-              <ShieldCheck size={13} className="text-sky-300" /> LogistikApps Portal
+          <div className="flex justify-center items-center gap-1.5 flex-wrap">
+            <span className="bg-blue-900 text-white text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+              <ShieldCheck size={12} className="text-sky-300" /> LogistikApps Portal
             </span>
-            <span className="bg-orange-500 text-white text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-xs">
+            <span className="bg-orange-500 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
               V1.0
             </span>
             
-            {/* Cloud Sync Status Badge */}
             <button
               type="button"
               onClick={() => setShowDbModal(true)}
-              className={`cursor-pointer transition-all hover:scale-105 active:scale-95 ${
+              className={`cursor-pointer transition-colors ${
                 isSupabaseConfigured
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   : 'bg-amber-500 hover:bg-amber-600 text-white'
-              } text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1.5`}
+              } text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1`}
               title="Status sinkronisasi server terpusat"
             >
-              <Radio size={12} className={isSupabaseConfigured ? 'animate-pulse' : ''} />
-              <span>{isSupabaseConfigured ? 'Server Cloud Online' : 'Mode Offline-Ready'}</span>
+              <Radio size={11} className={isSupabaseConfigured ? 'animate-pulse' : ''} />
+              <span>{isSupabaseConfigured ? 'Server Cloud Online' : 'Mode Offline'}</span>
             </button>
 
-            {/* Broadcast Intercom Button */}
             {onOpenBroadcast && (
               <button
                 type="button"
                 onClick={onOpenBroadcast}
-                className="bg-pink-600 hover:bg-pink-700 text-white text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-xs flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
-                title="Buka Pesan Siaran Intercom"
+                className="bg-pink-600 hover:bg-pink-700 text-white text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-colors"
+                title="Buka Pesan Siaran"
               >
-                <Heart size={12} className="fill-white animate-pulse" />
-                <span>Siaran Publik</span>
+                <Heart size={11} className="fill-white" />
+                <span>Siaran</span>
               </button>
             )}
 
             <InstallPwaButton variant="header" />
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 uppercase tracking-tight m-0">
+          <h1 className="text-lg sm:text-xl font-black text-slate-800 uppercase tracking-tight m-0">
             Sistem Autentikasi Logistik
           </h1>
           <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium">
-            Pilih atau ketik <strong>Username</strong> akun Anda, lalu masukkan <strong>PIN</strong> untuk masuk.
+            Pilih <strong>Username</strong> akun Anda, lalu masukkan <strong>PIN</strong>.
           </p>
         </div>
 
@@ -203,11 +195,11 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
         {sessionExpiredNotice && (
           <div 
             id="session-expired-alert"
-            className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 backdrop-blur-md shadow-md animate-fade-in flex items-start justify-between gap-3"
+            className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start justify-between gap-2.5"
           >
-            <div className="flex items-start gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
-                <ShieldAlert size={18} />
+            <div className="flex items-start gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                <ShieldAlert size={15} />
               </div>
               <div className="min-w-0 space-y-0.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -218,7 +210,7 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                     <Clock size={9} /> 30 Menit
                   </span>
                 </div>
-                <p className="text-[11px] text-amber-900/90 leading-relaxed m-0 font-medium">
+                <p className="text-[11px] text-amber-900 leading-relaxed m-0 font-medium">
                   {sessionExpiredNotice}
                 </p>
               </div>
@@ -227,7 +219,7 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
             <button
               type="button"
               onClick={clearSessionExpiredNotice}
-              className="text-amber-700 hover:text-amber-950 bg-amber-200/60 hover:bg-amber-200 p-1 rounded-lg transition-all cursor-pointer shrink-0"
+              className="text-amber-700 hover:text-amber-950 bg-amber-200/60 hover:bg-amber-200 p-1 rounded-lg transition-colors cursor-pointer shrink-0"
               title="Tutup pemberitahuan"
             >
               <X size={14} />
@@ -236,18 +228,18 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
         )}
 
         {/* Form Login Box */}
-        <div className="glass-box p-6 sm:p-7 bg-white/90 backdrop-blur-md border border-white/80 shadow-2xl rounded-3xl">
+        <div className="bg-white p-5 sm:p-6 border border-slate-200 shadow-sm rounded-2xl">
           
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/80">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-2xl bg-blue-900 text-white flex items-center justify-center shadow-xs shrink-0">
-                <KeyRound size={18} />
+          <div className="flex items-center justify-between pb-2.5 mb-3.5 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center shrink-0">
+                <KeyRound size={16} />
               </div>
               <div>
-                <h2 className="text-sm sm:text-base font-extrabold text-slate-800 m-0 uppercase tracking-tight">
+                <h2 className="text-sm font-bold text-slate-800 m-0 uppercase tracking-tight">
                   Form Masuk
                 </h2>
-                <span className="text-[10px] font-bold text-slate-400">Silakan Verifikasi Akun</span>
+                <span className="text-[10px] text-slate-400">Verifikasi Kredensial</span>
               </div>
             </div>
 
@@ -255,11 +247,11 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
               type="button"
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="inline-flex items-center gap-1 text-[11px] text-blue-900 hover:text-blue-950 font-bold bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-xl transition-all cursor-pointer disabled:opacity-50 border border-blue-200"
+              className="inline-flex items-center gap-1 text-[11px] text-blue-900 hover:text-blue-950 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50 border border-blue-200"
               title="Perbarui daftar akun terdaftar"
             >
               <RefreshCw size={11} className={isRefreshing ? 'animate-spin' : ''} />
-              <span>Sinkron Akun</span>
+              <span>Sinkron</span>
             </button>
           </div>
 

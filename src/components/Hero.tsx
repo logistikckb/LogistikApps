@@ -87,40 +87,35 @@ export function Hero() {
       {/* Modal Detail Developer & Kontak */}
       {showPhotoModal && typeof document !== "undefined" && createPortal(
         <div 
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/75 backdrop-blur-md p-4 animate-fade-in"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4"
           onClick={() => setShowPhotoModal(false)}
         >
           <div 
-            className="glass-box !bg-white/95 p-6 sm:p-8 rounded-3xl max-w-md w-full shadow-2xl border border-blue-400 relative overflow-hidden text-center"
+            className="bg-white p-6 sm:p-7 rounded-2xl max-w-md w-full shadow-xl border border-slate-200 relative text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="absolute -top-16 -right-16 w-36 h-36 bg-blue-500/20 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
-
             <button 
               onClick={() => setShowPhotoModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-all z-20 cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-xl transition-colors cursor-pointer"
               title="Tutup"
             >
               <X size={18} />
             </button>
 
             {/* Foto Developer */}
-            <div className="relative inline-block mx-auto mb-4 group">
-              <div className="p-1 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-amber-500 shadow-xl">
-                <img 
-                  src="https://res.cloudinary.com/dedtb3vnj/image/upload/v1785128112/dedesuparman_eelegb.jpg" 
-                  alt="Dede Suparman" 
-                  className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl object-cover border-4 border-white shadow-inner transition-transform duration-300 hover:scale-105"
-                />
-              </div>
-              <span className="absolute bottom-2 right-2 bg-blue-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-md flex items-center gap-1 border border-blue-700">
-                <ZoomIn size={12} /> Lead Developer
+            <div className="relative inline-block mx-auto mb-3">
+              <img 
+                src="https://res.cloudinary.com/dedtb3vnj/image/upload/v1785128112/dedesuparman_eelegb.jpg" 
+                alt="Dede Suparman" 
+                className="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl object-cover border-2 border-slate-200 shadow-sm"
+              />
+              <span className="absolute bottom-2 right-2 bg-blue-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow-sm flex items-center gap-1">
+                <ZoomIn size={12} /> Lead Dev
               </span>
             </div>
 
             {/* Detail Nama & Peran */}
-            <h2 className="text-xl sm:text-2xl font-black text-slate-800 m-0 uppercase tracking-tight">
+            <h2 className="text-lg sm:text-xl font-black text-slate-800 m-0 uppercase tracking-tight">
               Dede Suparman
             </h2>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-900 font-bold text-xs mt-1">
@@ -133,7 +128,7 @@ export function Hero() {
             </p>
 
             {/* Detail Kontak Lengkap */}
-            <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2 text-xs">
+            <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-2 text-xs">
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                   <MessageCircle size={15} />
@@ -169,18 +164,18 @@ export function Hero() {
               </div>
             </div>
 
-            <div className="mt-5 flex gap-2">
+            <div className="mt-4 flex gap-2">
               <a 
                 href="https://wa.me/6281911934000" 
                 target="_blank" 
                 rel="noreferrer"
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-colors flex items-center justify-center gap-1.5"
               >
                 <MessageCircle size={15} /> Hubungi WhatsApp
               </a>
               <button 
                 onClick={() => setShowPhotoModal(false)}
-                className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold text-xs transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
               >
                 Tutup
               </button>
@@ -190,97 +185,91 @@ export function Hero() {
       , document.body)}
 
       {/* Main Header Box */}
-      <div className="glass-box p-0 flex flex-col md:flex-row items-stretch justify-between relative overflow-hidden mb-6">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch justify-between overflow-hidden">
         
         {/* User Active & Profile Section */}
-        <div className="flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 sm:p-5 bg-white/20 min-w-0">
-          <div className="relative z-10 shrink-0 group">
+        <div className="flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3.5 p-3.5 sm:p-4 min-w-0">
+          <div className="relative shrink-0">
             <button 
               type="button"
               onClick={() => setShowAvatarPicker(true)}
-              className="relative cursor-pointer overflow-hidden rounded-2xl p-0.5 transition-all duration-300 block text-left"
-              title="Klik untuk memilih foto avatar profil ringan"
+              className="cursor-pointer rounded-2xl block relative group transition-transform active:scale-95"
+              title="Pilih Avatar Profil"
             >
               <img 
                 src={currentUser?.avatar || DEFAULT_AVATAR} 
                 alt={currentUser?.nama || "Pengguna"} 
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-3 border-white shadow-md transition-all duration-500 ease-out group-hover:scale-105 group-hover:shadow-xl group-hover:border-blue-300 bg-white"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-2xs group-hover:border-blue-500 bg-white transition-colors"
               />
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-blue-900/60 via-transparent to-orange-500/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex items-center justify-center">
-                <span className="bg-slate-900/90 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs flex items-center gap-1 shadow-md">
-                  <Sparkles size={10} /> Ganti Avatar
-                </span>
-              </div>
+              <span className="absolute -bottom-1 -right-1 bg-blue-900 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                Ubah
+              </span>
             </button>
           </div>
 
-          <div className="relative z-10 flex-1 min-w-0 text-center sm:text-left flex flex-col items-center sm:items-start w-full justify-center">
+          <div className="flex-1 min-w-0 text-center sm:text-left flex flex-col items-center sm:items-start w-full justify-center">
             <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-              <h1 className="font-extrabold text-slate-800 m-0 text-base sm:text-lg md:text-xl tracking-tight uppercase">
+              <h1 className="font-extrabold text-slate-800 m-0 text-sm sm:text-base tracking-tight uppercase">
                 {greeting}, {currentUser ? currentUser.nama.split(' ')[0] : 'Rekan'}!
               </h1>
               {isAdmin ? (
-                <span className="bg-red-500/15 text-red-700 border border-red-500/30 text-[9px] sm:text-[10px] font-black py-0.5 px-2.5 uppercase rounded-full shadow-2xs flex items-center gap-1">
+                <span className="bg-red-50 text-red-700 border border-red-200 text-[9px] font-black py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
                   <ShieldAlert size={11} /> Super Admin
                 </span>
               ) : (
-                <span className="bg-blue-900/15 text-blue-900 border border-blue-900/30 text-[9px] sm:text-[10px] font-bold py-0.5 px-2.5 uppercase rounded-full shadow-2xs flex items-center gap-1">
+                <span className="bg-blue-50 text-blue-900 border border-blue-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
                   <UserCheck size={11} /> Pelaksana
                 </span>
               )}
             </div>
             
-            <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 flex-wrap mt-1 mb-2 text-xs text-slate-600">
-              <span className="font-extrabold text-slate-800">{currentUser?.nama || 'Pengguna'}</span>
+            <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap mt-0.5 mb-2 text-xs text-slate-600">
+              <span className="font-bold text-slate-800">{currentUser?.nama || 'Pengguna'}</span>
               <span>•</span>
               <span className="text-[11px] text-slate-500 font-mono">@{currentUser?.username || 'user'}</span>
             </div>
 
-            {/* Action Bar: Ganti Avatar, Kelola User (Khusus Admin), Logout */}
-            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
-              {/* Tombol Ganti Avatar (Untuk Semua User) */}
+            {/* Action Bar */}
+            <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => setShowAvatarPicker(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 text-xs font-bold transition-all shadow-2xs cursor-pointer hover:shadow-xs"
-                title="Pilih foto avatar profil vektor ringan"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                title="Pilih foto avatar profil"
               >
-                <Sparkles size={13} className="text-orange-600" />
+                <Sparkles size={12} className="text-orange-500" />
                 <span>Ganti Avatar</span>
               </button>
 
-              {/* Tombol Khusus Super Administrator: Kelola Semua User (CRUD) */}
               {isAdmin && (
                 <button
                   type="button"
                   onClick={() => setShowUserManagement(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-black transition-all shadow-xs cursor-pointer hover:shadow-md transform active:scale-95"
-                  title="Kelola semua akun user, hak akses, CRUD, status dan reset PIN"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer active:scale-95"
+                  title="Kelola user & role"
                 >
-                  <UserCog size={14} />
-                  <span>Kelola User & Role (CRUD)</span>
+                  <UserCog size={13} />
+                  <span>Kelola User</span>
                 </button>
               )}
 
-              {/* Tombol Keluar (Logout) */}
               <button
                 type="button"
                 onClick={logout}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer hover:shadow-xs"
-                title="Keluar dari sesi akun saat ini"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                title="Keluar dari sesi"
               >
-                <LogOut size={13} />
+                <LogOut size={12} />
                 <span>Keluar</span>
               </button>
 
-              {/* Toggle Developer Contacts */}
               {showContacts ? (
-                <div className="inline-flex items-center gap-2 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 flex-wrap">
                   <a 
                     href="https://wa.me/6281911934000" 
                     target="_blank" 
                     rel="noreferrer" 
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 text-[11px] font-bold border border-emerald-500/20 transition-all"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200 transition-colors"
                   >
                     <MessageCircle size={12} className="text-emerald-600" />
                     <span>081911934000</span>
@@ -288,7 +277,7 @@ export function Hero() {
 
                   <button 
                     onClick={() => setShowContacts(false)}
-                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-200/80 text-slate-600 hover:text-slate-900 text-[10px] font-bold transition-all cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 text-[10px] font-bold transition-colors cursor-pointer"
                   >
                     <ChevronUp size={11} /> Tutup
                   </button>
@@ -296,10 +285,10 @@ export function Hero() {
               ) : (
                 <button 
                   onClick={() => setShowContacts(true)}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-blue-900 bg-white/60 hover:bg-white px-2.5 py-1.5 rounded-xl border border-white/70 transition-all cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer"
                 >
-                  <Mail size={12} className="text-slate-500" />
-                  <span>Kontak Developer</span>
+                  <Mail size={12} />
+                  <span>Kontak Dev</span>
                   <ChevronDown size={11} />
                 </button>
               )}
@@ -307,28 +296,27 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Date, Live Clock & Status Section */}
-        <div className="flex flex-col justify-between items-center sm:items-end p-4 sm:p-5 bg-white/30 border-t md:border-t-0 md:border-l border-white/50 min-w-[240px] text-center sm:text-right shrink-0">
-          <div className="w-full flex sm:flex-col justify-between items-center sm:items-end gap-1">
+        {/* Date, Live Clock & Protection Section */}
+        <div className="flex flex-col justify-between items-center sm:items-end p-3.5 sm:p-4 bg-slate-50/50 border-t md:border-t-0 md:border-l border-slate-200 min-w-[210px] text-center sm:text-right shrink-0">
+          <div className="w-full flex sm:flex-col justify-between items-center sm:items-end gap-0.5">
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               {dateStr}
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-blue-900 tracking-tight font-mono drop-shadow-2xs">
+            <div className="text-xl sm:text-2xl font-black text-blue-900 tracking-tight font-mono">
               {time}
             </div>
           </div>
 
-          <div className="mt-3 sm:mt-0 flex items-center gap-2 flex-wrap justify-center sm:justify-end">
+          <div className="mt-2.5 sm:mt-0 flex items-center gap-1.5 flex-wrap justify-center sm:justify-end">
             <InstallPwaButton variant="header" />
 
-            {/* Auto-Logout Inactivity Protection Badge */}
             <div 
               id="hero-security-inactivity-badge"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-blue-50/80 text-blue-900 border border-blue-200 shadow-2xs"
-              title="Proteksi data logistik: Otomatis logout setelah 30 menit tidak ada aktivitas"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200"
+              title="Proteksi sesi: Auto logout 30 menit"
             >
-              <ShieldCheck size={12} className="text-blue-700 shrink-0" />
-              <span>Proteksi Sesi: 30m</span>
+              <ShieldCheck size={11} className="text-blue-700 shrink-0" />
+              <span>Sesi 30m</span>
             </div>
           </div>
         </div>
