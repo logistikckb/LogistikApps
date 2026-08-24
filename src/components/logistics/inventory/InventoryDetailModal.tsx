@@ -14,7 +14,8 @@ import {
   Printer, 
   Copy, 
   Check, 
-  ExternalLink 
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { InventoryItem } from '../../../types';
@@ -24,6 +25,7 @@ interface InventoryDetailModalProps {
   onClose: () => void;
   item: InventoryItem | null;
   onEdit: (item: InventoryItem) => void;
+  onDelete?: (item: InventoryItem) => void;
   showToast: (title: string, message: string, type?: 'success' | 'warning' | 'info' | 'error') => void;
 }
 
@@ -32,6 +34,7 @@ export function InventoryDetailModal({
   onClose,
   item,
   onEdit,
+  onDelete,
   showToast
 }: InventoryDetailModalProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -296,6 +299,19 @@ export function InventoryDetailModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(item);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 transition-colors cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Hapus</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

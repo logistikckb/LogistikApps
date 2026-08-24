@@ -96,52 +96,132 @@ export function InventoryExcelModal({
       try {
         const buffer = evt.target?.result as ArrayBuffer;
         const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        
+        // Find sheet with data
+        let wsname = wb.SheetNames[0];
+        let ws = wb.Sheets[wsname];
+        for (const name of wb.SheetNames) {
+          const sheet = wb.Sheets[name];
+          if (sheet && sheet['!ref']) {
+            wsname = name;
+            ws = sheet;
+            break;
+          }
+        }
 
-        if (!rawJson || rawJson.length === 0) {
+        // Convert to array of arrays first to find the true header row
+        const sheetRows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        if (!sheetRows || sheetRows.length === 0) {
           showToast('File Kosong', 'File Excel tidak memiliki baris data!', 'warning');
           setParsedRows([]);
           return;
         }
 
-        const normalizeKey = (k: string) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizeKey = (k: any) => String(k ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        // Detect header row index
+        let headerRowIndex = 0;
+        const headerKeywords = ['item', 'sku', 'kode', 'nama', 'barang', 'deskripsi', 'lokasi', 'location', 'qty', 'batch', 'sloc', 'expired', 'ed'];
+        for (let i = 0; i < Math.min(sheetRows.length, 10); i++) {
+          const rowValues = (sheetRows[i] || []).map(v => normalizeKey(v));
+          const matchCount = headerKeywords.filter(kw => rowValues.some(v => v.includes(kw))).length;
+          if (matchCount >= 2) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        // Parse with detected header range
+        const rawJson: any[] = XLSX.utils.sheet_to_json(ws, { 
+          defval: '', 
+          raw: false,
+          range: headerRowIndex
+        });
+
+        if (!rawJson || rawJson.length === 0) {
+          showToast('File Kosong', 'Tidak ditemukan baris data di bawah judul kolom!', 'warning');
+          setParsedRows([]);
+          return;
+        }
 
         const nowIso = new Date().toISOString();
         const dateStrPrefix = nowIso.slice(0, 10).replace(/-/g, '');
-
-        // Calculate sequence number
-        let maxSeq = 0;
-        const prefixRegex = new RegExp(`^INV-${dateStrPrefix}-(\\d+)$`, 'i');
-        for (const item of existingItems) {
-          const match = (item.id_inventory || '').match(prefixRegex);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (!isNaN(num) && num > maxSeq) maxSeq = num;
-          }
-        }
+        const randomSeed = Math.random().toString(36).substring(2, 6).toUpperCase();
 
         const converted: InventoryItem[] = [];
 
         rawJson.forEach((row, idx) => {
+          // Normalize row keys
           const rowObj: Record<string, any> = {};
           Object.keys(row).forEach(origKey => {
-            rowObj[normalizeKey(origKey)] = row[origKey];
+            const cleanKey = normalizeKey(origKey);
+            if (cleanKey) {
+              rowObj[cleanKey] = row[origKey];
+            }
           });
 
-          const itemCode = String(rowObj['itemcode'] || rowObj['sku'] || rowObj['kodebarang'] || rowObj['item_code'] || '').trim();
-          let itemName = String(rowObj['itemname'] || rowObj['namabarang'] || rowObj['deskripsi'] || rowObj['item_name'] || '').trim();
+          // Helper to get value matching multiple candidate keys
+          const getVal = (aliases: string[]): any => {
+            for (const alias of aliases) {
+              const cleanAlias = normalizeKey(alias);
+              if (rowObj[cleanAlias] !== undefined && String(rowObj[cleanAlias]).trim() !== '') {
+                return rowObj[cleanAlias];
+              }
+            }
+            return '';
+          };
 
+          // Check if row is completely empty
+          const hasAnyContent = Object.values(rowObj).some(v => String(v).trim() !== '');
+          if (!hasAnyContent) return;
+
+          let itemCode = String(getVal([
+            'itemcode', 'item_code', 'sku', 'kodebarang', 'kodeitem', 'kode_barang', 'kode_item', 
+            'material', 'partnumber', 'materialnumber', 'barcode', 'id_barang', 'kode'
+          ])).trim();
+
+          let itemName = String(getVal([
+            'itemname', 'item_name', 'namabarang', 'namaitem', 'nama_barang', 'nama_item', 
+            'deskripsi', 'description', 'namaproduk', 'productname', 'materialdesc', 'nama', 'barang'
+          ])).trim();
+
+          // Auto-match itemName if only itemCode is present
           if (!itemName && itemCode) {
-            const matchMaster = barangList.find(b => b.item_code?.toLowerCase() === itemCode.toLowerCase());
-            if (matchMaster) itemName = matchMaster.item_name;
+            const matchMaster = barangList.find(b => 
+              (b.item_code && b.item_code.toLowerCase() === itemCode.toLowerCase()) ||
+              (b.barcode && b.barcode.toLowerCase() === itemCode.toLowerCase())
+            );
+            if (matchMaster) {
+              itemName = matchMaster.item_name;
+            } else {
+              itemName = itemCode;
+            }
           }
 
+          // Auto-match itemCode if only itemName is present
+          if (!itemCode && itemName) {
+            const matchMaster = barangList.find(b => 
+              b.item_name && b.item_name.toLowerCase() === itemName.toLowerCase()
+            );
+            if (matchMaster) {
+              itemCode = matchMaster.item_code;
+            } else {
+              itemCode = 'SKU-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+            }
+          }
+
+          // If still neither, skip non-data rows
           if (!itemCode && !itemName) return;
 
-          const batch = String(rowObj['batch'] || rowObj['nobatch'] || rowObj['lot'] || '').trim();
-          const rawEd = rowObj['expireddate'] || rowObj['ed'] || rowObj['tanggalkadaluarsa'] || rowObj['expired_date'] || '';
+          const batch = String(getVal([
+            'batch', 'nobatch', 'lot', 'nolot', 'batchno', 'lotno', 'batchnumber', 'batch_no', 'no_batch'
+          ])).trim();
+
+          const rawEd = getVal([
+            'expireddate', 'expired_date', 'ed', 'exp', 'expdate', 'exp_date', 
+            'kadaluarsa', 'tanggalkadaluarsa', 'tglkadaluarsa', 'tgl_ed', 'tanggal_ed', 
+            'sled', 'kadaluwarsa', 'tgl_exp'
+          ]);
           let expiredDate = normalizeToIsoDate(rawEd) || '';
           
           if (!expiredDate && batch && batch.length >= 4) {
@@ -149,36 +229,49 @@ export function InventoryExcelModal({
             if (edResult?.isoDate) expiredDate = edResult.isoDate;
           }
 
-          const firstQty = Number(rowObj['firstqty'] || rowObj['qtyawal'] || rowObj['first_qty'] || rowObj['qty'] || 0) || 0;
-          const lastQty = Number(rowObj['lastqty'] || rowObj['qtyakhir'] || rowObj['last_qty'] || firstQty) || firstQty;
-          const uom = String(rowObj['uom'] || rowObj['satuan'] || 'CTN').trim().toUpperCase();
+          const firstQtyRaw = getVal([
+            'firstqty', 'first_qty', 'qtyawal', 'qty_awal', 'qty', 'jumlah', 'stock', 'stok', 
+            'quantity', 'saldoawal', 'saldo_awal', 'currentqty', 'qtyonhand', 'onhand'
+          ]);
+          const lastQtyRaw = getVal([
+            'lastqty', 'last_qty', 'qtyakhir', 'qty_akhir', 'saldoakhir', 'saldo_akhir', 
+            'totalqty', 'sisa', 'qtyreal', 'qty_real'
+          ]);
 
-          let qtyConvert = Number(rowObj['qtyconvert'] || rowObj['qtyconvertpcs'] || rowObj['qty_convert'] || 0) || 0;
-          const uomConvert = String(rowObj['uomconvert'] || rowObj['satuanconvert'] || rowObj['uom_convert'] || 'PCS').trim().toUpperCase();
+          const firstQty = Number(firstQtyRaw || lastQtyRaw || 0) || 0;
+          const lastQty = Number(lastQtyRaw !== '' ? lastQtyRaw : (firstQtyRaw || 0)) || 0;
+          const uom = String(getVal(['uom', 'satuan', 'unit', 'kemasan', 'uom1']) || 'CTN').trim().toUpperCase();
+
+          const qtyConvertRaw = getVal(['qtyconvert', 'qtyconvertpcs', 'qty_convert', 'konversi', 'qtykonversi', 'pcs', 'totalpcs']);
+          let qtyConvert = Number(qtyConvertRaw || 0) || 0;
+          const uomConvert = String(getVal(['uomconvert', 'satuanconvert', 'uom_convert', 'satuan_convert', 'uom2', 'satuankonversi']) || 'PCS').trim().toUpperCase();
 
           if (qtyConvert === 0 && lastQty > 0) {
             qtyConvert = uom === 'CTN' ? lastQty * 24 : lastQty;
           }
 
-          const location = String(rowObj['location'] || rowObj['lokasi'] || 'WH-INV-01').trim();
-          const locationType = String(rowObj['locationtype'] || rowObj['jenislokasi'] || 'Rack').trim();
-          const sloc = String(rowObj['sloc'] || 'SL01').trim();
-          const category = String(rowObj['category'] || rowObj['kategori'] || 'Finished Good').trim();
-          const status = String(rowObj['status'] || 'Ada').trim();
-          const note = String(rowObj['note'] || rowObj['catatan'] || rowObj['keterangan'] || '').trim();
-          const tujuan = String(rowObj['tujuan'] || rowObj['destinasi'] || 'Stok Inventory Gudang').trim();
+          const location = String(getVal([
+            'location', 'lokasi', 'rak', 'bin', 'storage', 'storagelocation', 'alokasi', 'rack', 'kd_lokasi', 'kodelokasi', 'posisi'
+          ]) || 'WH-INV-01').trim();
 
-          const lpn = String(rowObj['lpnserialnumber'] || rowObj['lpn'] || rowObj['serialnumber'] || rowObj['lpn_serial_number'] || '').trim();
-          const vendorBatch = String(rowObj['vendorbatch'] || rowObj['vendor_batch'] || '').trim();
-          const destinationCode = String(rowObj['destinationcode'] || rowObj['kodedestinasi'] || 'DST-INV').trim();
-          const qcCode = String(rowObj['qccode'] || rowObj['statusqc'] || 'QC-PASS').trim();
-          const userTally = String(rowObj['usertally'] || rowObj['petugastally'] || currentUser?.nama || 'Tally Inventory').trim();
-          const shelfLife = String(rowObj['shelflife'] || rowObj['masasimpan'] || '24 Bulan').trim();
-          const source = String(rowObj['source'] || rowObj['sumber'] || 'Stok Gudang').trim();
+          const locationType = String(getVal(['locationtype', 'location_type', 'jenislokasi', 'tipe_lokasi', 'tipelokasi']) || 'Rack').trim();
+          const sloc = String(getVal(['sloc', 'storageloc', 'storage_location', 'gudang', 'sloccode', 'sloc_code']) || 'SL01').trim();
+          const category = String(getVal(['category', 'kategori', 'kelompok', 'jenis', 'group', 'itemcategory']) || 'Finished Good').trim();
+          const status = String(getVal(['status', 'kondisi', 'state']) || 'Ada').trim();
+          const note = String(getVal(['note', 'catatan', 'keterangan', 'remark', 'remarks']) || '').trim();
+          const tujuan = String(getVal(['tujuan', 'destinasi', 'destination']) || 'Stok Inventory Gudang').trim();
 
-          maxSeq += 1;
-          const seqStr = String(maxSeq).padStart(4, '0');
-          const idInventory = `INV-${dateStrPrefix}-${seqStr}`;
+          const lpn = String(getVal(['lpnserialnumber', 'lpn', 'serialnumber', 'lpn_serial_number', 'sn']) || '').trim();
+          const vendorBatch = String(getVal(['vendorbatch', 'vendor_batch', 'batchvendor', 'lotvendor']) || batch || '').trim();
+          const destinationCode = String(getVal(['destinationcode', 'destination_code', 'kodedestinasi']) || 'DST-INV').trim();
+          const qcCode = String(getVal(['qccode', 'qc_code', 'statusqc', 'qc']) || 'QC-PASS').trim();
+          const userTally = String(getVal(['usertally', 'user_tally', 'petugastally', 'tally', 'checker', 'operator']) || currentUser?.nama || 'Tally Inventory').trim();
+          const shelfLife = String(getVal(['shelflife', 'shelf_life', 'masasimpan', 'masa_simpan']) || '24 Bulan').trim();
+          const source = String(getVal(['source', 'sumber', 'asal']) || 'Stok Gudang').trim();
+
+          // Retain existing ID from excel if provided, or generate unique ID
+          const existingId = String(getVal(['id_inventory', 'idinventory', 'id', 'no_inv', 'id_inv', 'no_inventory'])).trim();
+          const idInventory = existingId || `INV-${dateStrPrefix}-${randomSeed}-${String(idx + 1).padStart(4, '0')}`;
 
           converted.push({
             id_inventory: idInventory,
@@ -210,6 +303,12 @@ export function InventoryExcelModal({
             updated_at: nowIso
           });
         });
+
+        if (converted.length === 0) {
+          showToast('Data Tidak Ditemukan', 'Tidak ada baris data barang yang valid ditemukan pada file Excel.', 'warning');
+          setParsedRows([]);
+          return;
+        }
 
         setParsedRows(converted);
         showToast('File Terbaca', `Berhasil memproses ${converted.length} baris data dari file ${file.name}.`, 'success');

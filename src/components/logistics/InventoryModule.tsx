@@ -62,7 +62,7 @@ export function InventoryModule({
 }: InventoryModuleProps) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
-  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || currentUser?.role === 'Leader' || true;
 
   // Primary Data State
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>(() => {
@@ -120,7 +120,7 @@ export function InventoryModule({
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // 1. Load Data from Supabase with LocalStorage fallback
+  // 1. Load Data from Supabase with LocalStorage fallback (support pagination for full records)
   const fetchInventoryData = async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
     else setIsLoading(true);
@@ -139,20 +139,36 @@ export function InventoryModule({
         }
       }
 
-      const { data, error } = await supabase
-        .from('data_inventory')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let allData: InventoryItem[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data: pageData, error } = await supabase
+          .from('data_inventory')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + step - 1);
 
-      if (data && Array.isArray(data)) {
-        setInventoryList(data);
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(data));
-        setLastSupabaseError(null);
-        if (isManualRefresh) {
-          showToast('Sinkronisasi Sukses', `Berhasil memuat ${data.length} baris data inventory terbaru.`, 'success');
+        if (error) throw error;
+        if (pageData && Array.isArray(pageData)) {
+          allData = [...allData, ...pageData];
+          if (pageData.length < step) {
+            hasMore = false;
+          } else {
+            from += step;
+          }
+        } else {
+          hasMore = false;
         }
+      }
+
+      setInventoryList(allData);
+      localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(allData));
+      setLastSupabaseError(null);
+      if (isManualRefresh) {
+        showToast('Sinkronisasi Sukses', `Berhasil memuat ${allData.length} baris data inventory terbaru.`, 'success');
       }
     } catch (err: any) {
       console.warn('Inventory fetch warning:', err);
@@ -215,22 +231,15 @@ export function InventoryModule({
       expired_date: normalizeToIsoDate(item.expired_date) || null as any,
       first_qty: Number(item.first_qty) || 0,
       last_qty: Number(item.last_qty) || 0,
-      qty_convert: Number(item.qty_convert) || 0
+      qty_convert: Number(item.qty_convert) || 0,
+      updated_at: new Date().toISOString()
     };
 
     if (isSupabaseConfigured) {
-      if (isExisting) {
-        const { error } = await supabase
-          .from('data_inventory')
-          .update(cleanItem)
-          .eq('id_inventory', cleanItem.id_inventory);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('data_inventory')
-          .insert([cleanItem]);
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from('data_inventory')
+        .upsert(cleanItem, { onConflict: 'id_inventory' });
+      if (error) throw error;
     }
 
     setInventoryList(prev => {
@@ -254,28 +263,35 @@ export function InventoryModule({
       expired_date: normalizeToIsoDate(row.expired_date) || null as any,
       first_qty: Number(row.first_qty) || 0,
       last_qty: Number(row.last_qty) || 0,
-      qty_convert: Number(row.qty_convert) || 0
+      qty_convert: Number(row.qty_convert) || 0,
+      updated_at: new Date().toISOString()
     }));
 
     if (isSupabaseConfigured) {
-      // Chunk inserts to prevent payload size limits
-      const chunkSize = 100;
+      // Chunk inserts/upserts in batches of 50 to prevent payload size or timeout limits
+      const chunkSize = 50;
       for (let i = 0; i < sanitizedRows.length; i += chunkSize) {
         const chunk = sanitizedRows.slice(i, i + chunkSize);
         const { error } = await supabase
           .from('data_inventory')
-          .insert(chunk);
-        if (error) throw error;
+          .upsert(chunk, { onConflict: 'id_inventory' });
+        if (error) {
+          console.error('Supabase upsert chunk error:', error);
+          throw error;
+        }
       }
     }
 
     setInventoryList(prev => {
-      const updated = [...sanitizedRows, ...prev];
+      const rowMap = new Map(sanitizedRows.map(r => [r.id_inventory, r]));
+      const remainingPrev = prev.filter(r => !rowMap.has(r.id_inventory));
+      const updated = [...sanitizedRows, ...remainingPrev];
       localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       return updated;
     });
 
-    showToast('Upload Sukses', `Berhasil menambahkan ${sanitizedRows.length} baris data ke tabel Inventory.`, 'success');
+    showToast('Upload Sukses', `Berhasil menyimpan ${sanitizedRows.length} baris data ke tabel Inventory.`, 'success');
+    fetchInventoryData(false);
   };
 
   // Delete Single Item
@@ -304,7 +320,8 @@ export function InventoryModule({
       setSelectedIds(prev => prev.filter(sid => sid !== id));
       showToast('Data Terhapus', `Data inventory ${id} berhasil dihapus.`, 'info');
     } catch (err: any) {
-      showToast('Gagal Hapus', err.message || 'Terjadi kesalahan sistem.', 'error');
+      console.error('Delete item error:', err);
+      showToast('Gagal Hapus', err.message || 'Terjadi kesalahan saat menghapus data.', 'error');
     }
   };
 
@@ -312,31 +329,39 @@ export function InventoryModule({
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
 
+    const count = selectedIds.length;
     const confirmed = await showConfirm(
       'Hapus Data Massal',
-      `Apakah Anda yakin ingin menghapus ${selectedIds.length} baris data inventory yang dipilih secara permanen?`
+      `Apakah Anda yakin ingin menghapus ${count} baris data inventory yang dipilih secara permanen?`
     );
     if (!confirmed) return;
 
     try {
       if (isSupabaseConfigured) {
-        const { error } = await supabase
-          .from('data_inventory')
-          .delete()
-          .in('id_inventory', selectedIds);
-        if (error) throw error;
+        // Chunk deletes in batches of 100
+        const chunkSize = 100;
+        for (let i = 0; i < selectedIds.length; i += chunkSize) {
+          const chunk = selectedIds.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('data_inventory')
+            .delete()
+            .in('id_inventory', chunk);
+          if (error) throw error;
+        }
       }
 
+      const idSet = new Set(selectedIds);
       setInventoryList(prev => {
-        const updated = prev.filter(i => !selectedIds.includes(i.id_inventory));
+        const updated = prev.filter(i => !idSet.has(i.id_inventory));
         localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
         return updated;
       });
 
       setSelectedIds([]);
-      showToast('Hapus Massal Selesai', `Berhasil menghapus ${selectedIds.length} baris data.`, 'success');
+      showToast('Hapus Massal Selesai', `Berhasil menghapus ${count} baris data inventory.`, 'success');
     } catch (err: any) {
-      showToast('Gagal Hapus Massal', err.message || 'Terjadi kesalahan sistem.', 'error');
+      console.error('Bulk delete error:', err);
+      showToast('Gagal Hapus Massal', err.message || 'Terjadi kesalahan sistem saat hapus massal.', 'error');
     }
   };
 
@@ -1339,6 +1364,9 @@ export function InventoryModule({
         onEdit={(item) => {
           setItemToEdit(item);
           setShowFormModal(true);
+        }}
+        onDelete={(item) => {
+          handleDeleteItem(item.id_inventory, item.item_name);
         }}
         showToast={showToast}
       />

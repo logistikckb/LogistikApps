@@ -32,15 +32,19 @@ export interface AlertDialogState {
 interface NotificationContextType {
   showToast: (title: string, message?: string, type?: ToastType) => void;
   showAlert: (title: string, message?: string, type?: ToastType) => void;
-  showConfirm: (options: {
-    title: string;
-    message: string;
-    confirmText?: string;
-    cancelText?: string;
-    type?: 'danger' | 'warning' | 'info';
-    onConfirm: () => void;
-    onCancel?: () => void;
-  }) => void;
+  showConfirm: (
+    optionsOrTitle: string | {
+      title: string;
+      message: string;
+      confirmText?: string;
+      cancelText?: string;
+      type?: 'danger' | 'warning' | 'info';
+      onConfirm?: () => void;
+      onCancel?: () => void;
+    },
+    message?: string,
+    typeOrOnConfirm?: ('danger' | 'warning' | 'info') | (() => void)
+  ) => Promise<boolean>;
 }
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
@@ -79,30 +83,64 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
-  const showConfirm = useCallback((options: {
-    title: string;
-    message: string;
-    confirmText?: string;
-    cancelText?: string;
-    type?: 'danger' | 'warning' | 'info';
-    onConfirm: () => void;
-    onCancel?: () => void;
-  }) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: options.title,
-      message: options.message,
-      confirmText: options.confirmText || 'Ya, Lanjutkan',
-      cancelText: options.cancelText || 'Batal',
-      type: options.type || 'danger',
-      onConfirm: () => {
-        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        options.onConfirm();
-      },
-      onCancel: () => {
-        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        if (options.onCancel) options.onCancel();
-      },
+  const showConfirm = useCallback((
+    optionsOrTitle: string | {
+      title: string;
+      message: string;
+      confirmText?: string;
+      cancelText?: string;
+      type?: 'danger' | 'warning' | 'info';
+      onConfirm?: () => void;
+      onCancel?: () => void;
+    },
+    messageArg?: string,
+    typeOrOnConfirmArg?: ('danger' | 'warning' | 'info') | (() => void)
+  ): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      let title = '';
+      let message = '';
+      let confirmText = 'Ya, Lanjutkan';
+      let cancelText = 'Batal';
+      let type: 'danger' | 'warning' | 'info' = 'danger';
+      let callbackConfirm: (() => void) | undefined;
+      let callbackCancel: (() => void) | undefined;
+
+      if (typeof optionsOrTitle === 'string') {
+        title = optionsOrTitle;
+        message = messageArg || '';
+        if (typeof typeOrOnConfirmArg === 'function') {
+          callbackConfirm = typeOrOnConfirmArg;
+        } else if (typeof typeOrOnConfirmArg === 'string') {
+          type = typeOrOnConfirmArg;
+        }
+      } else if (optionsOrTitle && typeof optionsOrTitle === 'object') {
+        title = optionsOrTitle.title || 'Konfirmasi';
+        message = optionsOrTitle.message || '';
+        confirmText = optionsOrTitle.confirmText || 'Ya, Lanjutkan';
+        cancelText = optionsOrTitle.cancelText || 'Batal';
+        type = optionsOrTitle.type || 'danger';
+        callbackConfirm = optionsOrTitle.onConfirm;
+        callbackCancel = optionsOrTitle.onCancel;
+      }
+
+      setConfirmDialog({
+        isOpen: true,
+        title,
+        message,
+        confirmText,
+        cancelText,
+        type,
+        onConfirm: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          if (callbackConfirm) callbackConfirm();
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          if (callbackCancel) callbackCancel();
+          resolve(false);
+        },
+      });
     });
   }, []);
 
