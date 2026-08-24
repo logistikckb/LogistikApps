@@ -219,8 +219,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     location_type: 'Quarantine',
     qc_code: 'QC-REJECT',
     destination_code: 'INCINERATOR',
-    target_status: 'Siap Dimusnahkan',
-    tujuan: 'Pemusnahan Limbah Terkontrol',
+    target_status: '',
+    tujuan: '',
     category: 'Damaged',
     note: ''
   });
@@ -2020,16 +2020,22 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       return;
     }
     const initialDest = BULK_DESTINATIONS.find(d => d.id === bulkTargetModuleId) || BULK_DESTINATIONS[0];
+    const selectedItems = penyiapanList.filter(item => selectedIds.includes(item.id_penyiapan));
+
+    // Ambil nilai Tujuan dan Note dari data terpilih di tabel penyiapan
+    const initialTujuan = selectedItems.find(i => i.tujuan && i.tujuan.trim() !== '' && i.tujuan.trim() !== '-')?.tujuan || selectedItems[0]?.tujuan || '';
+    const initialNote = selectedItems.find(i => i.note && i.note.trim() !== '' && i.note.trim() !== '-')?.note || selectedItems[0]?.note || '';
+
     setBulkFormData({
       sloc: initialDest.defaultSloc,
       location: initialDest.defaultLocation,
       location_type: initialDest.defaultLocationType,
       qc_code: initialDest.defaultQcCode,
       destination_code: initialDest.defaultDestinationCode,
-      target_status: initialDest.defaultStatus,
-      tujuan: initialDest.defaultTujuan,
+      target_status: '', // biarkan kosong saja sesuai permintaan
+      tujuan: initialTujuan,
       category: initialDest.defaultCategory,
-      note: `Transfer massal ${selectedIds.length} item dari Penyiapan`
+      note: initialNote
     });
     setBulkSourceStatus(initialDest.sourceStatusDefault);
     setShowBulkTransferModal(true);
@@ -2046,10 +2052,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         location_type: dest.defaultLocationType,
         qc_code: dest.defaultQcCode,
         destination_code: dest.defaultDestinationCode,
-        target_status: dest.defaultStatus,
-        tujuan: dest.defaultTujuan,
+        target_status: prev.target_status || '', // biarkan kosong saja
+        tujuan: prev.tujuan || '', // pertahankan tujuan dari tabel penyiapan
         category: dest.defaultCategory,
-        note: `Transfer massal ${selectedIds.length} item dari Penyiapan ke ${dest.name}`
+        note: prev.note || '' // pertahankan note dari tabel penyiapan
       }));
       setBulkSourceStatus(dest.sourceStatusDefault);
     }
@@ -2103,9 +2109,24 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const generatedId = `${targetConfig.idPrefix}${dateStr}-${randomSuffix}-${idx + 1}`;
 
+      // Resolve tujuan: gunakan input form atau fallback ke tujuan masing-masing item penyiapan
+      const itemTujuan = (item.tujuan && item.tujuan.trim() !== '' && item.tujuan.trim() !== '-') ? item.tujuan : '';
+      const resolvedTujuan = bulkFormData.tujuan !== undefined && bulkFormData.tujuan !== ''
+        ? bulkFormData.tujuan
+        : itemTujuan;
+
+      // Resolve note: gunakan input form atau fallback ke note masing-masing item penyiapan
+      const itemNote = (item.note && item.note.trim() !== '' && item.note.trim() !== '-') ? item.note : '';
+      const resolvedNote = bulkFormData.note !== undefined && bulkFormData.note !== ''
+        ? bulkFormData.note
+        : itemNote;
+
+      // Status di database tujuan: kosongkan jika tidak diisi
+      const resolvedStatus = bulkFormData.target_status || '';
+
       return {
         [targetConfig.idField]: generatedId,
-        tujuan: bulkFormData.tujuan || targetConfig.defaultTujuan,
+        tujuan: resolvedTujuan,
         item_code: item.item_code,
         item_name: item.item_name,
         category: item.category || targetConfig.defaultCategory,
@@ -2128,8 +2149,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         source: `Penyiapan (${item.id_penyiapan})`,
         user_input: currentUser?.nama || 'Admin',
         tanggal_update: nowIso,
-        status: bulkFormData.target_status || targetConfig.defaultStatus,
-        note: bulkFormData.note || '',
+        status: resolvedStatus,
+        note: resolvedNote,
         created_at: nowIso,
         updated_at: nowIso
       };
@@ -5675,42 +5696,49 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
                 <label className="font-black text-slate-800 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
                   <span className="w-4 h-4 rounded-full bg-blue-900 text-white text-[10px] flex items-center justify-center font-bold">2</span>
-                  <span>Konfigurasi Parameter Target (Disesuaikan Otomatis):</span>
+                  <span>Konfigurasi Parameter Target (Disesuaikan dari Tabel Penyiapan):</span>
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">Tujuan / Deskripsi Transaksi</label>
+                    <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">
+                      <span>Tujuan / Deskripsi Transaksi</span>
+                      <span className="text-[9px] font-normal text-slate-400 ml-1">(Dari Tabel Penyiapan)</span>
+                    </label>
                     <input
                       type="text"
                       value={bulkFormData.tujuan || ''}
                       onChange={(e) => setBulkFormData({ ...bulkFormData, tujuan: e.target.value })}
-                      required
-                      placeholder="Contoh: Pemusnahan Limbah Terkontrol / Inbound"
+                      placeholder="Sesuaikan tujuan transaksi jika perlu..."
                       className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">Status di Database Tujuan</label>
+                    <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">
+                      <span>Status di Database Tujuan</span>
+                      <span className="text-[9px] font-normal text-slate-400 ml-1">(Dikosongkan)</span>
+                    </label>
                     <input
                       type="text"
                       value={bulkFormData.target_status || ''}
                       onChange={(e) => setBulkFormData({ ...bulkFormData, target_status: e.target.value })}
-                      required
-                      placeholder="Contoh: Siap Dimusnahkan / Received"
+                      placeholder="Kosong (biarkan kosong)"
                       className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-blue-900 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">Catatan (Note)</label>
+                  <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">
+                    <span>Catatan (Note)</span>
+                    <span className="text-[9px] font-normal text-slate-400 ml-1">(Dari Tabel Penyiapan)</span>
+                  </label>
                   <input
                     type="text"
                     value={bulkFormData.note || ''}
                     onChange={(e) => setBulkFormData({ ...bulkFormData, note: e.target.value })}
-                    placeholder="Isi catatan yang akan disalin ke setiap baris data target..."
+                    placeholder="Sesuaikan catatan jika perlu..."
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
                   />
                 </div>
@@ -5810,6 +5838,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         <th className="p-2">Batch</th>
                         <th className="p-2 text-right">Last Qty</th>
                         <th className="p-2">UOM</th>
+                        <th className="p-2">Tujuan (Penyiapan)</th>
+                        <th className="p-2">Catatan Note</th>
                         <th className="p-2">Status Asal</th>
                         <th className="p-2">Lokasi Asal</th>
                       </tr>
@@ -5823,6 +5853,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                           <td className="p-2 font-mono text-amber-900 font-bold">{item.batch || '-'}</td>
                           <td className="p-2 text-right font-mono font-black text-emerald-800">{item.last_qty}</td>
                           <td className="p-2">{item.uom || 'CTN'}</td>
+                          <td className="p-2 font-medium text-blue-900 max-w-[150px] truncate">{item.tujuan || '-'}</td>
+                          <td className="p-2 text-slate-600 max-w-[150px] truncate">{item.note || '-'}</td>
                           <td className="p-2">
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
                               {item.status || 'Ada'}
