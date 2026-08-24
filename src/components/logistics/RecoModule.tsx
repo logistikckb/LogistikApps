@@ -54,11 +54,13 @@ import {
   Truck,
   ArrowRight,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Globe,
+  Settings
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { RecoItem, DataBarang } from '../../types';
@@ -81,6 +83,28 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
   const [isPushing, setIsPushing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSupabaseError, setLastSupabaseError] = useState<string | null>(null);
+
+  // Google Sheets Webhook Sync State
+  const [showGSheetModal, setShowGSheetModal] = useState(false);
+  const [showGSheetAdvanced, setShowGSheetAdvanced] = useState(false);
+  const [isSyncingGSheet, setIsSyncingGSheet] = useState(false);
+  const [gSheetSyncResult, setGSheetSyncResult] = useState<{
+    success: boolean;
+    message: string;
+    rows?: number;
+    timestamp?: string;
+    spreadsheetUrl?: string;
+  } | null>(null);
+  const [isSavingToSupabase, setIsSavingToSupabase] = useState(false);
+  const [isConfigFromSupabase, setIsConfigFromSupabase] = useState(false);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
+  const [gSheetConfig, setGSheetConfig] = useState({
+    webhookUrl: '',
+    sheetName: 'Reco',
+    spreadsheetId: '',
+    secretToken: '',
+    mode: 'overwrite' as 'overwrite' | 'append'
+  });
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -526,7 +550,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
     });
   }, [recoList]);
 
-  // Filtered and Sorted Reco List
+  // Filtered and Sorted Reco List (Matching PemusnahanModule structure)
   const filteredReco = useMemo(() => {
     let result = recoList;
 
@@ -571,22 +595,40 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
     return result;
   }, [recoList, searchQuery, tujuanFilter, statusFilter, categoryFilter, slocFilter, sortField, sortOrder, fuse]);
 
-  // KPIs / Statistics Calculations
+  const handleSort = (field: keyof RecoItem) => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // KPIs / Statistics Calculations (6 Metric Cards matching PemusnahanModule)
   const stats = useMemo(() => {
     const totalLot = recoList.length;
     let totalCtn = 0;
     let totalPcs = 0;
-    let totalPending = 0;
-    let totalDone = 0;
+    let fromPenyiapanCount = 0;
+    let pendingCount = 0;
+    let doneCount = 0;
+    const skuSet = new Set<string>();
 
     recoList.forEach((item) => {
-      totalCtn += Number(item.last_qty || item.first_qty || 0);
+      totalCtn += Number(item.last_qty !== undefined && item.last_qty !== null ? item.last_qty : (item.first_qty ?? 0));
       totalPcs += Number(item.qty_convert || 0);
+      if (item.item_code) skuSet.add(item.item_code.trim());
+
+      const src = (item.source || '').toLowerCase();
+      if (src.includes('penyiapan')) {
+        fromPenyiapanCount++;
+      }
+
       const st = (item.status || '').toLowerCase();
-      if (st.includes('selesai') || st.includes('completed') || st.includes('closed') || st.includes('disetujui')) {
-        totalDone++;
+      if (st.includes('selesai') || st.includes('completed') || st.includes('closed') || st.includes('disetujui') || /^\d+$/.test(item.status || '')) {
+        doneCount++;
       } else {
-        totalPending++;
+        pendingCount++;
       }
     });
 
@@ -594,10 +636,289 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       totalLot,
       totalCtn,
       totalPcs,
-      totalPending,
-      totalDone
+      fromPenyiapanCount,
+      pendingCount,
+      doneCount,
+      uniqueSkuCount: skuSet.size
     };
   }, [recoList]);
+
+  // Inline Cell Update Handler for Direct Field Updates (e.g. Note)
+  const handleInlineCellUpdate = async (item: RecoItem, field: keyof RecoItem, newValue: any) => {
+    const updatedItem = {
+      ...item,
+      [field]: newValue,
+      updated_at: new Date().toISOString()
+    };
+
+    // 1. Optimistic Local State Update
+    setRecoList(prev => prev.map(p => p.id_reco === item.id_reco ? updatedItem : p));
+
+    // 2. Local Storage Cache
+    try {
+      const currentList = recoList.map(p => p.id_reco === item.id_reco ? updatedItem : p);
+      localStorage.setItem('reco_cache_v1', JSON.stringify(currentList));
+    } catch (e) {
+      console.warn('Error caching reco after inline edit:', e);
+    }
+
+    // 3. Supabase Cloud Sync
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('data_reco')
+          .update({ [field]: newValue, updated_at: new Date().toISOString() })
+          .eq('id_reco', item.id_reco);
+
+        if (error) throw error;
+        showToast('Catatan Tersimpan', `Catatan ${item.id_reco} berhasil diperbarui di database.`, 'info');
+      } catch (err: any) {
+        console.error('Error saving inline update to Supabase:', err);
+        showToast('Tersimpan Lokal', `Tersimpan di offline cache. Error cloud: ${err.message}`, 'warning');
+      }
+    }
+  };
+
+  // Google Sheets Config & Sync Handlers
+  const handleSaveGSheetConfig = (newConfig: typeof gSheetConfig) => {
+    setGSheetConfig(newConfig);
+    try {
+      localStorage.setItem('RECO_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
+      localStorage.setItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
+    } catch {}
+  };
+
+  const handleSaveConfigToSupabase = async () => {
+    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
+    if (!rawUrl) {
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook sebelum menyimpan ke cloud.', 'warning');
+      return;
+    }
+
+    setIsSavingToSupabase(true);
+    handleSaveGSheetConfig(gSheetConfig);
+
+    const res = await saveAppSettingToSupabase(
+      'gsheet_sync_config_reco',
+      gSheetConfig,
+      currentUser?.nama || currentUser?.username || 'Admin'
+    );
+    setIsSavingToSupabase(false);
+
+    if (res.success) {
+      setIsConfigFromSupabase(true);
+      showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
+    } else {
+      showToast('Perhatian', res.message || 'Gagal menyimpan ke Supabase.', 'warning');
+      if (res.message?.includes('app_settings')) {
+        setShowSqlHelp(true);
+      }
+    }
+  };
+
+  const handleExecuteGSheetSync = async () => {
+    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
+    if (!rawUrl) {
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Google Apps Script atau Cloudflare Worker.', 'warning');
+      return;
+    }
+
+    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+      showToast('Format URL Tidak Valid', 'URL Webhook harus diawali dengan https:// atau http://', 'warning');
+      return;
+    }
+
+    const itemsToSync = filteredReco.length > 0 ? filteredReco : recoList;
+    if (itemsToSync.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data reco untuk dikirim ke Google Sheets.', 'warning');
+      return;
+    }
+
+    setIsSyncingGSheet(true);
+    setGSheetSyncResult(null);
+
+    try {
+      const headers = [
+        'ID Reco',
+        'Tujuan',
+        'Item Code',
+        'Nama Barang',
+        'Kategori',
+        'Lokasi',
+        'Tipe Lokasi',
+        'Qty Awal',
+        'Qty Akhir',
+        'UOM',
+        'Qty Convert',
+        'UOM Convert',
+        'LPN / SN',
+        'Batch',
+        'Vendor Batch',
+        'SLOC',
+        'Expired Date',
+        'Kode Tujuan',
+        'Status QC',
+        'User Tally',
+        'Shelf Life',
+        'Sumber',
+        'User Input',
+        'Tanggal Update',
+        'Status',
+        'Catatan / Note'
+      ];
+
+      const rows = itemsToSync.map(item => [
+        item.id_reco || '-',
+        item.tujuan || '-',
+        item.item_code || '-',
+        item.item_name || '-',
+        item.category || '-',
+        item.location || '-',
+        item.location_type || '-',
+        Number(item.first_qty) || 0,
+        Number(item.last_qty) || 0,
+        item.uom || '-',
+        Number(item.qty_convert) || 0,
+        item.uom_convert || '-',
+        item.lpn_serial_number || '-',
+        item.batch || '-',
+        item.vendor_batch || '-',
+        item.sloc || '-',
+        item.expired_date || '-',
+        item.destination_code || '-',
+        item.qc_code || '-',
+        item.user_tally || '-',
+        item.shelf_life || '-',
+        item.source || '-',
+        item.user_input || '-',
+        item.tanggal_update ? item.tanggal_update.substring(0, 10) : (item.created_at ? item.created_at.substring(0, 10) : '-'),
+        item.status || '-',
+        item.note || '-'
+      ]);
+
+      const payload = {
+        action: 'sync_reco',
+        mode: gSheetConfig.mode || 'overwrite',
+        sheetName: gSheetConfig.sheetName || 'Reco',
+        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
+        secretToken: gSheetConfig.secretToken || '',
+        timestamp: new Date().toISOString(),
+        totalRows: itemsToSync.length,
+        headers,
+        rows,
+        data: itemsToSync
+      };
+
+      handleSaveGSheetConfig(gSheetConfig);
+
+      const isDirectGoogleScript = rawUrl.includes('script.google.com');
+      let responseJson: any = null;
+      let syncSucceeded = false;
+      let executionMode: 'cors' | 'no-cors' = 'cors';
+
+      try {
+        const res = await fetch(rawUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          try {
+            responseJson = await res.json();
+          } catch {
+            responseJson = { status: 'success' };
+          }
+          syncSucceeded = true;
+          executionMode = 'cors';
+        } else {
+          let errMsg = `HTTP Error ${res.status}`;
+          try {
+            const errBody = await res.json();
+            if (errBody.message) errMsg = errBody.message;
+          } catch {}
+          throw new Error(errMsg);
+        }
+      } catch (directErr: any) {
+        if (isDirectGoogleScript || directErr?.message?.includes('Failed to fetch') || directErr?.name === 'TypeError') {
+          try {
+            await fetch(rawUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+              },
+              body: JSON.stringify(payload)
+            });
+            syncSucceeded = true;
+            executionMode = 'no-cors';
+            responseJson = {
+              status: 'success',
+              message: `Data ${itemsToSync.length} baris reco berhasil dikirim ke Google Apps Script Webhook.`
+            };
+          } catch (noCorsErr: any) {
+            throw directErr;
+          }
+        } else {
+          throw directErr;
+        }
+      }
+
+      if (syncSucceeded) {
+        const msg = responseJson?.message || `${itemsToSync.length} baris data Reco berhasil dikirim ke Google Sheets! (${executionMode.toUpperCase()} mode)`;
+        setGSheetSyncResult({
+          success: true,
+          message: msg,
+          rows: itemsToSync.length,
+          timestamp: new Date().toLocaleTimeString('id-ID'),
+          spreadsheetUrl: gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId}` : undefined
+        });
+        showToast('Sinkronisasi Berhasil', msg, 'success');
+      }
+    } catch (err: any) {
+      console.error('Error syncing to Google Sheets:', err);
+      const errMsg = err?.message || 'Gagal mengirim data ke Webhook Google Sheets.';
+      setGSheetSyncResult({
+        success: false,
+        message: errMsg
+      });
+      showToast('Sinkronisasi Gagal', errMsg, 'danger');
+    } finally {
+      setIsSyncingGSheet(false);
+    }
+  };
+
+  // Load Google Sheet Config on mount
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const saved = await getAppSettingFromSupabase('gsheet_sync_config_reco', null);
+        if (saved && saved.webhookUrl) {
+          setGSheetConfig(saved);
+          setIsConfigFromSupabase(true);
+          return;
+        }
+      } catch (e) {
+        console.warn('Error loading gsheet config from supabase:', e);
+      }
+
+      try {
+        const local = localStorage.getItem('RECO_GSHEET_WEBHOOK_CONFIG') || localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
+        if (local) {
+          const parsed = JSON.parse(local);
+          setGSheetConfig((prev) => ({
+            ...prev,
+            ...parsed,
+            sheetName: parsed.sheetName || 'Reco'
+          }));
+        }
+      } catch (e) {}
+    }
+
+    loadConfig();
+  }, []);
 
   // Multi-Selection Helper
   const allFilteredIds = useMemo(() => filteredReco.map((i) => i.id_reco), [filteredReco]);
@@ -638,6 +959,83 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       totalConvert
     };
   }, [filteredReco, selectedIds]);
+
+  // Bulk Status Update (Selection or all filtered)
+  const handleBulkUpdateStatus = async (statusOverride?: string) => {
+    const finalStatus = (statusOverride || bulkStatusInput || '').trim();
+    if (!finalStatus) {
+      showToast('Status Kosong', 'Harap masukkan nomor dokumen / nama status baru.', 'warning');
+      return;
+    }
+
+    const targetItems = selectedIds.size > 0 
+      ? filteredReco.filter(i => selectedIds.has(i.id_reco))
+      : filteredReco;
+
+    if (targetItems.length === 0) {
+      showToast('Tidak Ada Baris', 'Tidak ada baris data yang terpilih untuk diperbarui.', 'warning');
+      return;
+    }
+
+    const targetIds = targetItems.map(i => i.id_reco);
+    const targetIdSet = new Set(targetIds);
+    const nowIso = new Date().toISOString();
+
+    setIsUpdatingBulkStatus(true);
+
+    // 1. Optimistic Local State & Cache Update
+    setRecoList(prev => prev.map(item => {
+      if (targetIdSet.has(item.id_reco)) {
+        return { ...item, status: finalStatus, updated_at: nowIso };
+      }
+      return item;
+    }));
+
+    try {
+      const updated = recoList.map(item => {
+        if (targetIdSet.has(item.id_reco)) {
+          return { ...item, status: finalStatus, updated_at: nowIso };
+        }
+        return item;
+      });
+      localStorage.setItem('reco_cache_v1', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Error saving reco cache:', e);
+    }
+
+    // 2. Supabase Cloud Update in chunks
+    let cloudError = false;
+    if (isSupabaseConfigured) {
+      try {
+        const chunkSize = 50;
+        for (let i = 0; i < targetIds.length; i += chunkSize) {
+          const chunk = targetIds.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('data_reco')
+            .update({ status: finalStatus, updated_at: nowIso })
+            .in('id_reco', chunk);
+
+          if (error) {
+            console.error('Error updating status chunk in data_reco:', error);
+            cloudError = true;
+          }
+        }
+      } catch (err: any) {
+        console.error('Unexpected error updating status:', err);
+        cloudError = true;
+      }
+    }
+
+    if (cloudError) {
+      showToast('Peringatan', `Status diperbarui di tabel lokal, namun terjadi kendala saat sync ke database cloud.`, 'warning');
+    } else {
+      showToast('Status Massal Diperbarui', `Status ${targetIds.length} baris data berhasil diubah menjadi "${finalStatus}" di TABEL & DATABASE!`, 'success');
+    }
+
+    setIsUpdatingBulkStatus(false);
+    setShowBulkStatusModal(false);
+    setBulkStatusInput('');
+  };
 
   // Pagination Slice
   const paginatedList = useMemo(() => {
@@ -1116,79 +1514,98 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
         </div>
       )}
 
-      {/* KPI Cards (Statistik Cepat Data Reco) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      {/* KPI Cards (6 Metric Cards matching PemusnahanModule layout) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
         {/* Card 1: Total Lot Permintaan */}
-        <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight block">
-              Total Permintaan
-            </span>
-            <div className="text-base sm:text-xl font-black text-slate-900 font-mono mt-0.5">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block">Total Lot</span>
+            <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
               {stats.totalLot.toLocaleString('id-ID')}
-              <span className="text-[10px] font-semibold text-slate-500 ml-1">Lot / Baris</span>
+              <span className="text-[10px] font-normal text-slate-400 ml-1">Lot / Baris</span>
             </div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-800 flex items-center justify-center">
-            <ClipboardList size={16} />
+          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+            <ClipboardList size={15} />
           </div>
         </div>
 
-        {/* Card 2: Total Qty (CTN) */}
-        <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        {/* Card 2: Total Qty (PCS) */}
+        <div className="p-2.5 rounded-xl bg-white border border-purple-200/80 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight block">
-              Total Qty (CTN)
-            </span>
-            <div className="text-base sm:text-xl font-black text-blue-900 font-mono mt-0.5">
-              {stats.totalCtn.toLocaleString('id-ID')}
-              <span className="text-[10px] font-semibold text-blue-600 ml-1">CTN</span>
-            </div>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
-            <Package size={16} />
-          </div>
-        </div>
-
-        {/* Card 3: Total Konversi (PCS) */}
-        <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight block">
-              Total Konversi (PCS)
-            </span>
-            <div className="text-base sm:text-xl font-black text-emerald-800 font-mono mt-0.5">
+            <span className="text-[10px] font-extrabold text-purple-700 uppercase tracking-tight block">Total Qty (PCS)</span>
+            <div className="text-base sm:text-lg font-black text-purple-900 font-mono">
               {stats.totalPcs.toLocaleString('id-ID')}
-              <span className="text-[10px] font-semibold text-emerald-600 ml-1">PCS</span>
+              <span className="text-[10px] font-normal text-purple-400 ml-1">PCS</span>
             </div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-            <Boxes size={16} />
+          <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
+            <Package size={15} />
           </div>
         </div>
 
-        {/* Card 4: Status Permintaan */}
-        <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        {/* Card 3: Dari Penyiapan */}
+        <div className="p-2.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-tight block">
-              Status Permintaan
-            </span>
-            <div className="text-xs sm:text-sm font-black text-purple-900 font-mono mt-0.5">
-              <span className="text-amber-700">{stats.totalPending} Menunggu</span>
-              <span className="text-slate-400 mx-1">/</span>
-              <span className="text-emerald-700">{stats.totalDone} Selesai</span>
+            <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-tight block">Dari Penyiapan</span>
+            <div className="text-base sm:text-lg font-black text-indigo-900 font-mono">
+              {stats.fromPenyiapanCount.toLocaleString('id-ID')}
+              <span className="text-[10px] font-normal text-indigo-400 ml-1">Baris</span>
             </div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-            <Clock size={16} />
+          <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+            <Boxes size={15} />
+          </div>
+        </div>
+
+        {/* Card 4: Menunggu Reco / Permintaan */}
+        <div className="p-2.5 rounded-xl bg-white border border-amber-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-tight block">Menunggu Reco</span>
+            <div className="text-base sm:text-lg font-black text-amber-800 font-mono">
+              {stats.pendingCount.toLocaleString('id-ID')}
+              <span className="text-[10px] font-normal text-amber-400 ml-1">Baris</span>
+            </div>
+          </div>
+          <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <Clock size={15} />
+          </div>
+        </div>
+
+        {/* Card 5: Selesai / Disetujui */}
+        <div className="p-2.5 rounded-xl bg-white border border-emerald-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-tight block">Selesai / Selesai</span>
+            <div className="text-base sm:text-lg font-black text-emerald-800 font-mono">
+              {stats.doneCount.toLocaleString('id-ID')}
+              <span className="text-[10px] font-normal text-emerald-400 ml-1">Baris</span>
+            </div>
+          </div>
+          <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <ShieldCheck size={15} />
+          </div>
+        </div>
+
+        {/* Card 6: SKU Unik */}
+        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block">SKU Unik</span>
+            <div className="text-base sm:text-lg font-black text-slate-800 font-mono">
+              {stats.uniqueSkuCount.toLocaleString('id-ID')}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">Item</span>
+            </div>
+          </div>
+          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+            <Layers size={15} />
           </div>
         </div>
       </div>
 
-      {/* Control Bar: Search, Voice Search, Filters, Add & Excel Actions */}
-      <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* Search Box with Speech to Text */}
-          <div className="relative flex-1 min-w-[200px] max-w-md">
+      {/* Control Bar: Search Box, Filter Tujuan Dropdown, and Action Buttons (Exact PemusnahanModule layout) */}
+      <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+          {/* Search Box with Speech Recognition */}
+          <div className="relative flex-1 min-w-[240px]">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -1197,43 +1614,70 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Cari SKU, Nama Barang, LPN, Batch, SLoc..."
-              className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-purple-600 outline-none"
+              placeholder="Cari SKU, Nama Barang, Batch, Expired Date, Tujuan, Status, Note..."
+              className="w-full pl-8 pr-16 py-1.5 rounded-lg border border-slate-300 bg-slate-50/50 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1.5 focus:ring-purple-500"
             />
-            {searchQuery ? (
+            {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                title="Hapus Pencarian"
               >
                 <X size={13} />
               </button>
-            ) : isSpeechSupported ? (
-              <button
-                onClick={handleToggleVoiceSearch}
-                className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded cursor-pointer ${
-                  isListeningSearch ? 'text-rose-600 animate-pulse' : 'text-slate-400 hover:text-purple-700'
-                }`}
-                title="Voice Search"
-              >
-                {isListeningSearch ? <MicOff size={14} /> : <Mic size={14} />}
-              </button>
-            ) : null}
-
-            {speechFeedbackSearch && (
-              <div className="absolute top-full left-0 mt-1 z-20 px-2 py-1 rounded bg-purple-900 text-white text-[10px] font-bold shadow-md">
-                {speechFeedbackSearch}
-              </div>
             )}
+            <button
+              type="button"
+              onClick={handleToggleVoiceSearch}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors cursor-pointer ${
+                isListeningSearch ? 'bg-rose-100 text-rose-600 animate-pulse' : 'text-slate-400 hover:text-purple-700'
+              }`}
+              title={isListeningSearch ? 'Berhenti mendengarkan suara' : 'Pencarian Suara'}
+            >
+              {isListeningSearch ? <Radio size={13} className="animate-spin" /> : <Mic size={13} />}
+            </button>
           </div>
 
-          {/* Action Buttons: Tambah Permintaan, Upload & Export Excel */}
-          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {/* Filter Dropdown: Tujuan Only (Matching PemusnahanModule) */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Filter Tujuan:</span>
+            <select
+              value={tujuanFilter}
+              onChange={(e) => {
+                setTujuanFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-2.5 py-1.5 rounded-lg border border-purple-200 bg-purple-50/40 text-xs font-extrabold text-slate-800 focus:outline-none focus:ring-1.5 focus:ring-purple-500 min-w-[220px]"
+            >
+              <option value="ALL">Semua Tujuan ({recoList.length} baris)</option>
+              {uniqueTujuanList.map(tujuan => (
+                <option key={tujuan} value={tujuan}>
+                  🎯 {tujuan}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Action Buttons: Tambah Reco, Sync Google Sheets, Upload Excel, Export Excel */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
+              type="button"
               onClick={handleOpenCreateModal}
-              className="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
             >
               <Plus size={14} />
               <span>Tambah Reco</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowGSheetModal(true)}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              title="Kirim / Sinkronisasi Data Reco ke Google Sheets Spreadsheet via Webhook"
+            >
+              <Share2 size={13} />
+              <span>Sync Google Sheets</span>
             </button>
 
             {/* Hidden Input File for Excel Upload */}
@@ -1246,9 +1690,10 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
             />
 
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessingExcel}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
               title="Upload File Excel"
             >
               <Upload size={13} />
@@ -1256,8 +1701,9 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
             </button>
 
             <button
+              type="button"
               onClick={handleExportExcel}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
               title="Download Laporan Excel (.xlsx)"
             >
               <Download size={13} />
@@ -1266,371 +1712,385 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
           </div>
         </div>
 
-        {/* Filters Row */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-1 text-slate-500 font-bold text-[11px]">
-            <Filter size={12} />
-            <span>Filter:</span>
-          </div>
-
-          {/* Filter Tujuan */}
-          <select
-            value={tujuanFilter}
-            onChange={(e) => {
-              setTujuanFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 focus:bg-white outline-none"
-          >
-            <option value="ALL">Semua Tujuan</option>
-            {uniqueTujuanList.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-
-          {/* Filter Status */}
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 focus:bg-white outline-none"
-          >
-            <option value="ALL">Semua Status</option>
-            {uniqueStatusList.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          {/* Filter SLoc */}
-          <select
-            value={slocFilter}
-            onChange={(e) => {
-              setSlocFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 focus:bg-white outline-none"
-          >
-            <option value="ALL">Semua SLoc</option>
-            {uniqueSlocList.map((sl) => (
-              <option key={sl} value={sl}>
-                {sl}
-              </option>
-            ))}
-          </select>
-
-          {(tujuanFilter !== 'ALL' || statusFilter !== 'ALL' || slocFilter !== 'ALL' || searchQuery) && (
+        {/* Speech Recognition Feedback Banner */}
+        {speechFeedbackSearch && (
+          <div className="p-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-800 text-[11px] font-bold flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Sparkles size={12} className="text-purple-600 animate-spin" />
+              <span>{speechFeedbackSearch}</span>
+            </div>
             <button
-              onClick={() => {
-                setTujuanFilter('ALL');
-                setStatusFilter('ALL');
-                setSlocFilter('ALL');
-                setSearchQuery('');
-                setCurrentPage(1);
-              }}
-              className="px-2 py-0.5 rounded text-[10px] font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
+              onClick={() => setSpeechFeedbackSearch(null)}
+              className="text-purple-600 hover:text-purple-800 cursor-pointer"
             >
-              Reset Filter
+              <X size={12} />
             </button>
-          )}
-
-          <span className="ml-auto text-[11px] text-slate-500 font-bold">
-            Menampilkan: <strong className="text-slate-800">{filteredReco.length}</strong> data
-          </span>
-        </div>
-      </div>
-
-      {/* Floating Action Bar when Rows are Selected */}
-      {selectedIds.size > 0 && (
-        <div className="p-2.5 rounded-xl bg-purple-900 text-white shadow-lg flex flex-wrap items-center justify-between gap-2 text-xs animate-fade-in">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-purple-700 font-mono font-bold text-[11px]">
-              {selectedIds.size} dipilih
-            </span>
-            <span className="text-purple-200 text-[11px]">
-              (Total Qty: <strong>{selectedSummary.totalQty.toLocaleString('id-ID')}</strong> | Konversi:{' '}
-              <strong>{selectedSummary.totalConvert.toLocaleString('id-ID')} PCS</strong>)
-            </span>
           </div>
+        )}
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                setBulkStatusInput('');
-                setShowBulkStatusModal(true);
-              }}
-              className="px-2.5 py-1 rounded-lg bg-purple-700 hover:bg-purple-600 font-bold text-xs cursor-pointer flex items-center gap-1"
-            >
-              <CheckCircle2 size={13} />
-              <span>Ubah Status</span>
-            </button>
+        {/* Quick Filter Active Tags */}
+        {(searchQuery || tujuanFilter !== 'ALL') && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Filter Aktif:</span>
 
-            {isSuperAdmin && (
-              <button
-                onClick={() => setShowBulkDeleteModal(true)}
-                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 font-bold text-xs cursor-pointer flex items-center gap-1"
-              >
-                <Trash2 size={13} />
-                <span>Hapus Terpilih</span>
-              </button>
+            {tujuanFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-900 text-[11px] font-bold">
+                🎯 Tujuan: {tujuanFilter}
+                <button onClick={() => setTujuanFilter('ALL')} className="hover:text-purple-950 cursor-pointer"><X size={11} /></button>
+              </span>
+            )}
+
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-bold">
+                Pencarian: "{searchQuery}"
+                <button onClick={() => setSearchQuery('')} className="hover:text-slate-950 cursor-pointer"><X size={11} /></button>
+              </span>
             )}
 
             <button
-              onClick={() => setSelectedIds(new Set())}
-              className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-purple-200 text-xs font-bold cursor-pointer"
+              type="button"
+              onClick={() => {
+                setTujuanFilter('ALL');
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
+              className="ml-auto inline-flex items-center gap-1 text-[11px] text-purple-600 hover:text-purple-800 font-bold hover:underline cursor-pointer bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200"
             >
-              Batal
+              <RotateCcw size={11} />
+              Reset Filter
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Data Table (AppSheet Style Responsive Grid) */}
+      {/* ========================================================================= */}
+      {/* BULK ACTIONS TOOLBAR (UPDATE STATUS MASSAL & HAPUS MASSAL) */}
+      {/* ========================================================================= */}
+      <div className="p-3 rounded-xl bg-gradient-to-r from-purple-50/90 via-slate-50 to-purple-50/60 border border-purple-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        
+        {/* Selection Controller */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleToggleSelectAll}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              selectedIds.size === filteredReco.length && filteredReco.length > 0
+                ? 'bg-purple-700 border-purple-800 text-white shadow-xs'
+                : selectedIds.size > 0
+                ? 'bg-purple-100 border-purple-300 text-purple-900 font-black'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {selectedIds.size === filteredReco.length && filteredReco.length > 0 ? (
+              <CheckSquare size={14} className="text-white" />
+            ) : selectedIds.size > 0 ? (
+              <MinusSquare size={14} className="text-purple-700" />
+            ) : (
+              <Square size={14} className="text-slate-400" />
+            )}
+            <span>
+              {selectedIds.size > 0
+                ? `${selectedIds.size} Baris Dipilih`
+                : `Pilih Semua Data (${filteredReco.length})`}
+            </span>
+          </button>
+
+          {selectedIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-[11px] font-bold text-slate-500 hover:text-slate-700 hover:underline px-1 cursor-pointer"
+            >
+              Batalkan Pilihan
+            </button>
+          )}
+
+          {tujuanFilter !== 'ALL' && (
+            <span className="text-[11px] font-bold text-purple-800 bg-purple-100/80 px-2 py-1 rounded-md">
+              Filter: {tujuanFilter} ({filteredReco.length} baris)
+            </span>
+          )}
+        </div>
+
+        {/* Quick Bulk Update Status / No. Dokumen Input & Bulk Delete Button */}
+        <div className="flex items-center gap-2 flex-wrap flex-1 max-w-2xl justify-start md:justify-end">
+          <div className="relative flex-1 min-w-[220px]">
+            <FileText size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={bulkStatusInput}
+              onChange={(e) => setBulkStatusInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleBulkUpdateStatus();
+                }
+              }}
+              placeholder="Isi No. Dokumen / Status Reco..."
+              className="w-full pl-8 pr-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-1.5 focus:ring-purple-500 shadow-2xs"
+            />
+          </div>
+
+          {/* Bulk Update Status Button */}
+          <button
+            type="button"
+            onClick={() => handleBulkUpdateStatus()}
+            disabled={isUpdatingBulkStatus}
+            className="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            title="Update status semua baris yang dipilih / terfilter sekaligus ke tabel & database"
+          >
+            {isUpdatingBulkStatus ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+            <span>Update Status Massal {selectedIds.size > 0 ? `(${selectedIds.size})` : `(${filteredReco.length})`}</span>
+          </button>
+
+          {/* Bulk Delete Button (Tabel & Database) */}
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteModal(true)}
+              className="px-3 py-1.5 rounded-lg bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 hover:text-rose-900 text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              title="Hapus massal data terpilih dari TABEL & DATABASE Supabase"
+            >
+              <Trash2 size={13} className="text-rose-600" />
+              <span>Hapus Massal {selectedIds.size > 0 ? `(${selectedIds.size})` : `(${filteredReco.length})`}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DATA TABLE (APPSHEET STYLE MATCHING PEMUSNAHAN) */}
+      {/* ========================================================================= */}
       <div className="rounded-xl bg-white border border-slate-200/80 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto min-h-[300px]">
+        
+        {/* Table Top Status Bar */}
+        <div className="p-2 sm:p-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-1.5 text-xs font-bold text-slate-600">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <ClipboardList size={14} className="text-purple-700" />
+            <span>Daftar Data Reco ({filteredReco.length} item)</span>
+            {tujuanFilter !== 'ALL' && (
+              <span className="px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-900 text-[10px] font-extrabold">
+                Tujuan: {tujuanFilter}
+              </span>
+            )}
+            {selectedIds.size > 0 && (
+              <span className="px-1.5 py-0.5 rounded-md bg-purple-600 text-white text-[10px] font-black font-mono">
+                {selectedIds.size} dipilih
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-400 font-semibold hidden sm:inline">Tampilkan:</span>
+            <select
+              value={rowsPerPage}
+              onChange={(e) => {
+                const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                setRowsPerPage(val);
+                setCurrentPage(1);
+              }}
+              className="px-2 py-0.5 rounded border border-slate-300 bg-white text-[11px] font-bold text-slate-700 focus:outline-none"
+            >
+              <option value="ALL">Semua (Semua Baris)</option>
+              <option value={25}>25 Baris</option>
+              <option value={50}>50 Baris</option>
+              <option value={100}>100 Baris</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Responsive Table Wrapper */}
+        <div className="overflow-x-auto min-h-[250px]">
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
             <thead>
-              <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase tracking-tight text-[10px] border-b border-slate-200 select-none">
-                {/* Checkbox All */}
-                <th className="px-2 py-2 text-center w-8">
-                  <button
-                    onClick={handleToggleSelectAll}
-                    className="p-1 rounded text-slate-600 hover:text-purple-900 cursor-pointer"
-                    title={isAllSelected ? 'Batalkan pilihan semua' : 'Pilih semua baris'}
-                  >
-                    {isAllSelected ? (
-                      <CheckSquare size={14} className="text-purple-800" />
-                    ) : isSomeSelected ? (
-                      <MinusSquare size={14} className="text-purple-600" />
-                    ) : (
-                      <Square size={14} className="text-slate-400" />
-                    )}
-                  </button>
+              <tr className="bg-slate-100/90 text-slate-700 font-extrabold uppercase tracking-tight text-[10px] border-b border-slate-200 select-none">
+                {/* Select All Checkbox Column */}
+                <th className="px-2 py-1.5 text-center w-8">
+                  <input
+                    type="checkbox"
+                    checked={filteredReco.length > 0 && selectedIds.size === filteredReco.length}
+                    onChange={handleToggleSelectAll}
+                    className="rounded border-slate-300 text-purple-700 focus:ring-purple-600 cursor-pointer w-3.5 h-3.5"
+                    title="Pilih Semua Baris"
+                  />
                 </th>
-                <th className="px-2 py-2 text-center w-10">No</th>
-                <th className="px-2 py-2 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
-                <th
-                  onClick={() => {
-                    setSortField('item_code');
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  }}
-                  className="px-2.5 py-2 cursor-pointer hover:bg-slate-200 transition-colors"
-                >
+                <th className="px-2 py-1.5 text-center w-10">No</th>
+                <th onClick={() => handleSort('tujuan')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
-                    <span>Kode Barang</span>
+                    <span>Tujuan</span>
                     <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
-                <th
-                  onClick={() => {
-                    setSortField('item_name');
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  }}
-                  className="px-2.5 py-2 cursor-pointer hover:bg-slate-200 transition-colors"
-                >
+                <th onClick={() => handleSort('item_name')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
                   <div className="flex items-center gap-1">
-                    <span>Nama Barang</span>
+                    <span>Item Name</span>
                     <ArrowUpDown size={11} className="text-slate-400" />
                   </div>
                 </th>
-                <th className="px-2 py-2 text-right">Qty</th>
-                <th className="px-2 py-2 text-center">UOM</th>
-                <th className="px-2 py-2 text-right">Konversi</th>
-                <th className="px-2 py-2 text-center">UOM Konv</th>
-                <th className="px-2.5 py-2">LPN / Serial No</th>
-                <th className="px-2 py-2 text-center">Batch</th>
-                <th className="px-2 py-2 text-center">SLoc</th>
-                <th className="px-2.5 py-2">Lokasi</th>
-                <th className="px-2.5 py-2">Tujuan</th>
-                <th className="px-2 py-2 text-center">QC</th>
-                <th className="px-2.5 py-2">Petugas Tally</th>
-                <th className="px-2 py-2 text-center">Tgl Input</th>
-                <th className="px-2 py-2 text-center w-20 sticky right-0 bg-slate-100 z-10">Aksi</th>
+                <th onClick={() => handleSort('last_qty')} className="px-2.5 py-1.5 text-right cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center justify-end gap-1">
+                    <span>Qty</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('uom')} className="px-2.5 py-1.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>UOM</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('batch')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Batch</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('expired_date')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Expired Date</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('status')} className="px-2.5 py-1.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Status</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
+                <th onClick={() => handleSort('note')} className="px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors">
+                  <div className="flex items-center gap-1">
+                    <span>Note</span>
+                    <ArrowUpDown size={11} className="text-slate-400" />
+                  </div>
+                </th>
               </tr>
             </thead>
-
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+            <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={18} className="py-12 text-center text-slate-500 text-xs">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <RefreshCw size={24} className="text-purple-600 animate-spin" />
-                      <span>Memuat data Permintaan Barang (Reco)...</span>
+                  <td colSpan={10} className="p-6 text-center text-slate-500 font-bold">
+                    <div className="flex items-center justify-center gap-2">
+                      <RefreshCw size={16} className="animate-spin text-purple-700" />
+                      <span>Memuat data permintaan barang (reco) dari database...</span>
                     </div>
                   </td>
                 </tr>
               ) : paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={18} className="py-12 text-center text-slate-500 text-xs">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center">
-                        <ClipboardList size={24} />
-                      </div>
-                      <span className="font-bold text-slate-700">Belum ada data permintaan barang (Reco)</span>
-                      <p className="text-[11px] text-slate-500 max-w-sm m-0">
-                        Gunakan tombol "Tambah Reco", "Upload Excel", atau pindahkan data dari menu Penyiapan melalui fitur Pindah Massal.
+                  <td colSpan={10} className="p-6 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      <ClipboardList size={28} className="text-slate-300" />
+                      <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Reco</span>
+                      <p className="text-[11px] text-slate-400 max-w-md m-0">
+                        {searchQuery || tujuanFilter !== 'ALL'
+                          ? 'Tidak ditemukan data yang cocok dengan kriteria filter tujuan atau pencarian.'
+                          : 'Data reco dapat dikirim dari modul Penyiapan, atau ditambah secara manual / upload Excel.'}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                paginatedList.map((item, idx) => {
+                paginatedList.map((item, index) => {
+                  const rowNumber = rowsPerPage === 'ALL' ? index + 1 : (currentPage - 1) * rowsPerPage + index + 1;
                   const isChecked = selectedIds.has(item.id_reco);
-                  const rowNumber = rowsPerPage === 'ALL' ? idx + 1 : (currentPage - 1) * rowsPerPage + idx + 1;
-                  const statusText = item.status || 'Permintaan Reco';
-                  const isDone = statusText.toLowerCase().includes('selesai') || statusText.toLowerCase().includes('disetujui');
 
                   return (
                     <tr
-                      key={item.id_reco}
-                      className={`hover:bg-purple-50/40 transition-colors ${isChecked ? 'bg-purple-50/70 font-semibold' : ''}`}
+                      key={item.id_reco || index}
+                      onClick={() => handleOpenDetailModal(item)}
+                      className={`transition-colors group cursor-pointer ${
+                        isChecked ? 'bg-purple-50/80 hover:bg-purple-100/70' : 'hover:bg-purple-50/50'
+                      }`}
+                      title="Klik baris untuk melihat detail / edit data"
                     >
-                      {/* Select Checkbox */}
-                      <td className="px-2 py-1.5 text-center">
+                      {/* Checkbox */}
+                      <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => handleToggleSelectRow(item.id_reco)}
-                          className="cursor-pointer accent-purple-800"
+                          className="rounded border-slate-300 text-purple-700 focus:ring-purple-600 cursor-pointer w-3.5 h-3.5"
+                          title="Pilih Baris"
                         />
                       </td>
 
-                      {/* Number */}
-                      <td className="px-2 py-1.5 text-center text-[10px] text-slate-400 font-mono">
+                      {/* No */}
+                      <td className="px-2 py-1.5 text-center text-slate-400 font-mono text-[10px]">
                         {rowNumber}
                       </td>
 
-                      {/* Status */}
-                      <td className="px-2 py-1.5 text-center sticky left-0 bg-white z-10">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                            isDone
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-purple-100 text-purple-900 border border-purple-300'
-                          }`}
-                        >
-                          {statusText}
-                        </span>
-                      </td>
-
-                      {/* Item Code */}
-                      <td className="px-2.5 py-1.5 font-mono text-purple-900 font-bold">
-                        {item.item_code}
-                      </td>
-
-                      {/* Item Name */}
-                      <td className="px-2.5 py-1.5 text-slate-900 max-w-[200px] truncate" title={item.item_name}>
-                        {item.item_name}
-                      </td>
-
-                      {/* Last Qty */}
-                      <td className="px-2 py-1.5 text-right font-mono font-bold text-slate-900">
-                        {(item.last_qty || item.first_qty || 0).toLocaleString('id-ID')}
-                      </td>
-
-                      {/* UOM */}
-                      <td className="px-2 py-1.5 text-center font-bold text-slate-600 text-[10px]">
-                        {item.uom || 'CTN'}
-                      </td>
-
-                      {/* Qty Convert */}
-                      <td className="px-2 py-1.5 text-right font-mono font-bold text-emerald-800">
-                        {(item.qty_convert || 0).toLocaleString('id-ID')}
-                      </td>
-
-                      {/* UOM Convert */}
-                      <td className="px-2 py-1.5 text-center font-bold text-emerald-700 text-[10px]">
-                        {item.uom_convert || 'PCS'}
-                      </td>
-
-                      {/* LPN / Serial Number */}
-                      <td className="px-2.5 py-1.5">
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono text-[11px] text-slate-700">{item.lpn_serial_number || '-'}</span>
-                          {item.lpn_serial_number && item.lpn_serial_number !== '-' && (
-                            <button
-                              onClick={() => handleCopyLpn(item.lpn_serial_number)}
-                              className="text-slate-400 hover:text-purple-700 p-0.5 cursor-pointer"
-                              title="Salin LPN"
-                            >
-                              <Copy size={11} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Batch */}
-                      <td className="px-2 py-1.5 text-center font-mono text-[11px]">
-                        {item.batch || '-'}
-                      </td>
-
-                      {/* SLoc */}
-                      <td className="px-2 py-1.5 text-center font-mono font-bold text-slate-800 text-[10px]">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100">{item.sloc || 'SL03'}</span>
-                      </td>
-
-                      {/* Location */}
-                      <td className="px-2.5 py-1.5 text-slate-700 text-[11px]">
-                        {item.location || 'WH-RECO-01'}
-                      </td>
-
                       {/* Tujuan */}
-                      <td className="px-2.5 py-1.5 text-slate-700 text-[11px]">
+                      <td className="px-2.5 py-1.5 text-xs font-bold text-slate-800 min-w-[140px] max-w-[200px] truncate" title={item.tujuan || 'Permintaan Barang'}>
                         {item.tujuan || 'Permintaan Barang'}
                       </td>
 
-                      {/* QC Code */}
-                      <td className="px-2 py-1.5 text-center">
-                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[9px] font-bold border border-emerald-200">
-                          {item.qc_code || 'QC-PASS'}
+                      {/* Item Name */}
+                      <td className="px-2.5 py-1.5 min-w-[180px] max-w-xs" title={item.item_name}>
+                        <div className="font-extrabold text-slate-800 text-xs truncate">
+                          {item.item_name}
+                        </div>
+                        {item.item_code && (
+                          <div className="text-[10px] font-mono text-slate-500">
+                            {item.item_code}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Qty */}
+                      <td className="px-2.5 py-1.5 text-right font-mono font-black text-purple-900 text-xs min-w-[80px]">
+                        {Number(item.last_qty !== undefined && item.last_qty !== null ? item.last_qty : (item.first_qty ?? 0)).toLocaleString('id-ID')}
+                      </td>
+
+                      {/* Uom */}
+                      <td className="px-2 py-1.5 text-center font-bold text-slate-700 text-xs min-w-[60px] uppercase">
+                        {item.uom || 'CTN'}
+                      </td>
+
+                      {/* Batch */}
+                      <td className="px-2.5 py-1.5 font-mono text-xs font-bold text-slate-700 min-w-[90px]">
+                        {item.batch || '-'}
+                      </td>
+
+                      {/* Expired Date */}
+                      <td className="px-2.5 py-1.5 font-mono text-xs font-bold text-slate-700 min-w-[100px]">
+                        {item.expired_date || '-'}
+                      </td>
+
+                      {/* Status Column (Badge) */}
+                      <td className="px-2 py-1.5 text-center min-w-[130px]">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                          /^\d+$/.test(item.status || '') 
+                            ? 'bg-indigo-50 text-indigo-900 border-indigo-300 font-mono'
+                            : (item.status || '').toLowerCase().includes('selesai') || (item.status || '').toLowerCase().includes('completed') || (item.status || '').toLowerCase().includes('disetujui')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : (item.status || '').toLowerCase().includes('in-progress') || (item.status || '').toLowerCase().includes('proses')
+                            ? 'bg-blue-100 text-blue-900 border-blue-300'
+                            : 'bg-purple-100 text-purple-900 border-purple-300'
+                        }`}>
+                          {item.status || 'Permintaan Reco'}
                         </span>
                       </td>
 
-                      {/* User Tally */}
-                      <td className="px-2.5 py-1.5 text-slate-600 text-[11px]">
-                        {item.user_tally || 'Tally Reco'}
-                      </td>
-
-                      {/* Tanggal Input */}
-                      <td className="px-2 py-1.5 text-center text-[10px] text-slate-500 font-mono">
-                        {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : '-'}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-2 py-1.5 text-center sticky right-0 bg-white z-10">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleOpenDetailModal(item)}
-                            className="p-1 rounded text-slate-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer transition-colors"
-                            title="Lihat Detail & QR"
-                          >
-                            <Eye size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(item)}
-                            className="p-1 rounded text-slate-600 hover:text-purple-700 hover:bg-purple-50 cursor-pointer transition-colors"
-                            title="Edit Data"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setShowDeleteModal(true);
-                              }}
-                              className="p-1 rounded text-slate-600 hover:text-rose-700 hover:bg-rose-50 cursor-pointer transition-colors"
-                              title="Hapus Data"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
+                      {/* Note (Direct inline cell editing) */}
+                      <td className="px-2 py-1 text-xs text-slate-600 min-w-[150px] max-w-[240px]" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          defaultValue={item.note || ''}
+                          key={`note-${item.id_reco}-${item.note}`}
+                          placeholder="Klik untuk isi catatan..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.note || '')) {
+                              handleInlineCellUpdate(item, 'note', e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-2 py-1 text-xs text-slate-700 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1.5 focus:ring-purple-500 rounded border border-transparent hover:border-slate-300 focus:border-purple-400 outline-none transition-all truncate placeholder:text-slate-300 font-medium"
+                          title="Klik untuk edit Note / Catatan langsung di cell"
+                        />
                       </td>
                     </tr>
                   );
@@ -1640,47 +2100,38 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
           </table>
         </div>
 
-        {/* Pagination Bar */}
-        <div className="p-2.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-          <div className="flex items-center gap-2">
-            <span>Tampilkan per halaman:</span>
-            <select
-              value={rowsPerPage}
-              onChange={(e) => {
-                setRowsPerPage(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-0.5 rounded border border-slate-300 bg-white font-bold text-[11px]"
-            >
-              <option value="ALL">Semua</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
+        {/* Pagination Controls */}
+        {rowsPerPage !== 'ALL' && totalPages > 1 && (
+          <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 text-xs">
+            <span className="text-slate-500 font-medium text-[11px]">
+              Halaman {currentPage} dari {totalPages} ({filteredReco.length} total baris)
+            </span>
 
-          {rowsPerPage !== 'ALL' && totalPages > 1 && (
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="p-1 rounded border border-slate-300 bg-white disabled:opacity-40 cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                title="Halaman Sebelumnya"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={15} />
               </button>
-              <span className="font-bold text-[11px]">
-                {currentPage} / {totalPages}
+
+              <span className="px-3 py-1 font-bold text-slate-800 bg-white border border-slate-200 rounded-lg">
+                {currentPage}
               </span>
+
               <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1 rounded border border-slate-300 bg-white disabled:opacity-40 cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                title="Halaman Selanjutnya"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={15} />
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -2367,6 +2818,210 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
               >
                 <Check size={14} />
                 <span>{isPushing ? 'Mengimpor...' : `Simpan ${parsedExcelRows.length} Data`}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: GOOGLE SHEETS SPREADSHEET SYNC WEBHOOK */}
+      {/* ========================================================================= */}
+      {showGSheetModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 text-white flex items-center justify-between shadow-xs shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-emerald-200">
+                  <Share2 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black tracking-tight m-0 uppercase">
+                    Sinkronisasi ke Google Sheets
+                  </h3>
+                  <p className="text-[11px] text-emerald-200 m-0">Kirim Data Reco via Google Apps Script Webhook</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowGSheetModal(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Target Data Info */}
+              <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-tight text-purple-600 block">Data yang Akan Dikirim</span>
+                  <div className="text-sm font-black font-mono mt-0.5">
+                    {filteredReco.length} baris data
+                    {tujuanFilter !== 'ALL' && <span className="text-xs font-bold text-purple-700 ml-1">(Filter: {tujuanFilter})</span>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-500 block">Total Qty (CTN / PCS)</span>
+                  <span className="font-mono font-bold text-purple-900 text-xs">
+                    {stats.totalCtn.toLocaleString('id-ID')} CTN / {stats.totalPcs.toLocaleString('id-ID')} PCS
+                  </span>
+                </div>
+              </div>
+
+              {/* Form Config Inputs */}
+              <div className="space-y-3">
+                {/* Webhook URL Input */}
+                <div>
+                  <label className="block text-slate-700 font-bold text-xs mb-1">
+                    Google Apps Script Webhook URL <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={gSheetConfig.webhookUrl}
+                    onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1 m-0">
+                    URL deployment Web App dari Google Apps Script dengan akses <em>Anyone</em>.
+                  </p>
+                </div>
+
+                {/* Spreadsheet ID & Sheet Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold text-xs mb-1">
+                      Spreadsheet ID <span className="text-slate-400 font-normal">(Opsional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={gSheetConfig.spreadsheetId}
+                      onChange={e => setGSheetConfig({ ...gSheetConfig, spreadsheetId: e.target.value })}
+                      placeholder="1BxiMVs0XRA5nFMd..."
+                      className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold text-xs mb-1">
+                      Nama Tab / Sheet
+                    </label>
+                    <input
+                      type="text"
+                      value={gSheetConfig.sheetName}
+                      onChange={e => setGSheetConfig({ ...gSheetConfig, sheetName: e.target.value })}
+                      placeholder="Reco"
+                      className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Mode & Secret Token */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold text-xs mb-1">
+                      Mode Pengiriman Data
+                    </label>
+                    <select
+                      value={gSheetConfig.mode}
+                      onChange={e => setGSheetConfig({ ...gSheetConfig, mode: e.target.value as any })}
+                      className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer transition-all"
+                    >
+                      <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua)</option>
+                      <option value="append">➕ Append (Tambah di Bawah)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold text-xs mb-1">
+                      Secret Token <span className="text-slate-400 font-normal">(Opsional)</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={gSheetConfig.secretToken}
+                      onChange={e => setGSheetConfig({ ...gSheetConfig, secretToken: e.target.value })}
+                      placeholder="Token otorisasi jika ada..."
+                      className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sync Result Box */}
+              {gSheetSyncResult && (
+                <div
+                  className={`p-3.5 rounded-xl border text-xs animate-fade-in ${
+                    gSheetSyncResult.success
+                      ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                      : 'bg-rose-50/90 border-rose-300 text-rose-950'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    {gSheetSyncResult.success ? (
+                      <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="font-bold flex items-center justify-between gap-2">
+                        <span>{gSheetSyncResult.success ? 'Sinkronisasi Berhasil!' : 'Gagal Sinkronisasi'}</span>
+                        {gSheetSyncResult.timestamp && (
+                          <span className="text-[10px] font-normal text-slate-500 shrink-0">
+                            {gSheetSyncResult.timestamp}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs leading-relaxed m-0 text-slate-700">
+                        {gSheetSyncResult.message}
+                      </p>
+                      {gSheetSyncResult.spreadsheetUrl && (
+                        <div className="pt-1">
+                          <a
+                            href={gSheetSyncResult.spreadsheetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
+                          >
+                            <span>Buka Google Spreadsheet</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowGSheetModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold transition-all cursor-pointer text-xs shadow-2xs"
+              >
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                disabled={isSyncingGSheet || !gSheetConfig.webhookUrl.trim()}
+                onClick={handleExecuteGSheetSync}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold shadow-sm hover:shadow transition-all cursor-pointer flex items-center gap-2 text-xs"
+              >
+                {isSyncingGSheet ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Mengirim Data ({filteredReco.length} Item)...</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 size={14} />
+                    <span>Kirim Sekarang ke Google Sheets</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

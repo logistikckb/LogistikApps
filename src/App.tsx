@@ -11,6 +11,7 @@ import { QrGeneratorHoneywellModule } from './components/logistics/QrGeneratorHo
 import { PenyiapanModule } from './components/logistics/PenyiapanModule';
 import { PemusnahanModule } from './components/logistics/PemusnahanModule';
 import { RecoModule } from './components/logistics/RecoModule';
+import { InventoryModule } from './components/logistics/InventoryModule';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
 import { BroadcastBar } from './components/broadcast/BroadcastBar';
@@ -183,11 +184,18 @@ export default function App() {
                     <PenyiapanModule 
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')} 
                       onNavigateToReco={() => handleOpenTool('menu-f')}
+                      onNavigateToInventory={() => handleOpenTool('menu-g')}
                     />
                   ) : activeToolId === 'menu-e' ? (
                     <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
                   ) : activeToolId === 'menu-f' ? (
                     <RecoModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
+                  ) : activeToolId === 'menu-g' ? (
+                    <InventoryModule 
+                      onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
+                      onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
+                      onNavigateToReco={() => handleOpenTool('menu-f')}
+                    />
                   ) : (
                     <PlaceholderTool
                       id={currentTool.id}

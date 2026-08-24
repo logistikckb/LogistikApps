@@ -375,7 +375,52 @@ CREATE TRIGGER set_data_repack_updated_at
     EXECUTE FUNCTION public.handle_updated_at();
 
 -- ==============================================================================
--- 10. NONAKTIFKAN ROW LEVEL SECURITY (RLS) & IZINKAN AKSES PENUH
+-- 10. TABEL DATA_INVENTORY (Struktur Sama Persis dengan data_penyiapan Tanpa tanggal_update)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.data_inventory (
+    id_inventory VARCHAR(100) PRIMARY KEY NOT NULL,
+    tujuan VARCHAR(255) DEFAULT 'Stok Inventory Gudang',
+    item_code VARCHAR(100) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Finished Good',
+    location VARCHAR(100) DEFAULT 'WH-INV-01',
+    location_type VARCHAR(50) DEFAULT 'Rack',
+    first_qty NUMERIC(12,2) DEFAULT 0,
+    last_qty NUMERIC(12,2) DEFAULT 0,
+    uom VARCHAR(50) DEFAULT 'CTN',
+    qty_convert NUMERIC(12,2) DEFAULT 0,
+    uom_convert VARCHAR(50) DEFAULT 'PCS',
+    lpn_serial_number VARCHAR(100),
+    batch VARCHAR(100),
+    vendor_batch VARCHAR(100),
+    sloc VARCHAR(50) DEFAULT 'SL01',
+    expired_date DATE,
+    destination_code VARCHAR(100) DEFAULT 'DST-INV',
+    qc_code VARCHAR(50) DEFAULT 'QC-PASS',
+    user_tally VARCHAR(100) DEFAULT 'Tally Inventory',
+    shelf_life VARCHAR(50) DEFAULT '24 Bulan',
+    source VARCHAR(100) DEFAULT 'Stok Gudang',
+    user_input VARCHAR(100) DEFAULT 'Admin',
+    status VARCHAR(50) DEFAULT 'Ada',
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_inventory_item_code ON public.data_inventory(item_code);
+CREATE INDEX IF NOT EXISTS idx_data_inventory_status ON public.data_inventory(status);
+CREATE INDEX IF NOT EXISTS idx_data_inventory_batch ON public.data_inventory(batch);
+CREATE INDEX IF NOT EXISTS idx_data_inventory_location ON public.data_inventory(location);
+CREATE INDEX IF NOT EXISTS idx_data_inventory_created_at ON public.data_inventory(created_at DESC);
+
+DROP TRIGGER IF EXISTS set_data_inventory_updated_at ON public.data_inventory;
+CREATE TRIGGER set_data_inventory_updated_at
+    BEFORE UPDATE ON public.data_inventory
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+-- ==============================================================================
+-- 11. NONAKTIFKAN ROW LEVEL SECURITY (RLS) & IZINKAN AKSES PENUH
 -- ==============================================================================
 ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.broadcast DISABLE ROW LEVEL SECURITY;
@@ -387,6 +432,7 @@ ALTER TABLE public.data_penyiapan DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_pemusnahan DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_reco DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_repack DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_inventory DISABLE ROW LEVEL SECURITY;
 
 -- Berikan Hak Akses Penuh (CRUD) ke peranan anon, authenticated, & service_role
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
@@ -394,7 +440,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 
 -- ==============================================================================
--- 11. SUPABASE REALTIME REPLICATION
+-- 12. SUPABASE REALTIME REPLICATION
 -- ==============================================================================
 DO $$
 BEGIN
@@ -427,6 +473,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'data_repack') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.data_repack;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'data_inventory') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.data_inventory;
     END IF;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;

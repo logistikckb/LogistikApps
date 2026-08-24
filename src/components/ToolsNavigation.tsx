@@ -13,7 +13,8 @@ import {
   QrCode,
   Flame,
   Trash2,
-  ClipboardList
+  ClipboardList,
+  Package
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,7 +25,8 @@ export type ToolId =
   | 'menu-c' 
   | 'menu-d' 
   | 'menu-e'
-  | 'menu-f';
+  | 'menu-f'
+  | 'menu-g';
 
 export interface ToolItem {
   id: ToolId;
@@ -163,6 +165,24 @@ export const TOOLS_LIST: ToolItem[] = [
       'Pindah Massal & Terintegrasi dari Modul Penyiapan',
       'Tracking Lokasi (WH-RECO-01), SLOC (SL03) & Status Permintaan',
       'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
+    ]
+  },
+  {
+    id: 'menu-g',
+    title: 'Inventory',
+    shortDesc: 'Manajemen Data Inventory Gudang (data_inventory), Upload Excel & Sinkron Supabase',
+    category: 'Inventory & Stok',
+    icon: Package,
+    isReady: true,
+    requiresAdmin: false,
+    colorBg: 'bg-teal-600',
+    colorBorder: 'border-teal-500',
+    colorIcon: 'text-teal-600',
+    plannedFeatures: [
+      'Manajemen Data Inventory Gudang (Tabel Supabase: public.data_inventory)',
+      'Upload File Excel Massal Khusus Role Admin (Format Kolom Standar Logistik)',
+      'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/Status',
+      'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Supabase Realtime'
     ]
   }
 ];

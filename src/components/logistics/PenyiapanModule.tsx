@@ -186,6 +186,29 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     badgeText: 'text-purple-900 border-purple-300',
     borderColor: 'border-purple-500',
     appModuleId: 'menu-f'
+  },
+  {
+    id: 'inventory',
+    name: 'Menu Inventory (Menu G)',
+    tableName: 'data_inventory',
+    idPrefix: 'INV-',
+    idField: 'id_inventory',
+    defaultSloc: 'SL01',
+    defaultLocation: 'WH-INV-01',
+    defaultLocationType: 'Rack',
+    defaultQcCode: 'QC-PASS',
+    defaultDestinationCode: 'DST-INV',
+    defaultStatus: 'Ada',
+    defaultTujuan: 'Stok Inventory Gudang',
+    defaultCategory: 'Finished Good',
+    sourceStatusDefault: 'Terkirim ke Inventory',
+    cacheKey: 'ckb_inventory_data_cache_v1',
+    description: 'Tabel: public.data_inventory - Master Stok & Transaksi Inventory',
+    colorClass: 'from-teal-600 to-emerald-800',
+    badgeBg: 'bg-teal-100',
+    badgeText: 'text-teal-900 border-teal-300',
+    borderColor: 'border-teal-500',
+    appModuleId: 'menu-g'
   }
 ];
 
@@ -193,10 +216,11 @@ interface PenyiapanModuleProps {
   onNavigateToPemusnahan?: () => void;
   onNavigateToIncoming?: () => void;
   onNavigateToReco?: () => void;
+  onNavigateToInventory?: () => void;
   onNavigateToModule?: (moduleId: string) => void;
 }
 
-export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToModule }: PenyiapanModuleProps = {}) {
+export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToInventory, onNavigateToModule }: PenyiapanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
