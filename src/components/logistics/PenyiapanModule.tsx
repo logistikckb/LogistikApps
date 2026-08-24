@@ -531,39 +531,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       });
 
       if (Array.isArray(data)) {
-        setPenyiapanList(prev => {
-          if (!prev || prev.length === 0) {
-            return data;
-          }
-          // Merge incoming data into existing array preserving original row sequence
-          const incomingMap = new Map<string, PenyiapanItem>();
-          data.forEach(item => {
-            if (item.id_penyiapan) {
-              incomingMap.set(String(item.id_penyiapan).toLowerCase(), item);
-            }
-          });
-
-          // Update existing rows in place without changing their index/position
-          const updatedList = prev.map(existing => {
-            const incoming = incomingMap.get(String(existing.id_penyiapan).toLowerCase());
-            if (incoming) {
-              incomingMap.delete(String(existing.id_penyiapan).toLowerCase());
-              return { ...existing, ...incoming };
-            }
-            return existing;
-          });
-
-          // Append any newly added rows to the end
-          const newRows = Array.from(incomingMap.values());
-          return [...updatedList, ...newRows];
-        });
+        setPenyiapanList(data);
 
         if (data.length > 0) {
           try {
             localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
           } catch {}
         } else {
-          localStorage.removeItem('penyiapan_cache_v1');
+          try {
+            localStorage.removeItem('penyiapan_cache_v1');
+          } catch {}
         }
       }
     } catch (err: any) {
@@ -594,7 +571,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     fetchMasterData();
     fetchPenyiapanData();
 
-    // Supabase Realtime channel (in-place updates to guarantee row positions never jump)
+    // Supabase Realtime channel (in-place updates to guarantee sync across devices)
     if (isSupabaseConfigured) {
       const channel = supabase
         .channel('penyiapan_realtime_channel')
@@ -607,9 +584,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             setPenyiapanList(prev =>
               prev.map(p => (p.id_penyiapan === updated.id_penyiapan ? { ...p, ...updated } : p))
             );
-          } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id_penyiapan) {
-            const deletedId = payload.old.id_penyiapan;
-            setPenyiapanList(prev => prev.filter(p => p.id_penyiapan !== deletedId));
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id_penyiapan;
+            if (deletedId) {
+              setPenyiapanList(prev => prev.filter(p => p.id_penyiapan !== deletedId));
+            } else {
+              // Jika payload.old tidak memuat id_penyiapan secara lengkap, fetch ulang dari Supabase
+              fetchPenyiapanData(true);
+            }
           } else if (payload.eventType === 'INSERT' && payload.new && payload.new.id_penyiapan) {
             const newItem = payload.new as PenyiapanItem;
             setPenyiapanList(prev => {

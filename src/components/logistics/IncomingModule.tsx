@@ -51,7 +51,7 @@ import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSetting
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
-import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation } from '../../utils/logisticsCalculations';
+import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 export function IncomingModule() {
@@ -1001,7 +1001,15 @@ export function IncomingModule() {
       }
     }
 
-    const cleanItems = Array.from(uniqueMap.values());
+    const cleanItems = Array.from(uniqueMap.values()).map(item => {
+      if (tableName === 'incoming' || tableName === 'data_inventory' || tableName === 'penyiapan' || tableName === 'data_pemusnahan' || tableName === 'data_reco') {
+        return {
+          ...item,
+          expired_date: normalizeToIsoDate(item.expired_date) || null
+        };
+      }
+      return item;
+    });
     if (cleanItems.length === 0) return { successCount: 0, error: null };
 
     const chunks = chunkArray(cleanItems, chunkSize);
@@ -1319,7 +1327,7 @@ export function IncomingModule() {
       batch: cleanBatch,
       vendor_batch: formData.vendor_batch?.trim() || cleanBatch || '-',
       sloc: formData.sloc?.trim() || '-',
-      expired_date: formData.expired_date?.trim() || '-',
+      expired_date: normalizeToIsoDate(formData.expired_date) || null as any,
       destination_code: formData.destination_code?.trim() || '-',
       qc_code: formData.qc_code?.trim() || 'Lulus',
       user_tally: currentUser?.nama || formData.user_tally?.trim() || '-',
@@ -1946,13 +1954,7 @@ export function IncomingModule() {
           const vendorBatch = String(getVal(['vendor_batch', 'vendorbatch', 'Batch Vendor', 'batchvendor', 'lot_vendor']) || '-').trim();
           const sloc = String(getVal(['sloc', 'SLoc', 'storage_location']) || '-').trim();
           
-          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date (YYYY-MM-DD)', 'ed', 'exp_date', 'tanggal_ed', 'kadaluwarsa']) || '').trim();
-          // Handle numeric Excel date serial if passed
-          if (/^\d{5}$/.test(expDate)) {
-            const excelEpoch = new Date(1899, 11, 30);
-            const dateObj = new Date(excelEpoch.getTime() + Number(expDate) * 86400000);
-            expDate = dateObj.toISOString().slice(0, 10);
-          }
+          let expDate = normalizeToIsoDate(getVal(['expired_date', 'expireddate', 'Expired Date (YYYY-MM-DD)', 'ed', 'exp_date', 'tanggal_ed', 'kadaluwarsa'])) || '';
 
           let shelfLife = String(getVal(['shelf_life', 'shelflife', 'Shelf Life', 'masa_simpan']) || '').trim();
           // Auto-compute ED from Batch & Item Name if missing in Excel

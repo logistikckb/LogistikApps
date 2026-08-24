@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InventoryItem, DataBarang } from '../../../types';
-import { getEdIsoDateString } from '../../../utils/logisticsCalculations';
+import { getEdIsoDateString, normalizeToIsoDate } from '../../../utils/logisticsCalculations';
 
 interface InventoryExcelModalProps {
   isOpen: boolean;
@@ -141,7 +141,8 @@ export function InventoryExcelModal({
           if (!itemCode && !itemName) return;
 
           const batch = String(rowObj['batch'] || rowObj['nobatch'] || rowObj['lot'] || '').trim();
-          let expiredDate = String(rowObj['expireddate'] || rowObj['ed'] || rowObj['tanggalkadaluarsa'] || rowObj['expired_date'] || '').trim();
+          const rawEd = rowObj['expireddate'] || rowObj['ed'] || rowObj['tanggalkadaluarsa'] || rowObj['expired_date'] || '';
+          let expiredDate = normalizeToIsoDate(rawEd) || '';
           
           if (!expiredDate && batch && batch.length >= 4) {
             const edResult = getEdIsoDateString(itemCode, itemName || itemCode, batch);
@@ -230,7 +231,14 @@ export function InventoryExcelModal({
 
     setIsSaving(true);
     try {
-      await onImportSuccess(parsedRows);
+      const sanitized = parsedRows.map(r => ({
+        ...r,
+        expired_date: normalizeToIsoDate(r.expired_date) || null,
+        first_qty: Number(r.first_qty) || 0,
+        last_qty: Number(r.last_qty) || 0,
+        qty_convert: Number(r.qty_convert) || 0
+      }));
+      await onImportSuccess(sanitized);
       onClose();
     } catch (err: any) {
       console.error('Import save error:', err);

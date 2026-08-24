@@ -64,7 +64,7 @@ import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSetting
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { RecoItem, DataBarang } from '../../types';
-import { getEdIsoDateString } from '../../utils/logisticsCalculations';
+import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 interface RecoModuleProps {
@@ -1125,7 +1125,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       batch: formData.batch?.trim() || '-',
       vendor_batch: formData.vendor_batch?.trim() || '-',
       sloc: formData.sloc?.trim() || 'SL03',
-      expired_date: (formData.expired_date && formData.expired_date !== '-') ? formData.expired_date : undefined,
+      expired_date: normalizeToIsoDate(formData.expired_date) || undefined,
       destination_code: formData.destination_code?.trim() || 'DST-RECO',
       qc_code: formData.qc_code?.trim() || 'QC-PASS',
       user_tally: formData.user_tally?.trim() || currentUser?.nama || 'Tally Reco',
@@ -1383,7 +1383,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
             batch: String(row['Batch'] || row['batch'] || '-').trim(),
             vendor_batch: String(row['Vendor Batch'] || row['vendor_batch'] || '-').trim(),
             sloc: String(row['SLoc'] || row['sloc'] || 'SL03').trim(),
-            expired_date: row['Expired Date'] || row['expired_date'] || undefined,
+            expired_date: normalizeToIsoDate(row['Expired Date'] || row['expired_date'] || row['ED'] || row['ed']) || undefined,
             destination_code: String(row['Destination Code'] || row['destination_code'] || 'DST-RECO').trim(),
             qc_code: String(row['QC Code'] || row['qc_code'] || 'QC-PASS').trim(),
             user_tally: String(row['User Tally'] || row['user_tally'] || currentUser?.nama || 'Tally Reco').trim(),
@@ -1423,9 +1423,17 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
     if (isSupabaseConfigured) {
       try {
+        const sanitizedRows = parsedExcelRows.map(item => ({
+          ...item,
+          expired_date: normalizeToIsoDate(item.expired_date) || null as any,
+          first_qty: Number(item.first_qty) || 0,
+          last_qty: Number(item.last_qty) || 0,
+          qty_convert: Number(item.qty_convert) || 0
+        }));
+
         const chunkSize = 50;
-        for (let i = 0; i < parsedExcelRows.length; i += chunkSize) {
-          const chunk = parsedExcelRows.slice(i, i + chunkSize);
+        for (let i = 0; i < sanitizedRows.length; i += chunkSize) {
+          const chunk = sanitizedRows.slice(i, i + chunkSize);
           const { error } = await supabase.from('data_reco').upsert(chunk, { onConflict: 'id_reco' });
           if (error) throw error;
         }

@@ -60,7 +60,7 @@ import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSetting
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PemusnahanItem, DataBarang } from '../../types';
-import { getEdIsoDateString } from '../../utils/logisticsCalculations';
+import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 interface PemusnahanModuleProps {
@@ -397,8 +397,16 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     let totalSuccess = 0;
     let lastErr: any = null;
 
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
+    const sanitizedRecords = records.map(item => ({
+      ...item,
+      expired_date: normalizeToIsoDate(item.expired_date) || null as any,
+      first_qty: Number(item.first_qty) || 0,
+      last_qty: Number(item.last_qty) || 0,
+      qty_convert: Number(item.qty_convert) || 0
+    }));
+
+    for (let i = 0; i < sanitizedRecords.length; i += batchSize) {
+      const batch = sanitizedRecords.slice(i, i + batchSize);
       try {
         const { error } = await supabase
           .from('data_pemusnahan')

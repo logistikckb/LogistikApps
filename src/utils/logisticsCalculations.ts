@@ -62,22 +62,14 @@ export function edComputeExpiredRow(
     doy = Math.floor(kodeNumerik / 10);      // 3 Digit Pertama = DOY (Hari ke-N dalam tahun)
     digitThn = kodeNumerik % 10;              // Digit Terakhir = Digit Terakhir Tahun Produksi
     
-    // Hitung Tahun Produksi dengan rolling window dekade yang tepat (Era 2020-an/2030-an)
-    // Contoh: digit 6 -> 2026 (ED 2029), digit 7 -> 2027 (ED 2030), digit 8 -> 2028 (ED 2031), digit 9 -> 2029 (ED 2032), digit 0 -> 2030 (ED 2033)
-    const currentYear = today.getFullYear();
-    const currentDecade = Math.floor(currentYear / 10) * 10;
-    const currentLastDigit = currentYear % 10;
-
-    tahunProduksi = currentDecade + digitThn;
-    const diff = digitThn - currentLastDigit;
-
-    // Jika digit jauh lebih kecil dari digit tahun berjalan (misal tahun berjalan 2026 tapi digit 0, 1, 2),
-    // maka batch tersebut adalah batch produksi mendatang (2030, 2031, 2032)
-    if (diff < -3) {
-      tahunProduksi += 10;
-    } else if (diff > 6) {
-      tahunProduksi -= 10;
-    }
+    // Hitung Tahun Produksi: Digit terakhir batch adalah angka satuan tahun pada dekade 2020-an
+    // Contoh: digit 2 -> 2022 (ED +3 thn -> 2025)
+    //         digit 3 -> 2023 (ED +3 thn -> 2026)
+    //         digit 4 -> 2024 (ED +3 thn -> 2027)
+    //         digit 5 -> 2025 (ED +3 thn -> 2028)
+    //         digit 6 -> 2026 (ED +3 thn -> 2029)
+    //         digit 7 -> 2027 (ED +3 thn -> 2030)
+    tahunProduksi = 2020 + digitThn;
     
     if (doy < 1 || doy > 366) {
       status = 'Cek: Hari ke-N (DOY) di luar rentang valid';
@@ -152,6 +144,125 @@ export function getEdIsoDateString(
   const mm = String(result.sledEd.getMonth() + 1).padStart(2, '0');
   const dd = String(result.sledEd.getDate()).padStart(2, '0');
   return { isoDate: `${yyyy}-${mm}-${dd}`, result };
+}
+
+/**
+ * Normalisasi nilai tanggal dari berbagai format (Excel serial number, DD/MM/YYYY, DD-MM-YYYY, Text, dll)
+ * menjadi format standar ISO 'YYYY-MM-DD' yang aman dan valid untuk kolom DATE Supabase / PostgreSQL.
+ * Jika kosong atau tidak valid, mengembalikan null (bukan string kosong "") agar tidak error di PostgreSQL.
+ */
+export function normalizeToIsoDate(val: any): string | null {
+  if (val === null || val === undefined) return null;
+  
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    if (val.getFullYear() === 9999) return '9999-12-31';
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  let str = String(val).trim();
+  if (
+    !str || 
+    str === '-' || 
+    str === '--' || 
+    str.toLowerCase() === 'null' || 
+    str.toLowerCase() === 'undefined' || 
+    str.toLowerCase() === 'n/a' || 
+    str.toLowerCase() === 'invalid date'
+  ) {
+    return null;
+  }
+
+  // Handle Excel Serial Number (e.g., 46626 -> 2027-08-27)
+  if (typeof val === 'number' || (/^\d{4,5}(\.\d+)?$/.test(str) && Number(str) >= 1000 && Number(str) <= 90000)) {
+    const serial = typeof val === 'number' ? val : parseFloat(str);
+    const utcDays = Math.floor(serial - 25569);
+    const dateObj = new Date(utcDays * 86400 * 1000);
+    if (!isNaN(dateObj.getTime())) {
+      const y = dateObj.getUTCFullYear();
+      const m = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // Handle DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (e.g. 27/08/2027, 27-08-2027, 27.08.2027, 5/8/2027)
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(\s.*|T.*)?$/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10);
+    const year = parseInt(dmyMatch[3], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Handle YYYY/MM/DD or YYYY-MM-DD or YYYY.MM.DD (e.g. 2027-08-27, 2027/08/27, 2027.08.27)
+  const ymdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})(\s.*|T.*)?$/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10);
+    const day = parseInt(ymdMatch[3], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Handle Textual Month Format (e.g. 27-Aug-2027, 27 Agustus 2027, Aug 27, 2027)
+  const monthMap: Record<string, string> = {
+    jan: '01', januari: '01', january: '01',
+    feb: '02', februari: '02', february: '02',
+    mar: '03', maret: '03', march: '03',
+    apr: '04', april: '04',
+    mei: '05', may: '05',
+    jun: '06', juni: '06', june: '06',
+    jul: '07', juli: '07', july: '07',
+    agu: '08', ags: '08', agustus: '08', aug: '08', august: '08',
+    sep: '09', september: '09',
+    okt: '10', oktober: '10', oct: '10', october: '10',
+    nop: '11', nov: '11', november: '11',
+    des: '12', desember: '12', dec: '12', december: '12'
+  };
+
+  const dmyTextMatch = str.match(/^(\d{1,2})[\s\-_]+([a-zA-Z]+)[\s\-_]+(\d{2,4})/);
+  if (dmyTextMatch) {
+    const day = parseInt(dmyTextMatch[1], 10);
+    const mKey = dmyTextMatch[2].toLowerCase();
+    let year = parseInt(dmyTextMatch[3], 10);
+    if (year < 100) year += 2000;
+    const monthStr = monthMap[mKey];
+    if (monthStr && day >= 1 && day <= 31) {
+      return `${year}-${monthStr}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const mdyTextMatch = str.match(/^([a-zA-Z]+)[\s\-_]+(\d{1,2})[,\s\-_]+(\d{2,4})/);
+  if (mdyTextMatch) {
+    const mKey = mdyTextMatch[1].toLowerCase();
+    const day = parseInt(mdyTextMatch[2], 10);
+    let year = parseInt(mdyTextMatch[3], 10);
+    if (year < 100) year += 2000;
+    const monthStr = monthMap[mKey];
+    if (monthStr && day >= 1 && day <= 31) {
+      return `${year}-${monthStr}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Fallback to JS Date parse
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    if (y >= 1900 && y <= 9999) {
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  return null;
 }
 
 /**

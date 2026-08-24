@@ -18,7 +18,7 @@ import {
   Filter 
 } from 'lucide-react';
 import { InventoryItem, DataBarang } from '../../../types';
-import { getEdIsoDateString } from '../../../utils/logisticsCalculations';
+import { getEdIsoDateString, normalizeToIsoDate } from '../../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../../utils/fuseSearch';
 
 interface InventoryFormModalProps {
@@ -207,7 +207,7 @@ export function InventoryFormModal({
         batch: formData.batch || '',
         vendor_batch: formData.vendor_batch || '',
         sloc: formData.sloc || 'SL01',
-        expired_date: formData.expired_date || '',
+        expired_date: normalizeToIsoDate(formData.expired_date) || null as any,
         destination_code: formData.destination_code || 'DST-INV',
         qc_code: formData.qc_code || 'QC-PASS',
         user_tally: formData.user_tally || 'Tally Inventory',

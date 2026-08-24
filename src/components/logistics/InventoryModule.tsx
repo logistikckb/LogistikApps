@@ -45,6 +45,7 @@ import {
   InventoryBulkTransferModal, 
   TransferDestination 
 } from './inventory/InventoryBulkTransferModal';
+import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
 const INVENTORY_CACHE_KEY = 'ckb_inventory_data_cache_v1';
 
@@ -209,18 +210,25 @@ export function InventoryModule({
   // Save or Update Single Item
   const handleSaveItem = async (item: InventoryItem) => {
     const isExisting = inventoryList.some(i => i.id_inventory === item.id_inventory);
+    const cleanItem: InventoryItem = {
+      ...item,
+      expired_date: normalizeToIsoDate(item.expired_date) || null as any,
+      first_qty: Number(item.first_qty) || 0,
+      last_qty: Number(item.last_qty) || 0,
+      qty_convert: Number(item.qty_convert) || 0
+    };
 
     if (isSupabaseConfigured) {
       if (isExisting) {
         const { error } = await supabase
           .from('data_inventory')
-          .update(item)
-          .eq('id_inventory', item.id_inventory);
+          .update(cleanItem)
+          .eq('id_inventory', cleanItem.id_inventory);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('data_inventory')
-          .insert([item]);
+          .insert([cleanItem]);
         if (error) throw error;
       }
     }
@@ -228,33 +236,46 @@ export function InventoryModule({
     setInventoryList(prev => {
       let updated: InventoryItem[];
       if (isExisting) {
-        updated = prev.map(i => i.id_inventory === item.id_inventory ? item : i);
+        updated = prev.map(i => i.id_inventory === cleanItem.id_inventory ? cleanItem : i);
       } else {
-        updated = [item, ...prev];
+        updated = [cleanItem, ...prev];
       }
       localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       return updated;
     });
 
-    showToast('Data Tersimpan', `Data inventory ${item.id_inventory} berhasil disimpan.`, 'success');
+    showToast('Data Tersimpan', `Data inventory ${cleanItem.id_inventory} berhasil disimpan.`, 'success');
   };
 
   // Bulk Import Excel
   const handleImportExcelSuccess = async (newRows: InventoryItem[]) => {
+    const sanitizedRows: InventoryItem[] = newRows.map(row => ({
+      ...row,
+      expired_date: normalizeToIsoDate(row.expired_date) || null as any,
+      first_qty: Number(row.first_qty) || 0,
+      last_qty: Number(row.last_qty) || 0,
+      qty_convert: Number(row.qty_convert) || 0
+    }));
+
     if (isSupabaseConfigured) {
-      const { error } = await supabase
-        .from('data_inventory')
-        .insert(newRows);
-      if (error) throw error;
+      // Chunk inserts to prevent payload size limits
+      const chunkSize = 100;
+      for (let i = 0; i < sanitizedRows.length; i += chunkSize) {
+        const chunk = sanitizedRows.slice(i, i + chunkSize);
+        const { error } = await supabase
+          .from('data_inventory')
+          .insert(chunk);
+        if (error) throw error;
+      }
     }
 
     setInventoryList(prev => {
-      const updated = [...newRows, ...prev];
+      const updated = [...sanitizedRows, ...prev];
       localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       return updated;
     });
 
-    showToast('Upload Sukses', `Berhasil menambahkan ${newRows.length} baris data ke tabel Inventory.`, 'success');
+    showToast('Upload Sukses', `Berhasil menambahkan ${sanitizedRows.length} baris data ke tabel Inventory.`, 'success');
   };
 
   // Delete Single Item

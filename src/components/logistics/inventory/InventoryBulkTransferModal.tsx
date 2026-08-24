@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { InventoryItem } from '../../../types';
 import { supabase } from '../../../supabase';
+import { normalizeToIsoDate } from '../../../utils/logisticsCalculations';
 
 export interface TransferDestination {
   id: string;
@@ -208,7 +209,7 @@ export function InventoryBulkTransferModal({
           batch: item.batch || '',
           vendor_batch: item.vendor_batch || '',
           sloc: item.sloc || selectedDest.defaultSloc,
-          expired_date: item.expired_date || null,
+          expired_date: normalizeToIsoDate(item.expired_date) || null,
           destination_code: item.destination_code || selectedDest.defaultDestinationCode,
           qc_code: item.qc_code || selectedDest.defaultQcCode,
           user_tally: item.user_tally || currentUser?.nama || 'Tally Transfer',
