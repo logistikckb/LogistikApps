@@ -55,11 +55,15 @@ import {
   CheckCheck,
   Target,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ClipboardList,
+  Globe,
+  Settings,
+  ExternalLink
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PenyiapanItem, DataBarang } from '../../types';
@@ -159,16 +163,40 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     badgeBg: 'bg-emerald-100',
     badgeText: 'text-emerald-900 border-emerald-300',
     borderColor: 'border-emerald-500'
+  },
+  {
+    id: 'reco',
+    name: 'Menu Reco / Permintaan Barang (Menu F)',
+    tableName: 'data_reco',
+    idPrefix: 'REC-',
+    idField: 'id_reco',
+    defaultSloc: 'SL03',
+    defaultLocation: 'WH-RECO-01',
+    defaultLocationType: 'Floor',
+    defaultQcCode: 'QC-PASS',
+    defaultDestinationCode: 'DST-RECO',
+    defaultStatus: 'Permintaan Reco',
+    defaultTujuan: 'Permintaan Barang',
+    defaultCategory: 'Finished Good',
+    sourceStatusDefault: 'Terkirim ke Reco',
+    cacheKey: 'reco_cache_v1',
+    description: 'Tabel: public.data_reco - Permintaan Barang (Reco)',
+    colorClass: 'from-purple-600 to-indigo-800',
+    badgeBg: 'bg-purple-100',
+    badgeText: 'text-purple-900 border-purple-300',
+    borderColor: 'border-purple-500',
+    appModuleId: 'menu-f'
   }
 ];
 
 interface PenyiapanModuleProps {
   onNavigateToPemusnahan?: () => void;
   onNavigateToIncoming?: () => void;
+  onNavigateToReco?: () => void;
   onNavigateToModule?: (moduleId: string) => void;
 }
 
-export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToModule }: PenyiapanModuleProps = {}) {
+export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToModule }: PenyiapanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
@@ -228,6 +256,77 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [pemusnahanTargetItem, setPemusnahanTargetItem] = useState<PenyiapanItem | null>(null);
   const [pemusnahanFormData, setPemusnahanFormData] = useState<any>({});
   const [isSendingPemusnahan, setIsSendingPemusnahan] = useState(false);
+
+  // Google Sheets Sync States
+  const [showGSheetModal, setShowGSheetModal] = useState(false);
+  const [showGSheetAdvanced, setShowGSheetAdvanced] = useState(false);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
+  const [isSyncingGSheet, setIsSyncingGSheet] = useState(false);
+  const [isConfigFromSupabase, setIsConfigFromSupabase] = useState(false);
+  const [isSavingToSupabase, setIsSavingToSupabase] = useState(false);
+  const [gSheetSyncResult, setGSheetSyncResult] = useState<{
+    success: boolean;
+    message: string;
+    spreadsheetUrl?: string;
+    updatedRows?: number;
+    timestamp?: string;
+  } | null>(null);
+  const [gSheetConfig, setGSheetConfig] = useState(() => {
+    const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
+    const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
+    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME as string) || 'Penyiapan';
+
+    try {
+      const saved = localStorage.getItem('PENYIAPAN_GSHEET_WEBHOOK_CONFIG') || localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          webhookUrl: parsed.webhookUrl || defaultEnvUrl,
+          spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
+          sheetName: parsed.sheetName === 'Incoming' ? 'Penyiapan' : (parsed.sheetName || defaultEnvSheetName),
+          secretToken: parsed.secretToken || '',
+          mode: (parsed.mode || 'overwrite') as 'overwrite' | 'append'
+        };
+      }
+    } catch {}
+    return {
+      webhookUrl: defaultEnvUrl,
+      spreadsheetId: defaultEnvSpreadsheetId,
+      sheetName: defaultEnvSheetName,
+      secretToken: '',
+      mode: 'overwrite' as 'overwrite' | 'append'
+    };
+  });
+
+  // Muat setting Google Sheet global dari Supabase cloud jika tersedia
+  useEffect(() => {
+    let isMounted = true;
+    async function loadGlobalGSheetConfig() {
+      try {
+        let cloudConfig = await getAppSettingFromSupabase('gsheet_sync_config_penyiapan', null);
+        if (!cloudConfig) {
+          cloudConfig = await getAppSettingFromSupabase('gsheet_sync_config', null);
+        }
+        if (isMounted && cloudConfig && cloudConfig.webhookUrl) {
+          setGSheetConfig(prev => ({
+            ...prev,
+            webhookUrl: cloudConfig.webhookUrl || prev.webhookUrl,
+            spreadsheetId: cloudConfig.spreadsheetId !== undefined ? cloudConfig.spreadsheetId : prev.spreadsheetId,
+            sheetName: cloudConfig.sheetName === 'Incoming' ? 'Penyiapan' : (cloudConfig.sheetName || 'Penyiapan'),
+            secretToken: cloudConfig.secretToken || prev.secretToken,
+            mode: cloudConfig.mode || prev.mode
+          }));
+          setIsConfigFromSupabase(true);
+        }
+      } catch (e) {
+        console.warn('Gagal memuat setting cloud Google Sheet Penyiapan:', e);
+      }
+    }
+    loadGlobalGSheetConfig();
+    return () => {
+      isMounted = false;
+    };
+  }, [showGSheetModal]);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<PenyiapanItem | null>(null);
@@ -2733,6 +2832,230 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     showToast('Tersalin', `${label} "${text}" disalin ke clipboard`, 'info');
   };
 
+  // Google Sheets Config & Sync Handlers
+  const handleSaveGSheetConfig = (newConfig: typeof gSheetConfig) => {
+    setGSheetConfig(newConfig);
+    try {
+      localStorage.setItem('PENYIAPAN_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
+      localStorage.setItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
+    } catch {}
+  };
+
+  const handleSaveConfigToSupabase = async () => {
+    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
+    if (!rawUrl) {
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook sebelum menyimpan ke cloud.', 'warning');
+      return;
+    }
+
+    setIsSavingToSupabase(true);
+    handleSaveGSheetConfig(gSheetConfig);
+
+    const res = await saveAppSettingToSupabase(
+      'gsheet_sync_config_penyiapan',
+      gSheetConfig,
+      currentUser?.nama || currentUser?.username || 'Admin'
+    );
+    setIsSavingToSupabase(false);
+
+    if (res.success) {
+      setIsConfigFromSupabase(true);
+      showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
+    } else {
+      showToast('Perhatian', res.message || 'Gagal menyimpan ke Supabase.', 'warning');
+      if (res.message?.includes('app_settings')) {
+        setShowSqlHelp(true);
+      }
+    }
+  };
+
+  const handleExecuteGSheetSync = async () => {
+    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
+    if (!rawUrl) {
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Google Apps Script atau Cloudflare Worker.', 'warning');
+      return;
+    }
+
+    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+      showToast('Format URL Tidak Valid', 'URL Webhook harus diawali dengan https:// atau http://', 'warning');
+      return;
+    }
+
+    const itemsToSync = filteredPenyiapan.length > 0 ? filteredPenyiapan : penyiapanList;
+    if (itemsToSync.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data penyiapan untuk dikirim ke Google Sheets.', 'warning');
+      return;
+    }
+
+    setIsSyncingGSheet(true);
+    setGSheetSyncResult(null);
+
+    try {
+      const headers = [
+        'ID Penyiapan',
+        'Item Code',
+        'Nama Barang',
+        'Kategori',
+        'Lokasi',
+        'Tipe Lokasi',
+        'Qty Awal',
+        'Qty Akhir',
+        'UOM',
+        'Qty Convert',
+        'UOM Convert',
+        'LPN / SN',
+        'Batch',
+        'Vendor Batch',
+        'SLOC',
+        'Expired Date',
+        'Kode Tujuan',
+        'Status QC',
+        'User Tally',
+        'Shelf Life',
+        'Sumber',
+        'Tujuan',
+        'User Input',
+        'Tanggal Update',
+        'Status',
+        'Catatan / Note'
+      ];
+
+      const rows = itemsToSync.map(item => [
+        item.id_penyiapan || '-',
+        item.item_code || '-',
+        item.item_name || '-',
+        item.category || '-',
+        item.location || '-',
+        item.location_type || '-',
+        Number(item.first_qty) || 0,
+        Number(item.last_qty) || 0,
+        item.uom || '-',
+        Number(item.qty_convert) || 0,
+        item.uom_convert || '-',
+        item.lpn_serial_number || '-',
+        item.batch || '-',
+        item.vendor_batch || '-',
+        item.sloc || '-',
+        item.expired_date || '-',
+        item.destination_code || '-',
+        item.qc_code || '-',
+        item.user_tally || '-',
+        item.shelf_life || '-',
+        item.source || '-',
+        item.tujuan || '-',
+        item.user_input || '-',
+        item.tanggal_update ? item.tanggal_update.substring(0, 10) : (item.created_at ? item.created_at.substring(0, 10) : '-'),
+        item.status || '-',
+        item.note || '-'
+      ]);
+
+      const payload = {
+        action: 'sync_penyiapan',
+        mode: gSheetConfig.mode || 'overwrite',
+        sheetName: gSheetConfig.sheetName || 'Penyiapan',
+        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
+        secretToken: gSheetConfig.secretToken || '',
+        timestamp: new Date().toISOString(),
+        totalRows: itemsToSync.length,
+        headers,
+        rows,
+        data: itemsToSync
+      };
+
+      handleSaveGSheetConfig(gSheetConfig);
+
+      const isDirectGoogleScript = rawUrl.includes('script.google.com');
+      let responseJson: any = null;
+      let syncSucceeded = false;
+      let executionMode: 'cors' | 'no-cors' = 'cors';
+
+      try {
+        const res = await fetch(rawUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          try {
+            responseJson = await res.json();
+          } catch {
+            responseJson = { status: 'success' };
+          }
+          syncSucceeded = true;
+          executionMode = 'cors';
+        } else {
+          let errMsg = `HTTP Error ${res.status}`;
+          try {
+            const errBody = await res.json();
+            if (errBody.message) errMsg = errBody.message;
+          } catch {}
+          throw new Error(errMsg);
+        }
+      } catch (directErr: any) {
+        if (isDirectGoogleScript || directErr?.message?.includes('Failed to fetch') || directErr?.name === 'TypeError') {
+          try {
+            await fetch(rawUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+              },
+              body: JSON.stringify(payload)
+            });
+            syncSucceeded = true;
+            executionMode = 'no-cors';
+            responseJson = {
+              status: 'success',
+              message: `Data ${itemsToSync.length} baris penyiapan berhasil dikirim ke Google Apps Script Webhook.`
+            };
+          } catch (noCorsErr: any) {
+            throw directErr;
+          }
+        } else {
+          throw directErr;
+        }
+      }
+
+      if (!syncSucceeded) {
+        throw new Error('Gagal mengirim data ke Webhook tujuan.');
+      }
+
+      const updatedCount = responseJson?.updatedRows || itemsToSync.length;
+      const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
+
+      const successMsg = executionMode === 'no-cors'
+        ? `Berhasil mengirim ${updatedCount} baris data ke Google Apps Script (Sheet: "${gSheetConfig.sheetName || 'Penyiapan'}").`
+        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Google Sheet "${gSheetConfig.sheetName || 'Penyiapan'}"!`);
+
+      setGSheetSyncResult({
+        success: true,
+        message: successMsg,
+        spreadsheetUrl: sheetUrl,
+        updatedRows: updatedCount,
+        timestamp: new Date().toLocaleTimeString('id-ID')
+      });
+
+      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data penyiapan ke Google Sheets!`, 'success');
+    } catch (err: any) {
+      console.error('Penyiapan GSheet sync error:', err);
+      const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
+      const guidance = isGoogleUrl
+        ? 'Pastikan Deployment Web App di Google Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
+        : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
+
+      setGSheetSyncResult({
+        success: false,
+        message: `${err?.message || 'Gagal menghubungi Webhook'}. ${guidance}`
+      });
+      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Google Sheets', 'danger');
+    } finally {
+      setIsSyncingGSheet(false);
+    }
+  };
+
   return (
     <div className="space-y-2 sm:space-y-2.5 animate-fade-in text-slate-800">
       
@@ -2790,6 +3113,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           >
             <Download size={13} className="text-blue-700" />
             <span className="hidden sm:inline">Export Excel</span>
+          </button>
+
+          {/* Tombol Sinkron ke Google Sheets */}
+          <button
+            type="button"
+            onClick={() => setShowGSheetModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            title="Kirim dan sinkronkan data penyiapan ke Google Sheets (Sheet: Penyiapan)"
+          >
+            <Share2 size={13} />
+            <span>Sync Google Sheets</span>
           </button>
         </div>
 
@@ -5304,6 +5638,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                             <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-blue-900 text-white' : 'bg-slate-200 text-slate-700'}`}>
                               {dest.id === 'pemusnahan' ? <Flame size={15} className={isSelected ? 'text-amber-300' : ''} /> :
                                dest.id === 'incoming' ? <Package size={15} /> :
+                               dest.id === 'reco' ? <ClipboardList size={15} className={isSelected ? 'text-purple-300' : ''} /> :
                                <Truck size={15} />}
                             </div>
                             <div>
@@ -5543,6 +5878,338 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* 8. MODAL SINKRONISASI GOOGLE SHEETS / CLOUDFLARE WORKER */}
+      {/* ========================================================================= */}
+      {showGSheetModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between shadow-xs shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Share2 size={20} className="text-emerald-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base leading-tight">Sinkronisasi ke Google Sheets</h3>
+                  <p className="text-xs text-emerald-200 leading-tight">
+                    Kirim data Penyiapan ke Google Spreadsheet via Webhook / Cloudflare Worker
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGSheetModal(false)}
+                className="p-1.5 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs text-slate-700">
+              
+              {/* Data Summary Card */}
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <FileSpreadsheet size={20} className="text-emerald-700 shrink-0" />
+                  <div>
+                    <div className="font-bold text-slate-800">
+                      Total Data Siap Dikirim
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Tab Target: <span className="font-bold font-mono text-emerald-900">{gSheetConfig.sheetName || 'Penyiapan'}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-base font-extrabold text-emerald-900">
+                    {(filteredPenyiapan.length > 0 ? filteredPenyiapan.length : penyiapanList.length).toLocaleString('id-ID')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-medium">Baris Data</div>
+                </div>
+              </div>
+
+              {/* Status Webhook Active Badge */}
+              {gSheetConfig.webhookUrl ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>URL Webhook Terhubung</span>
+                      {isConfigFromSupabase && (
+                        <span className="px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded text-[9px] font-bold">
+                          Cloud Config
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowGSheetAdvanced(!showGSheetAdvanced)}
+                      className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg shadow-2xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Settings size={12} className="text-slate-500" />
+                      <span>{showGSheetAdvanced ? 'Tutup' : 'Pengaturan'}</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-mono truncate max-w-full m-0" title={gSheetConfig.webhookUrl}>
+                    {gSheetConfig.webhookUrl}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs leading-relaxed">
+                    <span className="font-bold text-amber-900">URL Webhook Belum Diatur: </span>
+                    <span className="text-slate-600">
+                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke database cloud Supabase agar otomatis terpasang di seluruh perangkat tim.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Settings (Collapsible or visible if empty) */}
+              {(!gSheetConfig.webhookUrl || showGSheetAdvanced) && (
+                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3.5 animate-fade-in">
+                  
+                  {/* Settings Sub-Header */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Settings size={14} className="text-slate-500" />
+                      <span>Konfigurasi Webhook & Spreadsheet</span>
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={isSavingToSupabase || !gSheetConfig.webhookUrl.trim()}
+                      onClick={handleSaveConfigToSupabase}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                      title="Simpan ke Cloud Supabase agar otomatis aktif di semua HP/Laptop tim"
+                    >
+                      {isSavingToSupabase ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Database size={12} />
+                          <span>Simpan ke Cloud</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Input: URL Webhook */}
+                  <div>
+                    <label className="block text-slate-700 font-bold text-xs mb-1">
+                      URL Webhook / Cloudflare Worker <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="url"
+                        value={gSheetConfig.webhookUrl}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
+                        placeholder="https://script.google.com/... atau https://worker.dev/..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                      />
+                      <Globe size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 m-0">
+                      URL Web App Deployment dari Google Apps Script atau Cloudflare Worker.
+                    </p>
+                  </div>
+
+                  {/* Input: Spreadsheet ID & Sheet Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Spreadsheet ID <span className="text-slate-400 font-normal">(Opsional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={gSheetConfig.spreadsheetId}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, spreadsheetId: e.target.value })}
+                        placeholder="1BxiMVs0XRA5nFMd..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1 m-0">
+                        ID dari URL spreadsheet (kosongkan jika script melekat pada sheet).
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Nama Tab / Sheet
+                      </label>
+                      <input
+                        type="text"
+                        value={gSheetConfig.sheetName}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, sheetName: e.target.value })}
+                        placeholder="Penyiapan"
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1 m-0">
+                        Nama lembar kerja target (default: <span className="font-mono">Penyiapan</span>).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Input: Mode & Secret Token */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Mode Pengiriman Data
+                      </label>
+                      <select
+                        value={gSheetConfig.mode}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, mode: e.target.value as any })}
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer transition-all"
+                      >
+                        <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua)</option>
+                        <option value="append">➕ Append (Tambah di Bawah)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold text-xs mb-1">
+                        Secret Token <span className="text-slate-400 font-normal">(Opsional)</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={gSheetConfig.secretToken}
+                        onChange={e => setGSheetConfig({ ...gSheetConfig, secretToken: e.target.value })}
+                        placeholder="Token otorisasi jika ada..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* SQL Setup Helper Toggle */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowSqlHelp(!showSqlHelp)}
+                      className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Info size={13} />
+                      <span>{showSqlHelp ? 'Sembunyikan Script SQL Supabase' : 'Petunjuk Tabel Supabase (app_settings)'}</span>
+                    </button>
+
+                    {showSqlHelp && (
+                      <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] space-y-2 animate-fade-in border border-slate-800">
+                        <div className="flex items-center justify-between text-slate-400 font-sans text-xs pb-1 border-b border-slate-800">
+                          <span>Jalankan di Supabase SQL Editor:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sql = `CREATE TABLE IF NOT EXISTS app_settings (\n  key TEXT PRIMARY KEY,\n  value JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT NOW(),\n  updated_by TEXT\n);\nALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`;
+                              navigator.clipboard.writeText(sql);
+                              showToast('SQL Disalin', 'Query SQL telah disalin ke clipboard!', 'success');
+                            }}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-sans font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Copy size={11} />
+                            <span>Salin SQL</span>
+                          </button>
+                        </div>
+                        <pre className="overflow-x-auto whitespace-pre-wrap text-emerald-400 text-[10px] leading-relaxed m-0">
+{`CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by TEXT
+);
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Sync Result Status Box */}
+              {gSheetSyncResult && (
+                <div
+                  className={`p-3.5 rounded-xl border text-xs animate-fade-in ${
+                    gSheetSyncResult.success
+                      ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                      : 'bg-rose-50/90 border-rose-300 text-rose-950'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    {gSheetSyncResult.success ? (
+                      <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="font-bold flex items-center justify-between gap-2">
+                        <span>{gSheetSyncResult.success ? 'Sinkronisasi Berhasil!' : 'Gagal Sinkronisasi'}</span>
+                        {gSheetSyncResult.timestamp && (
+                          <span className="text-[10px] font-normal text-slate-500 shrink-0">
+                            {gSheetSyncResult.timestamp}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs leading-relaxed m-0 text-slate-700">
+                        {gSheetSyncResult.message}
+                      </p>
+                      {gSheetSyncResult.spreadsheetUrl && (
+                        <div className="pt-1">
+                          <a
+                            href={gSheetSyncResult.spreadsheetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
+                          >
+                            <span>Buka Google Spreadsheet</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowGSheetModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold transition-all cursor-pointer text-xs shadow-2xs"
+              >
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                disabled={isSyncingGSheet || !gSheetConfig.webhookUrl.trim()}
+                onClick={handleExecuteGSheetSync}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold shadow-sm hover:shadow transition-all cursor-pointer flex items-center gap-2 text-xs"
+              >
+                {isSyncingGSheet ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Sedang Mengirim ke Google Sheet...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    <span>Kirim Data Sekarang</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       , document.body)}

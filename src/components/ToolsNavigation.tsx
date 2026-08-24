@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   QrCode,
   Flame,
-  Trash2
+  Trash2,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,7 +23,8 @@ export type ToolId =
   | 'menu-b' 
   | 'menu-c' 
   | 'menu-d' 
-  | 'menu-e';
+  | 'menu-e'
+  | 'menu-f';
 
 export interface ToolItem {
   id: ToolId;
@@ -142,6 +144,24 @@ export const TOOLS_LIST: ToolItem[] = [
       'Manajemen Transaksi Pemusnahan Barang (Tabel Supabase: public.data_pemusnahan)',
       'Relasi Otomatis dari Modul Penyiapan (Kirim item dengan status Oke / Siap Musnah)',
       'Tracking Lokasi Karantina (WH-REJECT-01), SLOC (SL99) & Destinasi Incinerator',
+      'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
+    ]
+  },
+  {
+    id: 'menu-f',
+    title: 'Reco',
+    shortDesc: 'Permintaan Barang (data_reco) - Dikelola & Dipindahkan dari Modul Penyiapan',
+    category: 'Permintaan & Relokasi',
+    icon: ClipboardList,
+    isReady: true,
+    requiresAdmin: false,
+    colorBg: 'bg-purple-600',
+    colorBorder: 'border-purple-500',
+    colorIcon: 'text-purple-600',
+    plannedFeatures: [
+      'Manajemen Permintaan Barang (Tabel Supabase: public.data_reco)',
+      'Pindah Massal & Terintegrasi dari Modul Penyiapan',
+      'Tracking Lokasi (WH-RECO-01), SLOC (SL03) & Status Permintaan',
       'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
     ]
   }
