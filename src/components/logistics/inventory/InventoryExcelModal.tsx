@@ -185,28 +185,28 @@ export function InventoryExcelModal({
             'deskripsi', 'description', 'namaproduk', 'productname', 'materialdesc', 'nama', 'barang'
           ])).trim();
 
-          // Auto-match itemName if only itemCode is present
+          // Auto-match ONLY if in master barang, but NEVER create mock/fake names or fake SKU
           if (!itemName && itemCode) {
             const matchMaster = barangList.find(b => 
               (b.item_code && b.item_code.toLowerCase() === itemCode.toLowerCase()) ||
               (b.barcode && b.barcode.toLowerCase() === itemCode.toLowerCase())
             );
-            if (matchMaster) {
+            if (matchMaster && matchMaster.item_name) {
               itemName = matchMaster.item_name;
             } else {
               itemName = itemCode;
             }
           }
 
-          // Auto-match itemCode if only itemName is present
+          // Auto-match itemCode if in master barang
           if (!itemCode && itemName) {
             const matchMaster = barangList.find(b => 
               b.item_name && b.item_name.toLowerCase() === itemName.toLowerCase()
             );
-            if (matchMaster) {
+            if (matchMaster && matchMaster.item_code) {
               itemCode = matchMaster.item_code;
             } else {
-              itemCode = 'SKU-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+              itemCode = '';
             }
           }
 
@@ -222,12 +222,8 @@ export function InventoryExcelModal({
             'kadaluarsa', 'tanggalkadaluarsa', 'tglkadaluarsa', 'tgl_ed', 'tanggal_ed', 
             'sled', 'kadaluwarsa', 'tgl_exp'
           ]);
-          let expiredDate = normalizeToIsoDate(rawEd) || '';
-          
-          if (!expiredDate && batch && batch.length >= 4) {
-            const edResult = getEdIsoDateString(itemCode, itemName || itemCode, batch);
-            if (edResult?.isoDate) expiredDate = edResult.isoDate;
-          }
+          // Strict: only normalize date if present in Excel, do NOT synthesize or guess mock dates
+          const expiredDate = normalizeToIsoDate(rawEd) || '';
 
           const firstQtyRaw = getVal([
             'firstqty', 'first_qty', 'qtyawal', 'qty_awal', 'qty', 'jumlah', 'stock', 'stok', 
@@ -238,36 +234,33 @@ export function InventoryExcelModal({
             'totalqty', 'sisa', 'qtyreal', 'qty_real'
           ]);
 
-          const firstQty = Number(firstQtyRaw || lastQtyRaw || 0) || 0;
-          const lastQty = Number(lastQtyRaw !== '' ? lastQtyRaw : (firstQtyRaw || 0)) || 0;
-          const uom = String(getVal(['uom', 'satuan', 'unit', 'kemasan', 'uom1']) || 'CTN').trim().toUpperCase();
+          const firstQty = Number(firstQtyRaw !== '' ? firstQtyRaw : (lastQtyRaw !== '' ? lastQtyRaw : 0)) || 0;
+          const lastQty = Number(lastQtyRaw !== '' ? lastQtyRaw : (firstQtyRaw !== '' ? firstQtyRaw : 0)) || 0;
+          const uom = String(getVal(['uom', 'satuan', 'unit', 'kemasan', 'uom1'])).trim();
 
           const qtyConvertRaw = getVal(['qtyconvert', 'qtyconvertpcs', 'qty_convert', 'konversi', 'qtykonversi', 'pcs', 'totalpcs']);
-          let qtyConvert = Number(qtyConvertRaw || 0) || 0;
-          const uomConvert = String(getVal(['uomconvert', 'satuanconvert', 'uom_convert', 'satuan_convert', 'uom2', 'satuankonversi']) || 'PCS').trim().toUpperCase();
+          const qtyConvert = Number(qtyConvertRaw || 0) || 0;
+          const uomConvert = String(getVal(['uomconvert', 'satuanconvert', 'uom_convert', 'satuan_convert', 'uom2', 'satuankonversi'])).trim();
 
-          if (qtyConvert === 0 && lastQty > 0) {
-            qtyConvert = uom === 'CTN' ? lastQty * 24 : lastQty;
-          }
-
+          // No default mock locations, categories, statuses or destinations
           const location = String(getVal([
             'location', 'lokasi', 'rak', 'bin', 'storage', 'storagelocation', 'alokasi', 'rack', 'kd_lokasi', 'kodelokasi', 'posisi'
-          ]) || 'WH-INV-01').trim();
+          ])).trim();
 
-          const locationType = String(getVal(['locationtype', 'location_type', 'jenislokasi', 'tipe_lokasi', 'tipelokasi']) || 'Rack').trim();
-          const sloc = String(getVal(['sloc', 'storageloc', 'storage_location', 'gudang', 'sloccode', 'sloc_code']) || 'SL01').trim();
-          const category = String(getVal(['category', 'kategori', 'kelompok', 'jenis', 'group', 'itemcategory']) || 'Finished Good').trim();
-          const status = String(getVal(['status', 'kondisi', 'state']) || 'Ada').trim();
-          const note = String(getVal(['note', 'catatan', 'keterangan', 'remark', 'remarks']) || '').trim();
-          const tujuan = String(getVal(['tujuan', 'destinasi', 'destination']) || 'Stok Inventory Gudang').trim();
+          const locationType = String(getVal(['locationtype', 'location_type', 'jenislokasi', 'tipe_lokasi', 'tipelokasi'])).trim();
+          const sloc = String(getVal(['sloc', 'storageloc', 'storage_location', 'gudang', 'sloccode', 'sloc_code'])).trim();
+          const category = String(getVal(['category', 'kategori', 'kelompok', 'jenis', 'group', 'itemcategory'])).trim();
+          const status = String(getVal(['status', 'kondisi', 'state'])).trim();
+          const note = String(getVal(['note', 'catatan', 'keterangan', 'remark', 'remarks'])).trim();
+          const tujuan = String(getVal(['tujuan', 'destinasi', 'destination'])).trim();
 
-          const lpn = String(getVal(['lpnserialnumber', 'lpn', 'serialnumber', 'lpn_serial_number', 'sn']) || '').trim();
-          const vendorBatch = String(getVal(['vendorbatch', 'vendor_batch', 'batchvendor', 'lotvendor']) || batch || '').trim();
-          const destinationCode = String(getVal(['destinationcode', 'destination_code', 'kodedestinasi']) || 'DST-INV').trim();
-          const qcCode = String(getVal(['qccode', 'qc_code', 'statusqc', 'qc']) || 'QC-PASS').trim();
-          const userTally = String(getVal(['usertally', 'user_tally', 'petugastally', 'tally', 'checker', 'operator']) || currentUser?.nama || 'Tally Inventory').trim();
-          const shelfLife = String(getVal(['shelflife', 'shelf_life', 'masasimpan', 'masa_simpan']) || '24 Bulan').trim();
-          const source = String(getVal(['source', 'sumber', 'asal']) || 'Stok Gudang').trim();
+          const lpn = String(getVal(['lpnserialnumber', 'lpn', 'serialnumber', 'lpn_serial_number', 'sn'])).trim();
+          const vendorBatch = String(getVal(['vendorbatch', 'vendor_batch', 'batchvendor', 'lotvendor'])).trim();
+          const destinationCode = String(getVal(['destinationcode', 'destination_code', 'kodedestinasi'])).trim();
+          const qcCode = String(getVal(['qccode', 'qc_code', 'statusqc', 'qc'])).trim();
+          const userTally = String(getVal(['usertally', 'user_tally', 'petugastally', 'tally', 'checker', 'operator'])).trim();
+          const shelfLife = String(getVal(['shelflife', 'shelf_life', 'masasimpan', 'masa_simpan'])).trim();
+          const source = String(getVal(['source', 'sumber', 'asal'])).trim();
 
           // Retain existing ID from excel if provided, or generate unique ID
           const existingId = String(getVal(['id_inventory', 'idinventory', 'id', 'no_inv', 'id_inv', 'no_inventory'])).trim();
@@ -295,7 +288,7 @@ export function InventoryExcelModal({
             user_tally: userTally,
             shelf_life: shelfLife,
             source,
-            user_input: currentUser?.nama || 'Admin',
+            user_input: currentUser?.nama || '',
             status,
             note,
             tujuan,
@@ -456,11 +449,15 @@ export function InventoryExcelModal({
                         <td className="px-2.5 py-1 text-slate-500 font-mono text-[10px]">{idx + 1}</td>
                         <td className="px-2.5 py-1 font-mono font-bold text-teal-800 text-[11px]">{row.id_inventory}</td>
                         <td className="px-2.5 py-1">
-                          <span className="px-1.5 py-0.5 rounded font-bold text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {row.status || 'Ada'}
-                          </span>
+                          {row.status ? (
+                            <span className="px-1.5 py-0.5 rounded font-bold text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              {row.status}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">-</span>
+                          )}
                         </td>
-                        <td className="px-2.5 py-1 font-bold text-slate-700">{row.location}</td>
+                        <td className="px-2.5 py-1 font-bold text-slate-700">{row.location || '-'}</td>
                         <td className="px-2.5 py-1 font-semibold text-slate-800 max-w-xs truncate">{row.item_name}</td>
                         <td className="px-2.5 py-1 text-right font-mono font-bold text-emerald-800">
                           {Number(row.last_qty || 0).toLocaleString('id-ID')}

@@ -1218,28 +1218,34 @@ export function InventoryModule({
 
                       {/* Status (Sticky Left) */}
                       <td className="px-2 py-1.5 text-center sticky left-0 bg-white/95 z-10">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold border ${
-                          isAda ? 'bg-emerald-50 text-emerald-900 border-emerald-300' :
-                          isBeda ? 'bg-blue-50 text-blue-900 border-blue-300' :
-                          isTidak ? 'bg-amber-50 text-amber-900 border-amber-300' :
-                          'bg-slate-50 text-slate-700 border-slate-300'
-                        }`}>
-                          {row.status || 'Ada'}
-                        </span>
+                        {row.status ? (
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold border ${
+                            isAda ? 'bg-emerald-50 text-emerald-900 border-emerald-300' :
+                            isBeda ? 'bg-blue-50 text-blue-900 border-blue-300' :
+                            isTidak ? 'bg-amber-50 text-amber-900 border-amber-300' :
+                            'bg-slate-50 text-slate-700 border-slate-300'
+                          }`}>
+                            {row.status}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-[10px]">-</span>
+                        )}
                       </td>
 
                       {/* Location */}
                       <td className="px-2.5 py-1.5 font-bold font-mono text-slate-800">
-                        {row.location}
+                        {row.location || '-'}
                       </td>
 
                       {/* Item Name */}
                       <td className="px-2.5 py-1.5 font-semibold text-slate-900 max-w-xs truncate" title={row.item_name}>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-[10px] text-teal-800 bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
-                            {row.item_code}
-                          </span>
-                          <span className="truncate">{row.item_name}</span>
+                          {row.item_code && (
+                            <span className="font-mono text-[10px] text-teal-800 bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
+                              {row.item_code}
+                            </span>
+                          )}
+                          <span className="truncate">{row.item_name || '-'}</span>
                         </div>
                       </td>
 
@@ -1250,7 +1256,7 @@ export function InventoryModule({
 
                       {/* UOM */}
                       <td className="px-2.5 py-1.5 text-center font-bold text-slate-600">
-                        {row.uom || 'CTN'}
+                        {row.uom || '-'}
                       </td>
 
                       {/* Batch */}
@@ -1270,7 +1276,7 @@ export function InventoryModule({
 
                       {/* Tujuan */}
                       <td className="px-2.5 py-1.5 font-semibold text-teal-900 max-w-xs truncate" title={row.tujuan || '-'}>
-                        {row.tujuan || 'Stok Inventory Gudang'}
+                        {row.tujuan || '-'}
                       </td>
 
                       {/* Actions */}

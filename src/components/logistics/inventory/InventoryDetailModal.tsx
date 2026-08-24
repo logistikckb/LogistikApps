@@ -152,11 +152,11 @@ export function InventoryDetailModal({
                   isTidak ? 'bg-amber-100 text-amber-900 border-amber-300' :
                   'bg-slate-100 text-slate-800 border-slate-300'
                 }`}>
-                  Status: {item.status || 'Ada'}
+                  Status: {item.status || '-'}
                 </span>
               </div>
               <h4 className="text-sm font-black text-slate-900 m-0 leading-snug">
-                {item.item_name}
+                {item.item_name || '-'}
               </h4>
             </div>
 
@@ -190,7 +190,7 @@ export function InventoryDetailModal({
               <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Lokasi Gudang</span>
               <div className="flex items-center gap-1.5 font-bold text-slate-800 font-mono text-xs">
                 <MapPin size={14} className="text-teal-600 shrink-0" />
-                <span>{item.location || '-'} ({item.location_type || 'Rack'})</span>
+                <span>{item.location || '-'} {item.location_type ? `(${item.location_type})` : ''}</span>
               </div>
             </div>
 
@@ -198,7 +198,7 @@ export function InventoryDetailModal({
             <div className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-emerald-800 block mb-0.5">Last Qty (Fisik)</span>
               <div className="font-mono font-black text-emerald-900 text-sm">
-                {Number(item.last_qty || 0).toLocaleString('id-ID')} {item.uom || 'CTN'}
+                {Number(item.last_qty || 0).toLocaleString('id-ID')} {item.uom ? item.uom : ''}
               </div>
             </div>
 
@@ -206,7 +206,7 @@ export function InventoryDetailModal({
             <div className="p-2.5 rounded-xl border border-teal-200 bg-teal-50/50 shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-teal-800 block mb-0.5">Konversi PCS</span>
               <div className="font-mono font-black text-teal-900 text-sm">
-                {Number(item.qty_convert || 0).toLocaleString('id-ID')} {item.uom_convert || 'PCS'}
+                {Number(item.qty_convert || 0).toLocaleString('id-ID')} {item.uom_convert ? item.uom_convert : ''}
               </div>
             </div>
 
@@ -231,7 +231,7 @@ export function InventoryDetailModal({
             <div className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Storage Loc (SLOC)</span>
               <div className="font-mono font-bold text-slate-800 text-xs">
-                {item.sloc || 'SL01'}
+                {item.sloc || '-'}
               </div>
             </div>
 
@@ -248,7 +248,7 @@ export function InventoryDetailModal({
               <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">QC Status</span>
               <div className="flex items-center gap-1 font-bold text-slate-800 text-xs">
                 <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
-                <span>{item.qc_code || 'QC-PASS'}</span>
+                <span>{item.qc_code || '-'}</span>
               </div>
             </div>
 
@@ -266,14 +266,14 @@ export function InventoryDetailModal({
             <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/50">
               <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Catatan / Note:</span>
               <p className="text-slate-700 text-xs m-0 leading-relaxed font-medium">
-                {item.note || 'Tidak ada catatan.'}
+                {item.note || '-'}
               </p>
             </div>
 
             <div className="p-3 rounded-xl border border-teal-200 bg-teal-50/40">
               <span className="text-[10px] font-bold uppercase text-teal-800 block mb-1">Tujuan / Destinasi:</span>
               <p className="text-teal-950 font-bold text-xs m-0 leading-relaxed">
-                {item.tujuan || 'Stok Inventory Gudang'}
+                {item.tujuan || '-'}
               </p>
             </div>
           </div>
