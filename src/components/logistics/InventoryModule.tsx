@@ -62,7 +62,7 @@ export function InventoryModule({
 }: InventoryModuleProps) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
-  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Manager' || currentUser?.role === 'Leader' || true;
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
   // Primary Data State
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>(() => {
@@ -296,6 +296,11 @@ export function InventoryModule({
 
   // Delete Single Item
   const handleDeleteItem = async (id: string, itemName: string) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Hanya Admin yang memiliki hak akses untuk menghapus data inventory!', 'error');
+      return;
+    }
+
     const confirmed = await showConfirm(
       'Hapus Data Inventory',
       `Yakin ingin menghapus item "${itemName}" (${id}) dari database inventory?`
@@ -327,6 +332,11 @@ export function InventoryModule({
 
   // Bulk Delete
   const handleBulkDelete = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Hanya Admin yang memiliki hak akses untuk hapus massal!', 'error');
+      return;
+    }
+
     if (selectedIds.length === 0) return;
 
     const count = selectedIds.length;
@@ -1279,9 +1289,9 @@ export function InventoryModule({
           setItemToEdit(item);
           setShowFormModal(true);
         }}
-        onDelete={(item) => {
+        onDelete={isSuperAdmin ? (item) => {
           handleDeleteItem(item.id_inventory, item.item_name);
-        }}
+        } : undefined}
         showToast={showToast}
       />
 

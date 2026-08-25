@@ -223,7 +223,7 @@ interface PenyiapanModuleProps {
 export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToInventory, onNavigateToModule }: PenyiapanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
-  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
   // Primary Data State
   const [penyiapanList, setPenyiapanList] = useState<PenyiapanItem[]>([]);
@@ -2215,7 +2215,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               .in('id_penyiapan', ids);
           }
         }
-      } else if (bulkSourceAction === 'delete') {
+      } else if (bulkSourceAction === 'delete' && isSuperAdmin) {
         setPenyiapanList(prev => prev.filter(p => !selectedIds.includes(p.id_penyiapan)));
 
         if (isSupabaseConfigured) {
@@ -5710,23 +5710,25 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     </div>
                   </label>
 
-                  <label className={`p-2.5 rounded-xl border cursor-pointer flex items-start gap-2 ${
-                    bulkSourceAction === 'delete' ? 'bg-white border-rose-600 shadow-xs' : 'bg-slate-50/80 border-slate-200'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="source_action"
-                      checked={bulkSourceAction === 'delete'}
-                      onChange={() => setBulkSourceAction('delete')}
-                      className="mt-0.5 accent-rose-600"
-                    />
-                    <div>
-                      <span className="font-bold text-rose-800 block">Hapus dari Penyiapan</span>
-                      <span className="text-[10px] text-slate-500 block leading-tight">
-                        Keluarkan item terpilih dari antrean penyiapan
-                      </span>
-                    </div>
-                  </label>
+                  {isSuperAdmin && (
+                    <label className={`p-2.5 rounded-xl border cursor-pointer flex items-start gap-2 ${
+                      bulkSourceAction === 'delete' ? 'bg-white border-rose-600 shadow-xs' : 'bg-slate-50/80 border-slate-200'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="source_action"
+                        checked={bulkSourceAction === 'delete'}
+                        onChange={() => setBulkSourceAction('delete')}
+                        className="mt-0.5 accent-rose-600"
+                      />
+                      <div>
+                        <span className="font-bold text-rose-800 block">Hapus dari Penyiapan</span>
+                        <span className="text-[10px] text-slate-500 block leading-tight">
+                          Keluarkan item terpilih dari antrean penyiapan
+                        </span>
+                      </div>
+                    </label>
+                  )}
 
                   <label className={`p-2.5 rounded-xl border cursor-pointer flex items-start gap-2 ${
                     bulkSourceAction === 'keep' ? 'bg-white border-slate-600 shadow-xs' : 'bg-slate-50/80 border-slate-200'

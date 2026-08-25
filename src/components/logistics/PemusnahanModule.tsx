@@ -70,7 +70,7 @@ interface PemusnahanModuleProps {
 export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
-  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
   // Primary Data State
   const [pemusnahanList, setPemusnahanList] = useState<PemusnahanItem[]>([]);

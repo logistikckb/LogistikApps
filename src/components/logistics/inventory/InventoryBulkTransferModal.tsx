@@ -141,6 +141,7 @@ export function InventoryBulkTransferModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const selectedDest = INVENTORY_TRANSFER_DESTINATIONS.find(d => d.id === selectedDestinationId) || INVENTORY_TRANSFER_DESTINATIONS[0];
+  const isAdmin = currentUser?.role === 'Admin';
 
   useEffect(() => {
     if (selectedItems.length > 0) {
@@ -148,8 +149,11 @@ export function InventoryBulkTransferModal({
       setCustomDestinationTujuan(selectedItems[0].tujuan || selectedDest.defaultTujuan);
       setCustomNote(selectedItems[0].note || '');
       setCustomDestinationStatus(''); // Empty by default
+      if (!isAdmin) {
+        setKeepOrDeleteSource('update_status');
+      }
     }
-  }, [selectedItems, selectedDestinationId]);
+  }, [selectedItems, selectedDestinationId, isAdmin]);
 
   if (!isOpen || selectedItems.length === 0) return null;
 
@@ -238,7 +242,7 @@ export function InventoryBulkTransferModal({
       // 4. Update or delete source inventory items
       let updatedSourceItems: InventoryItem[] = [];
 
-      if (keepOrDeleteSource === 'delete_source') {
+      if (keepOrDeleteSource === 'delete_source' && isAdmin) {
         const idsToDelete = selectedItems.map(i => i.id_inventory);
         await supabase
           .from('data_inventory')
@@ -399,16 +403,18 @@ export function InventoryBulkTransferModal({
                 <span>Simpan di Inventory (Update Status jadi "{selectedDest.sourceStatusDefault}")</span>
               </label>
 
-              <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-rose-700">
-                <input
-                  type="radio"
-                  name="source_action"
-                  checked={keepOrDeleteSource === 'delete_source'}
-                  onChange={() => setKeepOrDeleteSource('delete_source')}
-                  className="text-rose-600 focus:ring-rose-500"
-                />
-                <span>Hapus Data Asal dari Inventory (Move / Pindah Penuh)</span>
-              </label>
+              {isAdmin && (
+                <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-rose-700">
+                  <input
+                    type="radio"
+                    name="source_action"
+                    checked={keepOrDeleteSource === 'delete_source'}
+                    onChange={() => setKeepOrDeleteSource('delete_source')}
+                    className="text-rose-600 focus:ring-rose-500"
+                  />
+                  <span>Hapus Data Asal dari Inventory (Move / Pindah Penuh)</span>
+                </label>
+              )}
             </div>
           </div>
 

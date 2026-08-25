@@ -74,7 +74,7 @@ interface RecoModuleProps {
 export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
-  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
   // Primary Data State
   const [recoList, setRecoList] = useState<RecoItem[]>([]);
@@ -1174,6 +1174,12 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
   // Delete Single Item
   const handleDeleteItem = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data reco hanya dapat dilakukan oleh Admin!', 'danger');
+      setShowDeleteModal(false);
+      return;
+    }
+
     if (!selectedItem) return;
     const idToDelete = selectedItem.id_reco;
 
@@ -1231,6 +1237,12 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
   // Bulk Delete
   const handleExecuteBulkDelete = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus massal data reco hanya dapat dilakukan oleh Admin!', 'danger');
+      setShowBulkDeleteModal(false);
+      return;
+    }
+
     if (selectedIds.size === 0) return;
     const idsArray = Array.from(selectedIds);
     setIsDeletingBulk(true);

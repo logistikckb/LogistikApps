@@ -194,7 +194,7 @@ export function DatabaseMasterModule() {
   // =========================================================================
   // SUPERADMIN SECURITY CHECK
   // =========================================================================
-  const isSuperAdmin = isAdmin || currentUser?.username?.toLowerCase() === 'superadmin' || currentUser?.role === 'Admin';
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
   if (!isSuperAdmin) {
     return (
