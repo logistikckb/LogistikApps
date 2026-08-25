@@ -184,11 +184,11 @@ export function Hero() {
         </div>
       , document.body)}
 
-      {/* Main Header Box */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch justify-between overflow-hidden">
+      {/* Main Header Box (Polos - Minimalism Lite) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row items-stretch justify-between overflow-hidden">
         
         {/* User Active & Profile Section */}
-        <div className="flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3.5 p-3.5 sm:p-4 min-w-0">
+        <div className="flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3.5 p-3.5 sm:p-4 min-w-0 bg-white">
           <div className="relative shrink-0">
             <button 
               type="button"
@@ -199,9 +199,9 @@ export function Hero() {
               <img 
                 src={currentUser?.avatar || DEFAULT_AVATAR} 
                 alt={currentUser?.nama || "Pengguna"} 
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-2xs group-hover:border-blue-500 bg-white transition-colors"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-slate-200 group-hover:border-blue-500 bg-white transition-colors"
               />
-              <span className="absolute -bottom-1 -right-1 bg-blue-900 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+              <span className="absolute -bottom-1 -right-1 bg-slate-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
                 Ubah
               </span>
             </button>
@@ -213,11 +213,11 @@ export function Hero() {
                 {greeting}, {currentUser ? currentUser.nama.split(' ')[0] : 'Rekan'}!
               </h1>
               {isAdmin ? (
-                <span className="bg-red-50 text-red-700 border border-red-200 text-[9px] font-black py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
+                <span className="bg-white text-red-700 border border-red-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
                   <ShieldAlert size={11} /> Super Admin
                 </span>
               ) : (
-                <span className="bg-blue-50 text-blue-900 border border-blue-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
+                <span className="bg-white text-blue-900 border border-blue-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
                   <UserCheck size={11} /> Pelaksana
                 </span>
               )}
@@ -234,10 +234,10 @@ export function Hero() {
               <button
                 type="button"
                 onClick={() => setShowAvatarPicker(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
                 title="Pilih foto avatar profil"
               >
-                <Sparkles size={12} className="text-orange-500" />
+                <Sparkles size={12} className="text-amber-500" />
                 <span>Ganti Avatar</span>
               </button>
 
@@ -245,7 +245,7 @@ export function Hero() {
                 <button
                   type="button"
                   onClick={() => setShowUserManagement(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer active:scale-95"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-bold transition-colors shadow-2xs cursor-pointer active:scale-95"
                   title="Kelola user & role"
                 >
                   <UserCog size={13} />
@@ -256,7 +256,7 @@ export function Hero() {
               <button
                 type="button"
                 onClick={logout}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
                 title="Keluar dari sesi"
               >
                 <LogOut size={12} />
@@ -269,7 +269,7 @@ export function Hero() {
                     href="https://wa.me/6281911934000" 
                     target="_blank" 
                     rel="noreferrer" 
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200 transition-colors"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white text-emerald-800 text-[11px] font-bold border border-emerald-300 transition-colors shadow-2xs"
                   >
                     <MessageCircle size={12} className="text-emerald-600" />
                     <span>081911934000</span>
@@ -277,7 +277,7 @@ export function Hero() {
 
                   <button 
                     onClick={() => setShowContacts(false)}
-                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 text-[10px] font-bold transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-white text-slate-600 hover:text-slate-900 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer shadow-2xs"
                   >
                     <ChevronUp size={11} /> Tutup
                   </button>
@@ -285,7 +285,7 @@ export function Hero() {
               ) : (
                 <button 
                   onClick={() => setShowContacts(true)}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer shadow-2xs"
                 >
                   <Mail size={12} />
                   <span>Kontak Dev</span>
@@ -297,12 +297,12 @@ export function Hero() {
         </div>
 
         {/* Date, Live Clock & Protection Section */}
-        <div className="flex flex-col justify-between items-center sm:items-end p-3.5 sm:p-4 bg-slate-50/50 border-t md:border-t-0 md:border-l border-slate-200 min-w-[210px] text-center sm:text-right shrink-0">
+        <div className="flex flex-col justify-between items-center sm:items-end p-3.5 sm:p-4 bg-white border-t md:border-t-0 md:border-l border-slate-200 min-w-[210px] text-center sm:text-right shrink-0">
           <div className="w-full flex sm:flex-col justify-between items-center sm:items-end gap-0.5">
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               {dateStr}
             </div>
-            <div className="text-xl sm:text-2xl font-black text-blue-900 tracking-tight font-mono">
+            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
               {time}
             </div>
           </div>
@@ -312,10 +312,10 @@ export function Hero() {
 
             <div 
               id="hero-security-inactivity-badge"
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-white text-slate-700 border border-slate-200 shadow-2xs"
               title="Proteksi sesi: Auto logout 30 menit"
             >
-              <ShieldCheck size={11} className="text-blue-700 shrink-0" />
+              <ShieldCheck size={11} className="text-slate-600 shrink-0" />
               <span>Sesi 30m</span>
             </div>
           </div>

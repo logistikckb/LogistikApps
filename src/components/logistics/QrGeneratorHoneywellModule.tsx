@@ -1009,42 +1009,6 @@ export function QrGeneratorHoneywellModule() {
 
   return (
     <div className="space-y-2 sm:space-y-2.5">
-      
-      {/* Header Bar Singkat & Rapi */}
-      <div className="p-2.5 sm:p-3 bg-slate-900 text-white rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-            <QrCode size={16} />
-          </div>
-          <div>
-            <h2 className="text-xs sm:text-sm font-bold text-white m-0">QR Code Generator & Print PM42</h2>
-            <p className="text-[10px] text-slate-300 m-0">
-              Format: <span className="text-amber-400 font-semibold">Judul (atas)</span> &bull; <span className="text-white font-semibold">QR Code (tengah)</span> &bull; <span className="text-amber-400 font-semibold">Teks (bawah)</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowGuide(!showGuide)}
-            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1 cursor-pointer"
-          >
-            <Info size={12} className="text-amber-400" />
-            <span>{showGuide ? 'Tutup' : 'Petunjuk PM42'}</span>
-            {showGuide ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowCommandModal(true)}
-            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold flex items-center gap-1 cursor-pointer"
-          >
-            <FileCode size={12} />
-            <span>Raw Code</span>
-          </button>
-        </div>
-      </div>
 
       {/* Petunjuk Singkat & Solusi ZSim vs Autosense */}
       {showGuide && (

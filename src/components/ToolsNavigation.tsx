@@ -2,17 +2,11 @@ import React from 'react';
 import { 
   CalendarCheck2, 
   Sparkles,
-  ChevronRight,
   Database,
   Boxes,
-  FileText,
   Truck,
-  Settings,
-  Grid,
-  ShieldCheck,
   QrCode,
   Flame,
-  Trash2,
   ClipboardList,
   Package
 } from 'lucide-react';
@@ -204,77 +198,49 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   });
 
   return (
-    <div className="space-y-3">
-      {/* Title Bar (Minimalist & Compact for Mobile) */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-xl bg-blue-900 text-white flex items-center justify-center shadow-2xs">
-            <Grid size={14} />
-          </div>
-          <div>
-            <h2 className="text-xs sm:text-sm font-black text-slate-800 m-0 uppercase tracking-tight">
-              Menu Aplikasi
-            </h2>
-          </div>
-        </div>
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
+      {visibleTools.map((tool) => {
+        const Icon = tool.icon;
 
-        <div className="flex items-center gap-1.5">
-          {isSuperAdmin && (
-            <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <ShieldCheck size={11} /> Akses Super Admin
-            </span>
-          )}
-          <span className="text-[10px] font-bold text-slate-500 bg-white/80 border border-slate-200/80 px-2 py-0.5 rounded-full shadow-2xs">
-            {visibleTools.length} Menu
-          </span>
-        </div>
-      </div>
+        return (
+          <button
+            key={tool.id}
+            type="button"
+            onClick={() => onOpenTool(tool.id)}
+            className="p-2.5 sm:p-3.5 rounded-2xl transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer border bg-slate-50 hover:bg-white active:bg-blue-50 border-slate-200 hover:border-blue-400 shadow-2xs group select-none min-h-[90px] sm:min-h-[105px]"
+          >
+            {/* Ready Indicator dot for active tool */}
+            {tool.isReady && (
+              <span 
+                className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" 
+                title="Modul Aktif"
+              />
+            )}
 
-      {/* Grid Menu: Mobile-first 3 columns on phone, 4 on tablet, 6 on desktop */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
-        {visibleTools.map((tool) => {
-          const Icon = tool.icon;
-
-          return (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => onOpenTool(tool.id)}
-              className="p-2.5 sm:p-3.5 rounded-2xl transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer border bg-slate-50 hover:bg-white active:bg-blue-50 border-slate-200 hover:border-blue-400 shadow-2xs group select-none min-h-[90px] sm:min-h-[105px]"
-            >
-              {/* Ready Indicator dot for active tool */}
-              {tool.isReady && (
-                <span 
-                  className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" 
-                  title="Modul Aktif"
-                />
-              )}
-
-              {/* Super Admin Badge on top left if tool requires admin */}
-              {tool.requiresAdmin && (
-                <span 
-                  className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-900 text-white text-[8px] font-black uppercase tracking-wider"
-                  title="Khusus Super Admin"
-                >
-                  ADMIN
-                </span>
-              )}
-
-              {/* Icon Container */}
-              <div 
-                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${tool.colorBg} text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform shrink-0`}
+            {/* Super Admin Badge on top left if tool requires admin */}
+            {tool.requiresAdmin && (
+              <span 
+                className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-900 text-white text-[8px] font-black uppercase tracking-wider"
+                title="Khusus Super Admin"
               >
-                <Icon size={20} className="sm:size-[22px]" />
-              </div>
-
-              {/* Nama Menu di Bawah Icon */}
-              <span className="mt-1.5 text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
-                {tool.title}
+                ADMIN
               </span>
-            </button>
-          );
-        })}
-      </div>
+            )}
+
+            {/* Icon Container */}
+            <div 
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${tool.colorBg} text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform shrink-0`}
+            >
+              <Icon size={20} className="sm:size-[22px]" />
+            </div>
+
+            {/* Nama Menu di Bawah Icon */}
+            <span className="mt-1.5 text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
+              {tool.title}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

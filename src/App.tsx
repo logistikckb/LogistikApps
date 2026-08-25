@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { Hero } from './components/Hero';
-import { MainKPIDashboard } from './components/dashboard/MainKPIDashboard';
 import { ToolsGridMenu, ToolId, TOOLS_LIST } from './components/ToolsNavigation';
 import { EdCheckerModule } from './components/logistics/EdCheckerModule';
 import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModule';
@@ -98,8 +97,6 @@ export default function App() {
                 onRequestNotificationPermission={requestNotificationPermission}
                 isNotificationSupported={isNotificationSupported}
               />
-
-              <MainKPIDashboard onOpenTool={handleOpenTool} />
 
               <main className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-xs">
                 <ToolsGridMenu onOpenTool={handleOpenTool} />

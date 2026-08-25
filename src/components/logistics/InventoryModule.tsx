@@ -703,70 +703,7 @@ export function InventoryModule({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* STATS OVERVIEW CARDS */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {/* Total Item */}
-        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
-              Total Baris
-            </span>
-            <div className="text-sm sm:text-base font-black text-slate-800 font-mono mt-0.5">
-              {statusStats.total.toLocaleString('id-ID')}
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-            <Layers size={14} />
-          </div>
-        </div>
 
-        {/* Total Fisik Qty */}
-        <div className="p-2.5 rounded-xl bg-teal-50/60 border border-teal-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-teal-800 uppercase tracking-tight block">
-              Total Qty Fisik
-            </span>
-            <div className="text-sm sm:text-base font-black text-teal-900 font-mono mt-0.5">
-              {statusStats.totalQty.toLocaleString('id-ID')}
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center">
-            <Boxes size={14} />
-          </div>
-        </div>
-
-        {/* Status Ada */}
-        <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">
-              Status "Ada"
-            </span>
-            <div className="text-sm sm:text-base font-black text-emerald-900 font-mono mt-0.5">
-              {statusStats.ada.toLocaleString('id-ID')}
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-            <Check size={14} />
-          </div>
-        </div>
-
-        {/* Status Beda / Tidak */}
-        <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-tight block">
-              Beda / Tidak
-            </span>
-            <div className="text-sm sm:text-base font-black text-amber-900 font-mono mt-0.5">
-              {statusStats.beda + statusStats.tidak}
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-            <AlertTriangle size={14} />
-          </div>
-        </div>
-      </div>
 
       {/* ========================================================================= */}
       {/* SEARCH & FILTER BAR */}
@@ -807,24 +744,6 @@ export function InventoryModule({
                 {isListening ? <MicOff size={13} /> : <Mic size={13} />}
               </button>
             </div>
-          </div>
-
-          {/* Status Filter */}
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-bold text-slate-500 shrink-0">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-            >
-              <option value="ALL">Semua Status</option>
-              <option value="Ada">Ada</option>
-              <option value="Beda">Beda</option>
-              <option value="Tidak">Tidak</option>
-            </select>
           </div>
 
           {/* Location Filter */}
@@ -1024,9 +943,6 @@ export function InventoryModule({
                 </th>
 
                 <th className="px-2 py-1.5 text-center w-10">No</th>
-                
-                {/* Status Column (Sticky Left) */}
-                <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
 
                 {/* Location Column */}
                 <th 
@@ -1082,6 +998,21 @@ export function InventoryModule({
                     <span>Uom</span>
                     {sortField === 'uom' ? (
                       sortOrder === 'asc' ? <ArrowUp size={12} className="text-slate-900 font-black" /> : <ArrowDown size={12} className="text-slate-900 font-black" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
+                  </div>
+                </th>
+
+                {/* Qty Convert Column */}
+                <th 
+                  onClick={() => handleSort('qty_convert')} 
+                  className={`px-2.5 py-1.5 text-right cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'qty_convert' ? 'bg-teal-50 text-teal-950 font-black' : ''}`}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>Qty Convert</span>
+                    {sortField === 'qty_convert' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-teal-700 font-black" /> : <ArrowDown size={12} className="text-teal-700 font-black" />
                     ) : (
                       <ArrowUpDown size={11} className="text-slate-400" />
                     )}
@@ -1170,7 +1101,7 @@ export function InventoryModule({
                       <Package size={32} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Inventory</span>
                       <p className="text-[11px] text-slate-400 max-w-md m-0">
-                        {searchQuery || locationFilter !== 'ALL' || statusFilter !== 'ALL'
+                        {searchQuery || locationFilter !== 'ALL' || slocFilter !== 'ALL'
                           ? 'Tidak ditemukan data yang cocok dengan kriteria pencarian.'
                           : 'Klik tombol "Tambah Data" atau "Upload Excel" (Admin) untuk menambahkan data inventory.'}
                       </p>
@@ -1180,11 +1111,6 @@ export function InventoryModule({
               ) : (
                 paginatedData.map((row, idx) => {
                   const isSelected = selectedIds.includes(row.id_inventory);
-                  const statusKey = (row.status || '').toLowerCase().trim();
-                  const isAda = statusKey === 'ada';
-                  const isBeda = statusKey === 'beda';
-                  const isTidak = statusKey === 'tidak';
-
                   const rowNumber = pageSize === 'ALL' ? idx + 1 : (currentPage - 1) * pageSize + idx + 1;
 
                   return (
@@ -1216,22 +1142,6 @@ export function InventoryModule({
                         {rowNumber}
                       </td>
 
-                      {/* Status (Sticky Left) */}
-                      <td className="px-2 py-1.5 text-center sticky left-0 bg-white/95 z-10">
-                        {row.status ? (
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold border ${
-                            isAda ? 'bg-emerald-50 text-emerald-900 border-emerald-300' :
-                            isBeda ? 'bg-blue-50 text-blue-900 border-blue-300' :
-                            isTidak ? 'bg-amber-50 text-amber-900 border-amber-300' :
-                            'bg-slate-50 text-slate-700 border-slate-300'
-                          }`}>
-                            {row.status}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-mono text-[10px]">-</span>
-                        )}
-                      </td>
-
                       {/* Location */}
                       <td className="px-2.5 py-1.5 font-bold font-mono text-slate-800">
                         {row.location || '-'}
@@ -1239,14 +1149,7 @@ export function InventoryModule({
 
                       {/* Item Name */}
                       <td className="px-2.5 py-1.5 font-semibold text-slate-900 max-w-xs truncate" title={row.item_name}>
-                        <div className="flex items-center gap-1.5">
-                          {row.item_code && (
-                            <span className="font-mono text-[10px] text-teal-800 bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
-                              {row.item_code}
-                            </span>
-                          )}
-                          <span className="truncate">{row.item_name || '-'}</span>
-                        </div>
+                        <span className="truncate">{row.item_name || '-'}</span>
                       </td>
 
                       {/* Last Qty */}
@@ -1257,6 +1160,11 @@ export function InventoryModule({
                       {/* UOM */}
                       <td className="px-2.5 py-1.5 text-center font-bold text-slate-600">
                         {row.uom || '-'}
+                      </td>
+
+                      {/* Qty Convert */}
+                      <td className="px-2.5 py-1.5 text-right font-mono font-black text-teal-900">
+                        {Number(row.qty_convert || 0).toLocaleString('id-ID')} {row.uom_convert ? <span className="text-[10px] font-bold text-slate-500 ml-0.5">{row.uom_convert}</span> : null}
                       </td>
 
                       {/* Batch */}

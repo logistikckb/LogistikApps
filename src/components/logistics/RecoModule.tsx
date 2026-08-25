@@ -1461,23 +1461,23 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
   return (
     <div className="space-y-3">
-      {/* Top Banner / Breadcrumb & Navigation Info */}
-      <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white shadow-md flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-purple-300 border border-white/20 shadow-inner">
-            <ClipboardList size={22} />
+      {/* Top Banner / Navigation Info (Polos - Minimalism Lite) */}
+      <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200">
+            <ClipboardList size={20} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-black tracking-tight m-0 uppercase">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight m-0 uppercase">
                 Menu Reco (Permintaan Barang)
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/30 text-[10px] font-black uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold uppercase">
                 data_reco
               </span>
             </div>
-            <p className="text-xs text-purple-200/90 m-0 font-medium">
-              Reco adalah modul untuk manajemen & pencatatan permintaan barang (disinkronkan dari modul Penyiapan).
+            <p className="text-xs text-slate-500 m-0">
+              Modul manajemen & pencatatan permintaan barang (sinkronisasi dari Penyiapan).
             </p>
           </div>
         </div>
@@ -1486,10 +1486,10 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
           {onNavigateToPenyiapan && (
             <button
               onClick={onNavigateToPenyiapan}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-bold transition-all border border-white/20 cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-xs font-bold transition-colors border border-slate-200 cursor-pointer flex items-center gap-1.5 shadow-2xs"
               title="Buka Modul Penyiapan Outbound"
             >
-              <Boxes size={14} className="text-sky-300" />
+              <Boxes size={14} className="text-slate-600" />
               <span>Buka Penyiapan</span>
             </button>
           )}
@@ -1497,10 +1497,10 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-600 active:bg-purple-800 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-bold transition-colors border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             title="Refresh Data dari Cloud Supabase"
           >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-blue-600' : 'text-slate-600'} />
             <span>{isRefreshing ? 'Memuat...' : 'Refresh'}</span>
           </button>
         </div>
@@ -1521,93 +1521,6 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
           </button>
         </div>
       )}
-
-      {/* KPI Cards (6 Metric Cards matching PemusnahanModule layout) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-        {/* Card 1: Total Lot Permintaan */}
-        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block">Total Lot</span>
-            <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
-              {stats.totalLot.toLocaleString('id-ID')}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">Lot / Baris</span>
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
-            <ClipboardList size={15} />
-          </div>
-        </div>
-
-        {/* Card 2: Total Qty (PCS) */}
-        <div className="p-2.5 rounded-xl bg-white border border-purple-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold text-purple-700 uppercase tracking-tight block">Total Qty (PCS)</span>
-            <div className="text-base sm:text-lg font-black text-purple-900 font-mono">
-              {stats.totalPcs.toLocaleString('id-ID')}
-              <span className="text-[10px] font-normal text-purple-400 ml-1">PCS</span>
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
-            <Package size={15} />
-          </div>
-        </div>
-
-        {/* Card 3: Dari Penyiapan */}
-        <div className="p-2.5 rounded-xl bg-white border border-indigo-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-tight block">Dari Penyiapan</span>
-            <div className="text-base sm:text-lg font-black text-indigo-900 font-mono">
-              {stats.fromPenyiapanCount.toLocaleString('id-ID')}
-              <span className="text-[10px] font-normal text-indigo-400 ml-1">Baris</span>
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
-            <Boxes size={15} />
-          </div>
-        </div>
-
-        {/* Card 4: Menunggu Reco / Permintaan */}
-        <div className="p-2.5 rounded-xl bg-white border border-amber-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-tight block">Menunggu Reco</span>
-            <div className="text-base sm:text-lg font-black text-amber-800 font-mono">
-              {stats.pendingCount.toLocaleString('id-ID')}
-              <span className="text-[10px] font-normal text-amber-400 ml-1">Baris</span>
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-            <Clock size={15} />
-          </div>
-        </div>
-
-        {/* Card 5: Selesai / Disetujui */}
-        <div className="p-2.5 rounded-xl bg-white border border-emerald-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-tight block">Selesai / Selesai</span>
-            <div className="text-base sm:text-lg font-black text-emerald-800 font-mono">
-              {stats.doneCount.toLocaleString('id-ID')}
-              <span className="text-[10px] font-normal text-emerald-400 ml-1">Baris</span>
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-            <ShieldCheck size={15} />
-          </div>
-        </div>
-
-        {/* Card 6: SKU Unik */}
-        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block">SKU Unik</span>
-            <div className="text-base sm:text-lg font-black text-slate-800 font-mono">
-              {stats.uniqueSkuCount.toLocaleString('id-ID')}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">Item</span>
-            </div>
-          </div>
-          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
-            <Layers size={15} />
-          </div>
-        </div>
-      </div>
 
       {/* Control Bar: Search Box, Filter Tujuan Dropdown, and Action Buttons (Exact PemusnahanModule layout) */}
       <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">

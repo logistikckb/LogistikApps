@@ -1059,39 +1059,6 @@ export function SuratJalanModule() {
       {/* ==================================================================== */}
       {activeTab === 'dashboard' && (
         <div className="space-y-2.5">
-          {/* Bento Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
-            <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
-                <FileText size={18} />
-              </div>
-              <div>
-                <span className="text-lg sm:text-xl font-black text-slate-900 block tracking-tight">{totalSJ}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Dokumen SJ</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold shrink-0">
-                <Layers size={18} />
-              </div>
-              <div>
-                <span className="text-lg sm:text-xl font-black text-slate-900 block tracking-tight">{formatNum(totalItemLines)}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Baris Item</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold shrink-0">
-                <Save size={18} />
-              </div>
-              <div>
-                <span className="text-lg sm:text-xl font-black text-slate-900 block tracking-tight">{formatNum(totalCTNCount)}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Karton (CTN)</span>
-              </div>
-            </div>
-          </div>
-
           {/* Search & Table */}
           <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between flex-wrap gap-2">
