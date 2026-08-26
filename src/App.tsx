@@ -11,6 +11,7 @@ import { PenyiapanModule } from './components/logistics/PenyiapanModule';
 import { PemusnahanModule } from './components/logistics/PemusnahanModule';
 import { RecoModule } from './components/logistics/RecoModule';
 import { InventoryModule } from './components/logistics/InventoryModule';
+import { RepackModule } from './components/logistics/RepackModule';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
 import { BroadcastBar } from './components/broadcast/BroadcastBar';
@@ -161,6 +162,7 @@ export default function App() {
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')} 
                       onNavigateToReco={() => handleOpenTool('menu-f')}
                       onNavigateToInventory={() => handleOpenTool('menu-g')}
+                      onNavigateToRepack={() => handleOpenTool('menu-h')}
                     />
                   ) : activeToolId === 'menu-e' ? (
                     <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
@@ -172,6 +174,8 @@ export default function App() {
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
                       onNavigateToReco={() => handleOpenTool('menu-f')}
                     />
+                  ) : activeToolId === 'menu-h' ? (
+                    <RepackModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
                   ) : (
                     <PlaceholderTool
                       id={currentTool.id}

@@ -109,18 +109,25 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   const [gSheetConfig, setGSheetConfig] = useState(() => {
     const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
     const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
-    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME_PEMUSNAHAN as string) || (import.meta.env.VITE_GSHEET_SHEET_NAME as string) || 'pemusnahan';
+    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME_PEMUSNAHAN as string) || 'pemusnahan';
 
     try {
-      const saved = localStorage.getItem('PEMUSNAHAN_GSHEET_WEBHOOK_CONFIG') || localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
+      const specificSaved = localStorage.getItem('PEMUSNAHAN_GSHEET_WEBHOOK_CONFIG');
+      const generalSaved = localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
+      const saved = specificSaved || generalSaved;
       if (saved) {
         const parsed = JSON.parse(saved);
+        const rawSheet = parsed.sheetName?.trim();
+        const safeSheetName = (!rawSheet || rawSheet.toLowerCase() === 'incoming' || rawSheet.toLowerCase() === 'penyiapan')
+          ? 'pemusnahan'
+          : rawSheet;
+
         return {
           webhookUrl: parsed.webhookUrl || defaultEnvUrl,
           spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
-          sheetName: parsed.sheetName || defaultEnvSheetName || 'pemusnahan',
+          sheetName: safeSheetName,
           secretToken: parsed.secretToken || '',
-          mode: (parsed.mode || 'append') as 'overwrite' | 'append'
+          mode: (specificSaved && parsed.mode ? parsed.mode : 'append') as 'overwrite' | 'append'
         };
       }
     } catch {}
@@ -150,15 +157,35 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     let isMounted = true;
     async function loadGlobalConfig() {
       try {
-        const cloudConfig = (await getAppSettingFromSupabase('gsheet_sync_config_pemusnahan', null)) || (await getAppSettingFromSupabase('gsheet_sync_config', null));
-        if (isMounted && cloudConfig && cloudConfig.webhookUrl) {
+        const specificConfig = await getAppSettingFromSupabase('gsheet_sync_config_pemusnahan', null);
+        const generalConfig = await getAppSettingFromSupabase('gsheet_sync_config', null);
+
+        if (!isMounted) return;
+
+        if (specificConfig && specificConfig.webhookUrl) {
+          const rawSheet = specificConfig.sheetName?.trim();
+          const safeSheetName = (!rawSheet || rawSheet.toLowerCase() === 'incoming' || rawSheet.toLowerCase() === 'penyiapan')
+            ? 'pemusnahan'
+            : rawSheet;
+
           setGSheetConfig(prev => ({
             ...prev,
-            webhookUrl: cloudConfig.webhookUrl || prev.webhookUrl,
-            spreadsheetId: cloudConfig.spreadsheetId !== undefined ? cloudConfig.spreadsheetId : prev.spreadsheetId,
-            sheetName: cloudConfig.sheetName || prev.sheetName || 'pemusnahan',
-            secretToken: cloudConfig.secretToken || prev.secretToken,
-            mode: cloudConfig.mode || prev.mode || 'append'
+            webhookUrl: specificConfig.webhookUrl || prev.webhookUrl,
+            spreadsheetId: specificConfig.spreadsheetId !== undefined ? specificConfig.spreadsheetId : prev.spreadsheetId,
+            sheetName: safeSheetName,
+            secretToken: specificConfig.secretToken || prev.secretToken,
+            mode: specificConfig.mode || 'append'
+          }));
+          setIsConfigFromSupabase(true);
+        } else if (generalConfig && generalConfig.webhookUrl) {
+          // Inherit the connection URL and spreadsheet ID, but keep sheetName as 'pemusnahan' and mode as 'append'
+          setGSheetConfig(prev => ({
+            ...prev,
+            webhookUrl: generalConfig.webhookUrl || prev.webhookUrl,
+            spreadsheetId: generalConfig.spreadsheetId !== undefined ? generalConfig.spreadsheetId : prev.spreadsheetId,
+            sheetName: 'pemusnahan',
+            secretToken: generalConfig.secretToken || prev.secretToken,
+            mode: 'append'
           }));
           setIsConfigFromSupabase(true);
         }
@@ -1474,7 +1501,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     setGSheetConfig(newConfig);
     try {
       localStorage.setItem('PEMUSNAHAN_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
-      localStorage.setItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
     } catch {}
   };
 

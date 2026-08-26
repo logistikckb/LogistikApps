@@ -20,7 +20,8 @@ export type ToolId =
   | 'menu-d' 
   | 'menu-e'
   | 'menu-f'
-  | 'menu-g';
+  | 'menu-g'
+  | 'menu-h';
 
 export interface ToolItem {
   id: ToolId;
@@ -177,6 +178,24 @@ export const TOOLS_LIST: ToolItem[] = [
       'Upload File Excel Massal Khusus Role Admin (Format Kolom Standar Logistik)',
       'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/Status',
       'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Supabase Realtime'
+    ]
+  },
+  {
+    id: 'menu-h',
+    title: 'Repack',
+    shortDesc: 'Manajemen Repacking Produk & Promo Bundling (data_repack) dari Modul Penyiapan',
+    category: 'Repack & Bundling',
+    icon: Boxes,
+    isReady: true,
+    requiresAdmin: false,
+    colorBg: 'bg-amber-50 text-amber-600 border border-amber-200/80',
+    colorBorder: 'border-amber-200',
+    colorIcon: 'text-amber-600',
+    plannedFeatures: [
+      'Manajemen Data Repack & Bundling (Tabel Supabase: public.data_repack)',
+      'Transfer Massal Otomatis dari Modul Penyiapan Outbound',
+      'Tracking Lokasi Repack (WH-REPACK-01), SLOC (SL04) & Destinasi Promo',
+      'Upload & Export Laporan Excel (.xlsx) dengan Template Standar'
     ]
   }
 ];

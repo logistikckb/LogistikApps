@@ -40,7 +40,7 @@ export interface TransferDestination {
 export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
   {
     id: 'penyiapan',
-    name: 'Menu Penyiapan (Menu D)',
+    name: 'Penyiapan',
     tableName: 'data_penyiapan',
     idPrefix: 'PEN-',
     idField: 'id_penyiapan',
@@ -59,7 +59,7 @@ export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
   },
   {
     id: 'pemusnahan',
-    name: 'Menu Pemusnahan (Menu E)',
+    name: 'Pemusnahan',
     tableName: 'data_pemusnahan',
     idPrefix: 'PMS-',
     idField: 'id_pemusnahan',
@@ -78,7 +78,7 @@ export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
   },
   {
     id: 'reco',
-    name: 'Menu Reco / Permintaan Barang (Menu F)',
+    name: 'Reco',
     tableName: 'data_reco',
     idPrefix: 'REC-',
     idField: 'id_reco',
@@ -97,7 +97,7 @@ export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
   },
   {
     id: 'incoming',
-    name: 'Menu Kedatangan / Inbound (Menu B)',
+    name: 'Kedatangan / Inbound',
     tableName: 'incoming',
     idPrefix: 'INC-',
     idField: 'id_incoming',
@@ -113,6 +113,25 @@ export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
     cacheKey: 'ckb_incoming_cache_v1',
     description: 'Tabel: public.incoming - Transaksi Inbound Kedatangan Barang',
     colorClass: 'from-emerald-600 to-teal-800'
+  },
+  {
+    id: 'repack',
+    name: 'Repack / Bundling',
+    tableName: 'data_repack',
+    idPrefix: 'RPK-',
+    idField: 'id_repack',
+    defaultSloc: 'SL04',
+    defaultLocation: 'WH-REPACK-01',
+    defaultLocationType: 'Rack',
+    defaultQcCode: 'QC-PASS',
+    defaultDestinationCode: 'PROMO-BUNDLING',
+    defaultStatus: '',
+    defaultTujuan: 'Repacking Promo Bundle',
+    defaultCategory: 'Repack',
+    sourceStatusDefault: 'Terkirim ke Repack',
+    cacheKey: 'repack_cache_v1',
+    description: 'Tabel: public.data_repack - Repacking & Bundling Produk Promo',
+    colorClass: 'from-amber-600 to-orange-700'
   }
 ];
 

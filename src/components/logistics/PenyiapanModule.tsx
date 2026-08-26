@@ -98,7 +98,7 @@ export interface DestinationOption {
 export const BULK_DESTINATIONS: DestinationOption[] = [
   {
     id: 'pemusnahan',
-    name: 'Menu Pemusnahan (Menu E)',
+    name: 'Pemusnahan',
     tableName: 'data_pemusnahan',
     idPrefix: 'PMS-',
     idField: 'id_pemusnahan',
@@ -117,56 +117,11 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     badgeBg: 'bg-rose-100',
     badgeText: 'text-rose-900 border-rose-300',
     borderColor: 'border-rose-500',
-    appModuleId: 'menu-e'
-  },
-  {
-    id: 'incoming',
-    name: 'Menu Kedatangan / Inbound (Menu B)',
-    tableName: 'incoming',
-    idPrefix: 'INC-',
-    idField: 'id_incoming',
-    defaultSloc: 'SL01',
-    defaultLocation: 'WH-IN-01',
-    defaultLocationType: 'Rack',
-    defaultQcCode: 'QC-PASS',
-    defaultDestinationCode: 'DST-01',
-    defaultStatus: 'Received',
-    defaultTujuan: 'Warehouse Utama (Inbound)',
-    defaultCategory: 'Finished Good',
-    sourceStatusDefault: 'Terkirim ke Kedatangan',
-    cacheKey: 'ckb_incoming_cache_v1',
-    description: 'Tabel: public.incoming - Pengembalian atau pencatatan inbound',
-    colorClass: 'from-blue-600 to-indigo-700',
-    badgeBg: 'bg-blue-100',
-    badgeText: 'text-blue-900 border-blue-300',
-    borderColor: 'border-blue-500',
-    appModuleId: 'menu-b'
-  },
-  {
-    id: 'surat_jalan',
-    name: 'Database Surat Jalan',
-    tableName: 'data_surat_jalan',
-    idPrefix: 'SJ-',
-    idField: 'id_surat_jalan',
-    defaultSloc: 'SL02',
-    defaultLocation: 'STAGING-OUT',
-    defaultLocationType: 'Dock',
-    defaultQcCode: 'QC-PASS',
-    defaultDestinationCode: 'CUSTOMER-EXPEDITION',
-    defaultStatus: 'Shipped',
-    defaultTujuan: 'Pengiriman Cabang / Ekspedisi',
-    defaultCategory: 'Finished Good',
-    sourceStatusDefault: 'Terkirim ke Surat Jalan',
-    cacheKey: 'surat_jalan_cache_v1',
-    description: 'Tabel: public.data_surat_jalan - Transaksi pengiriman outbound',
-    colorClass: 'from-emerald-600 to-teal-800',
-    badgeBg: 'bg-emerald-100',
-    badgeText: 'text-emerald-900 border-emerald-300',
-    borderColor: 'border-emerald-500'
+    appModuleId: 'pemusnahan'
   },
   {
     id: 'reco',
-    name: 'Menu Reco / Permintaan Barang (Menu F)',
+    name: 'Reco',
     tableName: 'data_reco',
     idPrefix: 'REC-',
     idField: 'id_reco',
@@ -185,30 +140,30 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     badgeBg: 'bg-purple-100',
     badgeText: 'text-purple-900 border-purple-300',
     borderColor: 'border-purple-500',
-    appModuleId: 'menu-f'
+    appModuleId: 'reco'
   },
   {
-    id: 'inventory',
-    name: 'Menu Inventory (Menu G)',
-    tableName: 'data_inventory',
-    idPrefix: 'INV-',
-    idField: 'id_inventory',
-    defaultSloc: 'SL01',
-    defaultLocation: 'WH-INV-01',
+    id: 'repack',
+    name: 'Repack',
+    tableName: 'data_repack',
+    idPrefix: 'RPK-',
+    idField: 'id_repack',
+    defaultSloc: 'SL04',
+    defaultLocation: 'WH-REPACK-01',
     defaultLocationType: 'Rack',
     defaultQcCode: 'QC-PASS',
-    defaultDestinationCode: 'DST-INV',
-    defaultStatus: 'Ada',
-    defaultTujuan: 'Stok Inventory Gudang',
-    defaultCategory: 'Finished Good',
-    sourceStatusDefault: 'Terkirim ke Inventory',
-    cacheKey: 'ckb_inventory_data_cache_v1',
-    description: 'Tabel: public.data_inventory - Master Stok & Transaksi Inventory',
-    colorClass: 'from-teal-600 to-emerald-800',
-    badgeBg: 'bg-teal-100',
-    badgeText: 'text-teal-900 border-teal-300',
-    borderColor: 'border-teal-500',
-    appModuleId: 'menu-g'
+    defaultDestinationCode: 'PROMO-BUNDLING',
+    defaultStatus: '',
+    defaultTujuan: 'Repacking Promo Bundle',
+    defaultCategory: 'Repack',
+    sourceStatusDefault: 'Terkirim ke Repack',
+    cacheKey: 'repack_cache_v1',
+    description: 'Tabel: public.data_repack - Repacking / Bundling Produk',
+    colorClass: 'from-amber-600 to-orange-700',
+    badgeBg: 'bg-amber-100',
+    badgeText: 'text-amber-900 border-amber-300',
+    borderColor: 'border-amber-500',
+    appModuleId: 'repack'
   }
 ];
 
@@ -217,10 +172,11 @@ interface PenyiapanModuleProps {
   onNavigateToIncoming?: () => void;
   onNavigateToReco?: () => void;
   onNavigateToInventory?: () => void;
+  onNavigateToRepack?: () => void;
   onNavigateToModule?: (moduleId: string) => void;
 }
 
-export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToInventory, onNavigateToModule }: PenyiapanModuleProps = {}) {
+export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToInventory, onNavigateToRepack, onNavigateToModule }: PenyiapanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
@@ -5625,9 +5581,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                           <div className="flex items-center gap-2">
                             <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-blue-900 text-white' : 'bg-slate-200 text-slate-700'}`}>
                               {dest.id === 'pemusnahan' ? <Flame size={15} className={isSelected ? 'text-amber-300' : ''} /> :
-                               dest.id === 'incoming' ? <Package size={15} /> :
                                dest.id === 'reco' ? <ClipboardList size={15} className={isSelected ? 'text-purple-300' : ''} /> :
-                               <Truck size={15} />}
+                               <Boxes size={15} className={isSelected ? 'text-amber-300' : ''} />}
                             </div>
                             <div>
                               <div className="font-black text-slate-800 text-xs leading-tight">{dest.name}</div>
