@@ -681,17 +681,17 @@ export function InventoryModule({
       {/* ========================================================================= */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-teal-800 text-white flex items-center justify-center shadow-xs">
-            <Package size={17} />
+          <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-800 border border-teal-200 flex items-center justify-center">
+            <Package size={15} />
           </div>
           <div>
-            <h2 className="text-sm font-black text-slate-900 m-0 uppercase tracking-tight flex items-center gap-1.5">
+            <h2 className="text-xs font-black text-slate-900 m-0 uppercase tracking-tight flex items-center gap-1.5">
               <span>Inventory Gudang</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-teal-100 text-teal-800 font-bold border border-teal-300">
+              <span className="px-1.5 py-0.2 rounded text-[9px] bg-slate-100 text-slate-700 font-bold border border-slate-200">
                 public.data_inventory
               </span>
             </h2>
-            <p className="text-[11px] text-slate-500 m-0">
+            <p className="text-[10px] text-slate-500 m-0">
               Total {inventoryList.length} item stok inventory terdaftar
             </p>
           </div>
@@ -704,10 +704,10 @@ export function InventoryModule({
             type="button"
             onClick={() => fetchInventoryData(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
             title="Sinkronisasi dengan database cloud Supabase"
           >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-teal-700' : 'text-slate-600'} />
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-teal-700' : 'text-slate-500'} />
             <span className="hidden sm:inline">Sinkron</span>
           </button>
 
@@ -715,7 +715,7 @@ export function InventoryModule({
           <button
             type="button"
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs shadow-2xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
             title="Unduh data inventory ke file Excel (.xlsx)"
           >
             <Download size={13} className="text-emerald-700" />
@@ -727,7 +727,7 @@ export function InventoryModule({
             <button
               type="button"
               onClick={() => setShowExcelModal(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-teal-50 text-teal-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
               title="Upload file Excel massal khusus Admin"
             >
               <Upload size={13} className="text-teal-700" />
@@ -742,9 +742,9 @@ export function InventoryModule({
               setItemToEdit(null);
               setShowFormModal(true);
             }}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-800 hover:bg-teal-900 text-white font-black text-xs shadow-xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
           >
-            <Plus size={14} />
+            <Plus size={13} />
             <span>Tambah Data</span>
           </button>
         </div>
@@ -806,7 +806,7 @@ export function InventoryModule({
           <button
             type="button"
             onClick={() => setShowScannerModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50/90 hover:bg-teal-100 text-teal-950 font-bold text-xs shadow-2xs transition-all cursor-pointer shrink-0 active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-teal-50 text-teal-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer shrink-0 active:scale-95"
             title="Buka Kamera Scan QR & Barcode"
           >
             <ScanBarcode size={13} className="text-teal-700" />

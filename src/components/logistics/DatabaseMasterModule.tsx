@@ -1444,21 +1444,21 @@ export function DatabaseMasterModule() {
       {/* ========================================================================= */}
       {/* TOP STATS & SUB-NAVIGATION BAR */}
       {/* ========================================================================= */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-blue-300 shrink-0 shadow-inner">
-            <Database size={20} />
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-900 shrink-0">
+            <Database size={16} />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm sm:text-base font-black tracking-tight text-white m-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h2 className="text-sm font-bold tracking-tight text-slate-900 m-0">
                 Database Master Barang & Distributor
               </h2>
-              <span className="px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck size={10} /> Super Admin
+              <span className="px-2 py-0.2 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                <ShieldCheck size={10} className="text-slate-600" /> Super Admin
               </span>
             </div>
-            <p className="text-[11px] text-blue-200/80 font-medium m-0">
+            <p className="text-[11px] text-slate-500 font-medium m-0">
               Kelola Master Data Barang & Distributor dengan Sinkronisasi Database Realtime
             </p>
           </div>
@@ -1470,7 +1470,7 @@ export function DatabaseMasterModule() {
             type="button"
             onClick={refreshAll}
             disabled={loading}
-            className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-all cursor-pointer flex items-center gap-1 text-xs font-bold"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold disabled:opacity-50"
             title="Refresh Data"
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />

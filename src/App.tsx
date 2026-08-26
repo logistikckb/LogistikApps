@@ -108,37 +108,37 @@ export default function App() {
           {currentView === 'module' && (
             <div className="space-y-2 sm:space-y-2.5">
               {/* Header Navigation Bar */}
-              <header className="bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 sticky top-1 sm:top-2 z-30">
+              <header className="bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2 sticky top-1 sm:top-2 z-30">
                 <div className="flex items-center gap-2 min-w-0">
                   <button
                     onClick={handleBackToHome}
-                    className="w-8 h-8 rounded-xl bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-200 flex items-center justify-center transition-colors cursor-pointer shrink-0"
                     title="Kembali ke Menu Utama (Home)"
                   >
-                    <Home size={16} />
+                    <Home size={15} />
                   </button>
 
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${currentTool.colorBg} text-white flex items-center justify-center shrink-0`}>
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${currentTool.colorBg} flex items-center justify-center shrink-0`}>
                       <currentTool.icon size={15} />
                     </div>
-                    <h1 className="text-xs sm:text-sm font-black text-slate-800 m-0 uppercase tracking-tight truncate">
+                    <h1 className="text-xs sm:text-sm font-bold text-slate-800 m-0 uppercase tracking-tight truncate">
                       {currentTool.title}
                     </h1>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="hidden md:inline-flex bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-slate-200 items-center gap-1">
+                  <span className="hidden md:inline-flex bg-slate-50 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-lg border border-slate-200/80 items-center gap-1">
                     <Layers size={10} /> {currentTool.category}
                   </span>
 
                   {currentTool.isReady ? (
-                    <span className="bg-emerald-50 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1">
+                    <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1">
                       <Sparkles size={10} /> Aktif
                     </span>
                   ) : (
-                    <span className="bg-amber-50 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-200">
+                    <span className="bg-amber-50 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-200">
                       Draft
                     </span>
                   )}

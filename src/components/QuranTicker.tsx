@@ -87,22 +87,22 @@ export function QuranTicker() {
 
   if (loading) {
     return (
-      <div className="glass-box h-12 flex items-center px-4 mb-6 !rounded-2xl text-xs text-slate-500 font-bold animate-pulse">
-        <BookOpen size={16} className="mr-2 text-sky-500" /> Memuat Surah Al-Qur'an...
+      <div className="h-11 flex items-center px-4 mb-5 rounded-xl bg-white border border-slate-200 text-xs text-slate-400 font-medium animate-pulse">
+        <BookOpen size={15} className="mr-2 text-sky-500" /> Memuat Surah Al-Qur'an...
       </div>
     );
   }
 
   if (errorMsg || !surahData || surahData.ayahs.length === 0) {
     return (
-      <div className="glass-box h-12 flex items-center justify-between px-4 mb-6 !rounded-2xl text-xs text-slate-600 font-bold">
+      <div className="h-11 flex items-center justify-between px-4 mb-5 rounded-xl bg-white border border-slate-200 text-xs text-slate-600 font-medium">
         <div className="flex items-center gap-2">
-          <BookOpen size={16} className="text-sky-500" />
+          <BookOpen size={15} className="text-sky-500" />
           <span>Al-Qur'an (Gagal Memuat)</span>
         </div>
         <button 
           onClick={() => fetchSurah(surahNumber)}
-          className="text-xs bg-sky-500 text-white px-3 py-1 rounded-lg font-bold hover:bg-sky-600 transition-all cursor-pointer"
+          className="text-xs bg-sky-600 text-white px-2.5 py-1 rounded-lg font-bold hover:bg-sky-700 transition-colors cursor-pointer"
         >
           Coba Lagi
         </button>
@@ -116,17 +116,17 @@ export function QuranTicker() {
   const dynamicDuration = Math.max(160, Math.round(totalChars / 5));
 
   return (
-    <div className="glass-box min-h-[52px] py-1.5 flex flex-col md:flex-row items-stretch md:items-center overflow-hidden mb-6 !rounded-2xl border border-white/60 shadow-xs gap-2 md:gap-0">
+    <div className="min-h-[46px] py-1 flex flex-col md:flex-row items-stretch md:items-center overflow-hidden mb-5 rounded-xl bg-white border border-slate-200/90 shadow-2xs gap-2 md:gap-0">
       {/* Header Label + Surah Badge */}
-      <div className="bg-sky-500/10 text-sky-700 border-b md:border-b-0 md:border-r border-white/40 flex items-center justify-between md:justify-start px-3.5 py-1 font-bold text-xs tracking-wider shrink-0 gap-2">
+      <div className="bg-sky-50 text-sky-900 border-b md:border-b-0 md:border-r border-slate-200 flex items-center justify-between md:justify-start px-3 py-1 font-bold text-xs tracking-wider shrink-0 gap-2">
         <div className="flex items-center gap-1.5">
-          <BookOpen size={16} className="text-sky-600 shrink-0" />
-          <span className="font-extrabold uppercase">AL-QUR'AN</span>
+          <BookOpen size={15} className="text-sky-600 shrink-0" />
+          <span className="font-extrabold uppercase text-[11px]">AL-QUR'AN</span>
         </div>
 
         <div className="flex items-center gap-1">
-          <span className="text-[10px] bg-white/80 border border-sky-200 text-sky-800 px-2 py-0.5 rounded-full font-extrabold tracking-tight">
-            QS. {surahData.englishName.toUpperCase()} ({surahData.numberOfAyahs} Ayat)
+          <span className="text-[10px] bg-white border border-sky-200 text-sky-800 px-2 py-0.5 rounded font-bold">
+            QS. {surahData.englishName.toUpperCase()} ({surahData.numberOfAyahs})
           </span>
         </div>
       </div>
@@ -138,7 +138,7 @@ export function QuranTicker() {
         onClick={() => setIsPaused(!isPaused)}
       >
         <div 
-          className="font-semibold flex items-center py-1.5 animate-marquee-slow whitespace-nowrap min-w-max"
+          className="font-medium flex items-center py-1 animate-marquee-slow whitespace-nowrap min-w-max"
           style={{ 
             animationDuration: `${dynamicDuration}s`,
             animationPlayState: isPaused ? 'paused' : 'running' 
@@ -147,16 +147,16 @@ export function QuranTicker() {
           <div className="inline-flex items-center gap-6">
             {surahData.ayahs.map((a) => (
               <div key={a.numberInSurah} className="inline-flex items-center gap-2.5">
-                <span className="text-[10px] font-bold text-sky-700 bg-sky-100/90 px-1.5 py-0.5 rounded-md border border-sky-200 shrink-0">
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-200 shrink-0">
                   {a.numberInSurah}
                 </span>
-                <span className="font-bold text-lg sm:text-xl text-orange-600 font-arabic drop-shadow-2xs" dir="rtl">
+                <span className="font-bold text-lg text-amber-700 font-arabic" dir="rtl">
                   {a.arabicText}
                 </span>
-                <span className="font-medium text-slate-800 text-xs sm:text-sm">
+                <span className="font-medium text-slate-700 text-xs sm:text-sm">
                   "{a.translation}"
                 </span>
-                <span className="text-amber-600 font-extrabold text-base mx-1 font-arabic">۝</span>
+                <span className="text-amber-600 font-bold text-base mx-1 font-arabic">۝</span>
               </div>
             ))}
           </div>
@@ -164,38 +164,38 @@ export function QuranTicker() {
       </div>
 
       {/* Controls: Prev Surah, Play/Pause, Next Surah, Change Surah Random */}
-      <div className="flex items-center justify-end gap-1 px-3 border-t md:border-t-0 md:border-l border-white/40 shrink-0 py-1 bg-white/20 md:bg-transparent">
+      <div className="flex items-center justify-end gap-1 px-2.5 border-t md:border-t-0 md:border-l border-slate-200 shrink-0 py-1 bg-slate-50 md:bg-transparent">
         <button
           onClick={handlePrevSurah}
-          className="p-1.5 rounded-lg text-slate-600 hover:bg-white/80 transition-all cursor-pointer hover:text-sky-700"
+          className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
           title="Surah Sebelumnya"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={15} />
         </button>
 
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="p-1.5 rounded-lg text-slate-600 hover:bg-white/80 transition-all cursor-pointer hover:text-sky-700"
+          className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
           title={isPaused ? "Lanjutkan Teks Berjalan" : "Jeda (Pause)"}
         >
-          {isPaused ? <Play size={15} className="text-amber-600 fill-amber-500" /> : <Pause size={15} />}
+          {isPaused ? <Play size={14} className="text-amber-600 fill-amber-500" /> : <Pause size={14} />}
         </button>
 
         <button
           onClick={handleNextSurah}
-          className="p-1.5 rounded-lg text-slate-600 hover:bg-white/80 transition-all cursor-pointer hover:text-sky-700"
+          className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
           title="Surah Berikutnya"
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={15} />
         </button>
 
         <button
           onClick={pickNewSurah}
-          className="ml-1 px-2 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-800 text-[10px] font-bold border border-sky-300/40 flex items-center gap-1 transition-all cursor-pointer"
+          className="ml-1 px-2 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-800 text-[10px] font-bold border border-sky-200 flex items-center gap-1 transition-colors cursor-pointer"
           title="Acak Surah Lain"
         >
-          <RotateCw size={12} />
-          <span className="hidden sm:inline">Acak Surah</span>
+          <RotateCw size={11} />
+          <span className="hidden sm:inline">Acak</span>
         </button>
       </div>
     </div>

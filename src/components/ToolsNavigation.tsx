@@ -44,8 +44,8 @@ export const TOOLS_LIST: ToolItem[] = [
     category: 'Quality & Expired',
     icon: CalendarCheck2,
     isReady: true,
-    colorBg: 'bg-blue-600',
-    colorBorder: 'border-blue-500',
+    colorBg: 'bg-blue-50 text-blue-600 border border-blue-200/80',
+    colorBorder: 'border-blue-200',
     colorIcon: 'text-blue-600',
     plannedFeatures: [
       'Perhitungan instan DOY & Tahun Unix',
@@ -62,8 +62,8 @@ export const TOOLS_LIST: ToolItem[] = [
     icon: Database,
     isReady: true,
     requiresAdmin: true,
-    colorBg: 'bg-indigo-600',
-    colorBorder: 'border-indigo-500',
+    colorBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200/80',
+    colorBorder: 'border-indigo-200',
     colorIcon: 'text-indigo-600',
     plannedFeatures: [
       'Master Data Barang (data_barang: SKU, Barcode, Nama, Status)',
@@ -79,8 +79,8 @@ export const TOOLS_LIST: ToolItem[] = [
     category: 'Inbound & Logistik',
     icon: Truck,
     isReady: true,
-    colorBg: 'bg-emerald-600',
-    colorBorder: 'border-emerald-500',
+    colorBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200/80',
+    colorBorder: 'border-emerald-200',
     colorIcon: 'text-emerald-600',
     plannedFeatures: [
       'Pencatatan Transaksi Kedatangan Barang Realtime (Tabel incoming)',
@@ -97,9 +97,9 @@ export const TOOLS_LIST: ToolItem[] = [
     icon: QrCode,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-amber-600',
-    colorBorder: 'border-amber-500',
-    colorIcon: 'text-amber-600',
+    colorBg: 'bg-amber-50 text-amber-700 border border-amber-200/80',
+    colorBorder: 'border-amber-200',
+    colorIcon: 'text-amber-700',
     plannedFeatures: [
       'Generate QR Massal dari banyak baris teks (Judul + QR Code + Teks)',
       'Direct Thermal Label Print khusus Honeywell PM42 (Autosense 0-Margin)',
@@ -115,8 +115,8 @@ export const TOOLS_LIST: ToolItem[] = [
     icon: Boxes,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-sky-600',
-    colorBorder: 'border-sky-500',
+    colorBg: 'bg-sky-50 text-sky-600 border border-sky-200/80',
+    colorBorder: 'border-sky-200',
     colorIcon: 'text-sky-600',
     plannedFeatures: [
       'Manajemen Data Penyiapan Outbound (Tabel Supabase: public.data_penyiapan)',
@@ -133,8 +133,8 @@ export const TOOLS_LIST: ToolItem[] = [
     icon: Flame,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-rose-600',
-    colorBorder: 'border-rose-500',
+    colorBg: 'bg-rose-50 text-rose-600 border border-rose-200/80',
+    colorBorder: 'border-rose-200',
     colorIcon: 'text-rose-600',
     plannedFeatures: [
       'Manajemen Transaksi Pemusnahan Barang (Tabel Supabase: public.data_pemusnahan)',
@@ -151,8 +151,8 @@ export const TOOLS_LIST: ToolItem[] = [
     icon: ClipboardList,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-purple-600',
-    colorBorder: 'border-purple-500',
+    colorBg: 'bg-purple-50 text-purple-600 border border-purple-200/80',
+    colorBorder: 'border-purple-200',
     colorIcon: 'text-purple-600',
     plannedFeatures: [
       'Manajemen Permintaan Barang (Tabel Supabase: public.data_reco)',
@@ -169,8 +169,8 @@ export const TOOLS_LIST: ToolItem[] = [
     icon: Package,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-teal-600',
-    colorBorder: 'border-teal-500',
+    colorBg: 'bg-teal-50 text-teal-600 border border-teal-200/80',
+    colorBorder: 'border-teal-200',
     colorIcon: 'text-teal-600',
     plannedFeatures: [
       'Manajemen Data Inventory Gudang (Tabel Supabase: public.data_inventory)',
@@ -198,7 +198,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   });
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-2.5">
       {visibleTools.map((tool) => {
         const Icon = tool.icon;
 
@@ -207,12 +207,12 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
             key={tool.id}
             type="button"
             onClick={() => onOpenTool(tool.id)}
-            className="p-2.5 sm:p-3.5 rounded-2xl transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer border bg-slate-50 hover:bg-white active:bg-blue-50 border-slate-200 hover:border-blue-400 shadow-2xs group select-none min-h-[90px] sm:min-h-[105px]"
+            className="p-2.5 sm:p-3 rounded-xl transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer border bg-white hover:bg-slate-50 active:bg-blue-50/40 border-slate-200/90 hover:border-slate-300 shadow-2xs group select-none min-h-[88px] sm:min-h-[96px]"
           >
             {/* Ready Indicator dot for active tool */}
             {tool.isReady && (
               <span 
-                className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" 
+                className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" 
                 title="Modul Aktif"
               />
             )}
@@ -220,22 +220,22 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
             {/* Super Admin Badge on top left if tool requires admin */}
             {tool.requiresAdmin && (
               <span 
-                className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-900 text-white text-[8px] font-black uppercase tracking-wider"
+                className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[8px] font-bold uppercase tracking-wider"
                 title="Khusus Super Admin"
               >
                 ADMIN
               </span>
             )}
 
-            {/* Icon Container */}
+            {/* Icon Container with Light Pastel Fill */}
             <div 
-              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${tool.colorBg} text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform shrink-0`}
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${tool.colorBg} flex items-center justify-center group-hover:scale-105 transition-transform shrink-0`}
             >
-              <Icon size={20} className="sm:size-[22px]" />
+              <Icon size={18} className="sm:size-[19px]" />
             </div>
 
             {/* Nama Menu di Bawah Icon */}
-            <span className="mt-1.5 text-xs sm:text-[13px] font-bold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
+            <span className="mt-1.5 text-xs font-semibold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
               {tool.title}
             </span>
           </button>

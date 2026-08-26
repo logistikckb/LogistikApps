@@ -213,11 +213,11 @@ export function Hero() {
                 {greeting}, {currentUser ? currentUser.nama.split(' ')[0] : 'Rekan'}!
               </h1>
               {isAdmin ? (
-                <span className="bg-white text-red-700 border border-red-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
+                <span className="bg-red-50 text-red-700 border border-red-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
                   <ShieldAlert size={11} /> Super Admin
                 </span>
               ) : (
-                <span className="bg-white text-blue-900 border border-blue-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
+                <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
                   <UserCheck size={11} /> Pelaksana
                 </span>
               )}
@@ -234,7 +234,7 @@ export function Hero() {
               <button
                 type="button"
                 onClick={() => setShowAvatarPicker(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
                 title="Pilih foto avatar profil"
               >
                 <Sparkles size={12} className="text-amber-500" />
@@ -245,7 +245,7 @@ export function Hero() {
                 <button
                   type="button"
                   onClick={() => setShowUserManagement(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-bold transition-colors shadow-2xs cursor-pointer active:scale-95"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200/80 text-xs font-semibold transition-colors shadow-2xs cursor-pointer active:scale-95"
                   title="Kelola user & role"
                 >
                   <UserCog size={13} />
@@ -256,7 +256,7 @@ export function Hero() {
               <button
                 type="button"
                 onClick={logout}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200/80 hover:border-red-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
                 title="Keluar dari sesi"
               >
                 <LogOut size={12} />
@@ -269,7 +269,7 @@ export function Hero() {
                     href="https://wa.me/6281911934000" 
                     target="_blank" 
                     rel="noreferrer" 
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white text-emerald-800 text-[11px] font-bold border border-emerald-300 transition-colors shadow-2xs"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 text-[11px] font-semibold border border-emerald-200 transition-colors shadow-2xs"
                   >
                     <MessageCircle size={12} className="text-emerald-600" />
                     <span>081911934000</span>
@@ -277,7 +277,7 @@ export function Hero() {
 
                   <button 
                     onClick={() => setShowContacts(false)}
-                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-white text-slate-600 hover:text-slate-900 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200/80 text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs"
                   >
                     <ChevronUp size={11} /> Tutup
                   </button>
@@ -285,7 +285,7 @@ export function Hero() {
               ) : (
                 <button 
                   onClick={() => setShowContacts(true)}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200/80 transition-colors cursor-pointer shadow-2xs"
                 >
                   <Mail size={12} />
                   <span>Kontak Dev</span>

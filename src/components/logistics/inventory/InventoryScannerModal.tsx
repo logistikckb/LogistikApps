@@ -399,20 +399,20 @@ export function InventoryScannerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-xs animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] animate-scale-up">
         
-        {/* Header */}
-        <div className="p-3.5 bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white flex items-center justify-between">
+        {/* Header - Ultra Lite Minimalist */}
+        <div className="p-3 bg-slate-50 border-b border-slate-200 text-slate-900 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-              <Scan size={18} className="text-teal-200" />
+            <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-800 flex items-center justify-center border border-teal-200">
+              <Scan size={16} />
             </div>
             <div>
-              <h3 className="text-sm font-black m-0 tracking-tight flex items-center gap-1.5">
+              <h3 className="text-xs font-black m-0 tracking-tight flex items-center gap-1.5 text-slate-900">
                 <span>Scan QR & Barcode Inventory</span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] bg-teal-500/30 text-teal-100 font-mono font-bold border border-teal-400/40">
-                  Live Scanner
+                <span className="px-1.5 py-0.2 rounded text-[9px] bg-teal-100 text-teal-900 font-mono font-bold border border-teal-300">
+                  LITE Scanner
                 </span>
               </h3>
-              <p className="text-[11px] text-teal-100/80 m-0">
+              <p className="text-[10px] text-slate-500 m-0">
                 Pindai label Honeywell PM42, SKU, Batch, atau LPN
               </p>
             </div>
@@ -424,21 +424,22 @@ export function InventoryScannerModal({
               stopScanner();
               onClose();
             }}
-            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+            title="Tutup"
           >
-            <X size={15} />
+            <X size={14} />
           </button>
         </div>
 
         {/* Tab Selection */}
-        <div className="flex items-center border-b border-slate-200 bg-slate-50 p-1.5 gap-1 text-xs">
+        <div className="flex items-center border-b border-slate-200 bg-white p-1 gap-1 text-xs">
           <button
             type="button"
             onClick={() => setActiveTab('camera')}
-            className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'camera'
-                ? 'bg-teal-800 text-white shadow-2xs'
-                : 'text-slate-600 hover:bg-slate-200'
+                ? 'bg-teal-50 text-teal-900 border border-teal-200 shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-50 border border-transparent'
             }`}
           >
             <Camera size={13} />
@@ -451,10 +452,10 @@ export function InventoryScannerModal({
               stopScanner();
               setActiveTab('upload');
             }}
-            className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'upload'
-                ? 'bg-teal-800 text-white shadow-2xs'
-                : 'text-slate-600 hover:bg-slate-200'
+                ? 'bg-teal-50 text-teal-900 border border-teal-200 shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-50 border border-transparent'
             }`}
           >
             <Upload size={13} />

@@ -14,14 +14,14 @@ interface LinkGridProps {
 }
 
 const NATIVE_ICON_STYLES = [
-  'bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-900 text-white shadow-blue-600/35 ring-1 ring-blue-400/30',
-  'bg-gradient-to-br from-amber-400 via-orange-500 to-red-600 text-white shadow-orange-500/35 ring-1 ring-orange-400/30',
-  'bg-gradient-to-br from-emerald-400 via-teal-600 to-emerald-800 text-white shadow-emerald-600/35 ring-1 ring-emerald-400/30',
-  'bg-gradient-to-br from-fuchsia-500 via-purple-600 to-indigo-900 text-white shadow-purple-600/35 ring-1 ring-purple-400/30',
-  'bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-700 text-white shadow-sky-500/35 ring-1 ring-sky-400/30',
-  'bg-gradient-to-br from-rose-400 via-pink-500 to-rose-700 text-white shadow-pink-500/35 ring-1 ring-pink-400/30',
-  'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950 text-amber-300 shadow-slate-900/35 ring-1 ring-slate-600/30',
-  'bg-gradient-to-br from-cyan-400 via-teal-500 to-blue-700 text-white shadow-cyan-500/35 ring-1 ring-cyan-400/30',
+  'bg-blue-50 text-blue-600 border border-blue-200/80',
+  'bg-amber-50 text-amber-700 border border-amber-200/80',
+  'bg-emerald-50 text-emerald-600 border border-emerald-200/80',
+  'bg-purple-50 text-purple-600 border border-purple-200/80',
+  'bg-sky-50 text-sky-600 border border-sky-200/80',
+  'bg-rose-50 text-rose-600 border border-rose-200/80',
+  'bg-slate-100 text-slate-700 border border-slate-200/80',
+  'bg-teal-50 text-teal-600 border border-teal-200/80',
 ];
 
 export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: LinkGridProps) {
@@ -142,20 +142,20 @@ export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: L
 
   return (
     <>
-      <div className="glass-box flex items-center mb-6 p-2 !rounded-full bg-white/40 border border-white/60 focus-within:border-blue-400 focus-within:bg-white/70 focus-within:shadow-lg transition-all duration-300">
-        <div className="pl-4 pr-2 text-slate-500 flex items-center">
-          <Search size={22} className="transition-transform duration-300 group-focus-within:scale-110" />
+      <div className="flex items-center mb-5 p-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs focus-within:border-slate-400 transition-colors">
+        <div className="pl-3 pr-2 text-slate-400 flex items-center">
+          <Search size={18} />
         </div>
         <input 
           type="text" 
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cari Aplikasi atau Sistem..." 
-          className="flex-1 border-none bg-transparent py-3 px-2 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+          className="flex-1 border-none bg-transparent py-1.5 px-2 text-xs sm:text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400"
         />
       </div>
 
-      <div className="flex justify-center gap-2.5 mb-8 flex-wrap items-center">
+      <div className="flex justify-center gap-2 mb-6 flex-wrap items-center">
         {categories.map(cat => {
           const count = (cat === 'Semua' || cat === 'All') 
             ? links.length 
@@ -165,9 +165,16 @@ export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: L
             <button 
               key={cat} 
               onClick={() => setCategory(cat)} 
-              className={`glass-btn !rounded-full transition-all duration-300 hover:scale-105 active:scale-95 ${isActive ? '!bg-blue-900 !text-white !border-blue-800 shadow-md' : 'hover:shadow-md'}`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                isActive 
+                  ? 'bg-slate-900 text-white border-slate-900 font-semibold shadow-xs' 
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+              }`}
             >
-              {cat} <span className={`glass-badge ml-2 ${isActive ? '!bg-white/20 !text-white !border-white/30' : ''}`}>{count}</span>
+              <span>{cat}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                {count}
+              </span>
             </button>
           );
         })}
@@ -183,41 +190,44 @@ export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: L
                 showToast('Tersimpan', 'Tata letak menu aplikasi telah disimpan secara permanen', 'success');
               }
             }} 
-            className={`glass-btn !px-4 !rounded-full transition-all duration-300 shadow-sm border ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
               isReordering 
-                ? '!bg-emerald-600 !text-white !border-emerald-700 animate-pulse' 
-                : 'hover:!bg-white/80 text-slate-700'
+                ? 'bg-emerald-600 text-white border-emerald-700 font-bold' 
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
             }`}
             title="Atur Urutan Tata Letak Menu"
           >
-            {isReordering ? <Check size={16} /> : <Move size={16} />}
+            {isReordering ? <Check size={14} /> : <Move size={14} />}
             <span>{isReordering ? 'Selesai Atur' : 'Atur Tata Letak'}</span>
           </button>
         )}
 
         {isAdmin && (
-          <button onClick={onAdd} className="glass-btn !bg-orange-500/90 !text-white hover:!bg-orange-600 !border-orange-400 !px-5 !rounded-full transition-all duration-300 hover:scale-105 active:scale-95 shadow-md">
-            <Plus size={18} /> Tambah Aplikasi
+          <button 
+            onClick={onAdd} 
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={15} /> Tambah Aplikasi
           </button>
         )}
       </div>
 
-      <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3 m-0 drop-shadow-sm">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+        <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2 m-0">
           {category === 'Semua' || category === 'All' ? 'Daftar Aplikasi' : `Aplikasi ${category}`}
         </h2>
-        <div className="bg-white/50 border border-white/60 shadow-sm rounded-full px-4 py-1.5 font-bold text-[11px] text-blue-900 tracking-wider backdrop-blur-sm">
+        <div className="bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1 font-bold text-[11px] text-slate-700">
           {filteredLinks.length} Item
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 sm:gap-5 pb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 pb-4">
         {loading ? (
-          <div className="col-span-full text-center py-12 glass-box font-bold text-slate-500 text-sm">
+          <div className="col-span-full text-center py-10 bg-white border border-slate-200 rounded-2xl font-bold text-slate-400 text-xs">
             Memuat Data...
           </div>
         ) : filteredLinks.length === 0 ? (
-          <div className="col-span-full text-center py-12 glass-box font-bold text-slate-500 text-sm">
+          <div className="col-span-full text-center py-10 bg-white border border-slate-200 rounded-2xl font-bold text-slate-400 text-xs">
             Tidak Ditemukan
           </div>
         ) : (
@@ -247,44 +257,41 @@ export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: L
                     e.stopPropagation();
                   }
                 }}
-                className={`glass-box p-3.5 sm:p-4 flex flex-col items-center justify-center relative min-h-[120px] sm:min-h-[135px] transition-all duration-300 ease-out group bg-white/30 overflow-hidden no-underline text-slate-800 block rounded-2xl sm:rounded-3xl ${
-                  isReordering ? 'ring-2 ring-orange-400/80 bg-orange-50/30 cursor-grab active:cursor-grabbing' : 'hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-xl hover:bg-white/90 hover:border-blue-400 cursor-pointer'
-                } ${isDraggingThis ? 'opacity-40 scale-95' : ''} ${
-                  isDragOverThis ? '!ring-4 !ring-blue-500 !bg-blue-100/50 scale-105 shadow-xl' : ''
+                className={`p-3.5 flex flex-col items-center justify-center relative min-h-[115px] sm:min-h-[125px] transition-colors ease-out group bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 shadow-2xs rounded-2xl no-underline text-slate-800 block ${
+                  isReordering ? 'ring-2 ring-amber-400 bg-amber-50/40 cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                } ${isDraggingThis ? 'opacity-40' : ''} ${
+                  isDragOverThis ? 'ring-2 ring-blue-500 bg-blue-50/50' : ''
                 }`}
               >
-                {/* Visual shine gradient effect on hover */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/0 via-white/30 to-orange-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
                 {/* Control bar for Reordering */}
                 {isReordering && (
-                  <div className="absolute top-1.5 left-1.5 right-1.5 z-30 flex justify-between items-center pointer-events-auto bg-slate-900/80 backdrop-blur-md rounded-xl px-1 py-0.5 text-white shadow-md">
+                  <div className="absolute top-1.5 left-1.5 right-1.5 z-30 flex justify-between items-center pointer-events-auto bg-slate-900 rounded-lg px-1 py-0.5 text-white text-[10px]">
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveLinkPosition(l.id, 'prev'); }}
                       disabled={index === 0}
-                      className="p-1 hover:bg-white/20 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                      className="p-0.5 hover:bg-white/20 rounded disabled:opacity-30 cursor-pointer"
                       title="Geser Kiri"
                     >
-                      <ChevronLeft size={14} />
+                      <ChevronLeft size={12} />
                     </button>
                     <span className="text-[9px] font-bold text-slate-200">Geser</span>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveLinkPosition(l.id, 'next'); }}
                       disabled={index === filteredLinks.length - 1}
-                      className="p-1 hover:bg-white/20 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                      className="p-0.5 hover:bg-white/20 rounded disabled:opacity-30 cursor-pointer"
                       title="Geser Kanan"
                     >
-                      <ChevronRight size={14} />
+                      <ChevronRight size={12} />
                     </button>
                   </div>
                 )}
 
                 {/* Admin Actions or External Link Badge on Hover */}
                 {!isReordering && (
-                  <div className="absolute top-2.5 right-2.5 z-20 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="absolute top-2 right-2 z-20 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity">
                     {!isAdmin && (
-                      <div className="w-7 h-7 rounded-lg bg-blue-900/10 text-blue-900 flex items-center justify-center">
-                        <ExternalLink size={14} />
+                      <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center">
+                        <ExternalLink size={12} />
                       </div>
                     )}
                     
@@ -292,10 +299,10 @@ export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: L
                       <div className="flex gap-1">
                         <button 
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(l); }} 
-                          className="glass-btn !p-1.5 !rounded-lg !bg-blue-900/10 hover:!bg-blue-900 hover:!text-white !text-blue-900 transition-all cursor-pointer"
+                          className="p-1 rounded-md bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-700 transition-colors cursor-pointer"
                           title="Edit Aplikasi"
                         >
-                          <Edit2 size={13} />
+                          <Edit2 size={12} />
                         </button>
                         <button 
                           onClick={(e) => { 
@@ -313,36 +320,32 @@ export function LinkGrid({ links, loading, isAdmin, onAdd, onEdit, onDelete }: L
                               }
                             });
                           }} 
-                          className="glass-btn !p-1.5 !rounded-lg !bg-red-500/10 hover:!bg-red-600 hover:!text-white !text-red-600 transition-all cursor-pointer"
+                          className="p-1 rounded-md bg-slate-100 hover:bg-red-100 text-slate-700 hover:text-red-700 transition-colors cursor-pointer"
                           title="Hapus Aplikasi"
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Main Icon Tile (Always Visible) */}
-                <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-[20px] flex items-center justify-center text-2xl sm:text-3xl shrink-0 shadow-md ${nativeStyle} transition-all duration-300 ease-out group-hover:scale-105 group-hover:-translate-y-1 group-hover:shadow-lg border border-white/40 overflow-hidden ${
-                  isReordering ? 'mt-3' : ''
+                {/* Main Icon Tile */}
+                <div className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center text-xl sm:text-2xl shrink-0 ${nativeStyle} transition-transform ${
+                  isReordering ? 'mt-2' : ''
                 }`}>
-                  {/* Glossy top-down glass shine overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-white/10 to-transparent pointer-events-none rounded-[20px]" />
-                  <div className="absolute -top-5 -left-5 w-10 h-10 bg-white/35 rounded-full blur-md pointer-events-none" />
-
-                  <span className="relative z-10 drop-shadow-md flex items-center justify-center">
+                  <span className="flex items-center justify-center">
                     {isEmoji ? (
-                      <span className="drop-shadow-sm">{l.icon || '📱'}</span>
+                      <span>{l.icon || '📱'}</span>
                     ) : (
-                      <i className={`${l.icon || 'fas fa-cubes'} text-white text-xl sm:text-2xl drop-shadow-sm`} />
+                      <i className={`${l.icon || 'fas fa-cubes'} text-lg sm:text-xl`} />
                     )}
                   </span>
                 </div>
 
-                {/* Title Info (Directly Visible, Smaller Font, Non-Bold, Title Case) */}
-                <div className="w-full text-center mt-2.5 px-1 pointer-events-none">
-                  <h4 className="font-medium text-xs sm:text-[13px] text-slate-800 m-0 tracking-wide leading-snug break-words group-hover:text-blue-900 transition-colors duration-200 capitalize">
+                {/* Title Info */}
+                <div className="w-full text-center mt-2 px-1 pointer-events-none">
+                  <h4 className="font-medium text-xs text-slate-800 m-0 leading-tight break-words capitalize">
                     {l.title}
                   </h4>
                 </div>
