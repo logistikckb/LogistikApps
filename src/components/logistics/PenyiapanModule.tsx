@@ -1174,6 +1174,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const valA = a[sortField as keyof PenyiapanItem] ?? '';
       const valB = b[sortField as keyof PenyiapanItem] ?? '';
 
+      if (sortField === 'qty_convert' || sortField === 'last_qty' || sortField === 'first_qty') {
+        const numA = Number(valA) || 0;
+        const numB = Number(valB) || 0;
+        return sortOrder === 'asc' ? numA - numB : numB - numA;
+      }
+
       if (typeof valA === 'number' && typeof valB === 'number') {
         return sortOrder === 'asc' ? valA - valB : valB - valA;
       }
@@ -3537,6 +3543,10 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     ? 'Nama Barang'
                     : sortField === 'last_qty'
                     ? 'Last Qty'
+                    : sortField === 'qty_convert'
+                    ? 'Qty Convert'
+                    : sortField === 'uom'
+                    ? 'Uom'
                     : sortField === 'expired_date'
                     ? 'Expired Date'
                     : sortField === 'batch'
@@ -4025,6 +4035,20 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     )}
                   </div>
                 </th>
+                <th onClick={() => handleSort('qty_convert')} className={`px-2.5 py-1.5 text-right cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'qty_convert' ? 'bg-blue-100/80 text-blue-950 font-black' : ''}`}>
+                  <div className="flex items-center justify-end gap-1">
+                    <span>Qty Convert</span>
+                    {sortField === 'qty_convert' ? (
+                      sortOrder === 'asc' ? (
+                        <ArrowUp size={12} className="text-blue-900 font-black" />
+                      ) : (
+                        <ArrowDown size={12} className="text-blue-900 font-black" />
+                      )
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400" />
+                    )}
+                  </div>
+                </th>
                 <th onClick={() => handleSort('batch')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'batch' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
                   <div className="flex items-center gap-1">
                     <span>Batch</span>
@@ -4086,7 +4110,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 11 : 12} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -4095,7 +4119,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-6 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 11 : 12} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -4240,6 +4264,18 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         <span className="font-bold text-slate-700 text-xs uppercase">
                           {item.uom || 'CTN'}
                         </span>
+                      </td>
+
+                      {/* Qty Convert */}
+                      <td className="px-2.5 py-1.5 text-right min-w-[85px]">
+                        <div className="inline-flex items-center gap-1 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60">
+                          <span className="font-mono font-black text-blue-900 text-xs">
+                            {Number(item.qty_convert ?? item.last_qty ?? 0).toLocaleString('id-ID')}
+                          </span>
+                          <span className="text-[10px] font-bold text-blue-700 uppercase">
+                            {item.uom_convert || 'PCS'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Batch */}
