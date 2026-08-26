@@ -31,7 +31,10 @@ import {
   AlertTriangle, 
   Eye, 
   FileSpreadsheet, 
-  Send 
+  Send,
+  ScanBarcode,
+  QrCode,
+  Scan
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InventoryItem, DataBarang } from '../../types';
@@ -41,6 +44,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { InventoryFormModal } from './inventory/InventoryFormModal';
 import { InventoryDetailModal } from './inventory/InventoryDetailModal';
 import { InventoryExcelModal } from './inventory/InventoryExcelModal';
+import { InventoryScannerModal } from './inventory/InventoryScannerModal';
 import { 
   InventoryBulkTransferModal, 
   TransferDestination 
@@ -115,6 +119,7 @@ export function InventoryModule({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showScannerModal, setShowScannerModal] = useState(false);
 
   // Voice Search
   const [isListening, setIsListening] = useState(false);
@@ -489,6 +494,38 @@ export function InventoryModule({
     }
   };
 
+  // Scan Barcode / QR Handler
+  const handleScanResult = (scannedText: string, metadata?: { sku?: string; batch?: string; lpn?: string }) => {
+    const q = scannedText.trim();
+    if (!q) return;
+
+    setSearchQuery(q);
+    setCurrentPage(1);
+
+    const matches = inventoryList.filter(item => {
+      const target = q.toLowerCase();
+      return (item.item_code || '').toLowerCase().includes(target) ||
+             (item.item_name || '').toLowerCase().includes(target) ||
+             (item.batch || '').toLowerCase().includes(target) ||
+             (item.lpn_serial_number || '').toLowerCase().includes(target) ||
+             (item.location || '').toLowerCase().includes(target);
+    });
+
+    if (matches.length > 0) {
+      showToast(
+        'Scan Barcode Berhasil',
+        `Menemukan ${matches.length} baris untuk "${q}"${metadata?.sku ? ` (SKU: ${metadata.sku})` : ''}`,
+        'success'
+      );
+    } else {
+      showToast(
+        'Barcode Dipindai',
+        `Mencari "${q}". Belum ada stok dengan data ini di inventory.`,
+        'info'
+      );
+    }
+  };
+
   // Filter & Search Logic
   const filteredData = useMemo(() => {
     return inventoryList.filter(item => {
@@ -731,14 +768,15 @@ export function InventoryModule({
                 setCurrentPage(1);
               }}
               placeholder="Cari SKU, Nama Barang, Batch, Lokasi, LPN, Note, Tujuan..."
-              className="w-full pl-9 pr-16 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+              className="w-full pl-9 pr-24 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+                  title="Hapus teks pencarian"
                 >
                   <X size={12} />
                 </button>
@@ -753,8 +791,27 @@ export function InventoryModule({
               >
                 {isListening ? <MicOff size={13} /> : <Mic size={13} />}
               </button>
+              <button
+                type="button"
+                onClick={() => setShowScannerModal(true)}
+                className="p-1 rounded text-slate-500 hover:text-teal-800 hover:bg-teal-50 transition-colors"
+                title="Scan QR / Barcode Kamera (Label Honeywell, SKU, Batch, LPN)"
+              >
+                <ScanBarcode size={14} className="text-teal-700" />
+              </button>
             </div>
           </div>
+
+          {/* Quick Scan Button beside search */}
+          <button
+            type="button"
+            onClick={() => setShowScannerModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50/90 hover:bg-teal-100 text-teal-950 font-bold text-xs shadow-2xs transition-all cursor-pointer shrink-0 active:scale-95"
+            title="Buka Kamera Scan QR & Barcode"
+          >
+            <ScanBarcode size={13} className="text-teal-700" />
+            <span className="hidden sm:inline">Scan Barcode</span>
+          </button>
 
           {/* Location Filter */}
           <div className="flex items-center gap-1">
@@ -1329,6 +1386,13 @@ export function InventoryModule({
           }
           setSelectedIds([]);
         }}
+      />
+
+      <InventoryScannerModal
+        isOpen={showScannerModal}
+        onClose={() => setShowScannerModal(false)}
+        onScanResult={handleScanResult}
+        inventoryList={inventoryList}
       />
 
     </div>
