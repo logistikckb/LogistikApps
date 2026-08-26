@@ -109,7 +109,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   const [gSheetConfig, setGSheetConfig] = useState(() => {
     const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
     const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
-    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME_PEMUSNAHAN as string) || (import.meta.env.VITE_GSHEET_SHEET_NAME as string) || 'Pemusnahan';
+    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME_PEMUSNAHAN as string) || (import.meta.env.VITE_GSHEET_SHEET_NAME as string) || 'pemusnahan';
 
     try {
       const saved = localStorage.getItem('PEMUSNAHAN_GSHEET_WEBHOOK_CONFIG') || localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
@@ -118,18 +118,18 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         return {
           webhookUrl: parsed.webhookUrl || defaultEnvUrl,
           spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
-          sheetName: parsed.sheetName || defaultEnvSheetName || 'Pemusnahan',
+          sheetName: parsed.sheetName || defaultEnvSheetName || 'pemusnahan',
           secretToken: parsed.secretToken || '',
-          mode: (parsed.mode || 'overwrite') as 'overwrite' | 'append'
+          mode: (parsed.mode || 'append') as 'overwrite' | 'append'
         };
       }
     } catch {}
     return {
       webhookUrl: defaultEnvUrl,
       spreadsheetId: defaultEnvSpreadsheetId,
-      sheetName: defaultEnvSheetName || 'Pemusnahan',
+      sheetName: defaultEnvSheetName || 'pemusnahan',
       secretToken: '',
-      mode: 'overwrite' as 'overwrite' | 'append'
+      mode: 'append' as 'overwrite' | 'append'
     };
   });
   const [isConfigFromSupabase, setIsConfigFromSupabase] = useState(false);
@@ -156,9 +156,9 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
             ...prev,
             webhookUrl: cloudConfig.webhookUrl || prev.webhookUrl,
             spreadsheetId: cloudConfig.spreadsheetId !== undefined ? cloudConfig.spreadsheetId : prev.spreadsheetId,
-            sheetName: cloudConfig.sheetName || prev.sheetName || 'Pemusnahan',
+            sheetName: cloudConfig.sheetName || prev.sheetName || 'pemusnahan',
             secretToken: cloudConfig.secretToken || prev.secretToken,
-            mode: cloudConfig.mode || prev.mode
+            mode: cloudConfig.mode || prev.mode || 'append'
           }));
           setIsConfigFromSupabase(true);
         }
@@ -1588,8 +1588,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
       const payload = {
         action: 'sync_pemusnahan',
-        mode: gSheetConfig.mode || 'overwrite',
-        sheetName: gSheetConfig.sheetName || 'Pemusnahan',
+        mode: gSheetConfig.mode || 'append',
+        sheetName: gSheetConfig.sheetName || 'pemusnahan',
         spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
         secretToken: gSheetConfig.secretToken || '',
         timestamp: new Date().toISOString(),
@@ -1664,8 +1664,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
 
       const successMsg = executionMode === 'no-cors'
-        ? `Berhasil mengirim ${updatedCount} baris data ke Google Apps Script (Sheet: "${gSheetConfig.sheetName || 'Pemusnahan'}").`
-        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Google Sheet "${gSheetConfig.sheetName || 'Pemusnahan'}"!`);
+        ? `Berhasil mengirim ${updatedCount} baris data ke Google Apps Script (Sheet: "${gSheetConfig.sheetName || 'pemusnahan'}").`
+        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Google Sheet "${gSheetConfig.sheetName || 'pemusnahan'}"!`);
 
       setGSheetSyncResult({
         success: true,
@@ -3022,7 +3022,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                   )}
                 </div>
                 <div className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-black border border-emerald-200">
-                  Tab: {gSheetConfig.sheetName || 'Pemusnahan'}
+                  Tab: {gSheetConfig.sheetName || 'pemusnahan'}
                 </div>
               </div>
 
@@ -3138,11 +3138,11 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                         type="text"
                         value={gSheetConfig.sheetName}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, sheetName: e.target.value })}
-                        placeholder="Pemusnahan"
+                        placeholder="pemusnahan"
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
                       <p className="text-[10px] text-slate-500 mt-1 m-0">
-                        Nama lembar kerja target (default: <span className="font-mono">Pemusnahan</span>).
+                        Nama lembar kerja target (default: <span className="font-mono font-bold">pemusnahan</span>).
                       </p>
                     </div>
                   </div>
@@ -3154,13 +3154,16 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                         Mode Pengiriman Data
                       </label>
                       <select
-                        value={gSheetConfig.mode}
+                        value={gSheetConfig.mode || 'append'}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, mode: e.target.value as any })}
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer transition-all"
                       >
+                        <option value="append">➕ Append (Tambah di Bawah) - Standar</option>
                         <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua)</option>
-                        <option value="append">➕ Append (Tambah di Bawah)</option>
                       </select>
+                      <p className="text-[10px] text-slate-500 mt-1 m-0">
+                        Standar: <span className="font-semibold text-emerald-700">Append</span> (menambahkan baris data baru di bawah).
+                      </p>
                     </div>
 
                     <div>

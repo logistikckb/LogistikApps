@@ -1,74 +1,50 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfile } from '../../types';
 import { DEFAULT_AVATAR } from '../../data/avatarPresets';
 import { 
-  User, 
   LogIn, 
   CheckCircle2, 
   AlertCircle, 
+  Lock, 
   Eye, 
   EyeOff, 
-  Lock, 
   RefreshCw, 
-  UserCheck, 
   ShieldAlert, 
-  Clock, 
   X,
-  ChevronDown,
   Search,
-  Check
+  Users,
+  ArrowLeft
 } from 'lucide-react';
 
 interface LoginPageProps {
   onOpenBroadcast?: () => void;
 }
 
-export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
+export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps) {
   const { login, usersList, refreshUsers, isLoadingUsers, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
 
-  const [username, setUsername] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [infoMsg, setInfoMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Dropdown search & visibility state
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const usernameInputRef = useRef<HTMLInputElement>(null);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Filter users based on username text input
+  // Filter users based on search query
   const filteredUsers = useMemo(() => {
-    const query = username.trim().toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
     if (!query) return usersList;
     return usersList.filter(u => 
       u.username.toLowerCase().includes(query) ||
       u.nama.toLowerCase().includes(query) ||
       u.role.toLowerCase().includes(query)
     );
-  }, [usersList, username]);
-
-  // Check if current username matches an existing profile
-  const matchedUser = useMemo(() => {
-    if (!username.trim()) return null;
-    return usersList.find(u => u.username.toLowerCase() === username.trim().toLowerCase()) || null;
-  }, [usersList, username]);
+  }, [usersList, searchQuery]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -79,25 +55,27 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
   const handleSelectUser = (user: UserProfile) => {
     setErrorMsg('');
     setSuccessMsg('');
-    setUsername(user.username);
+    setSelectedUser(user);
     setPin('');
-    setInfoMsg(`Akun "${user.nama}" dipilih. Silakan masukkan PIN Anda.`);
-    setIsDropdownOpen(false);
 
     setTimeout(() => {
       pinInputRef.current?.focus();
     }, 100);
   };
 
+  const handleBackToUserList = () => {
+    setErrorMsg('');
+    setSelectedUser(null);
+    setPin('');
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-    setInfoMsg('');
 
-    if (!username.trim()) {
-      setErrorMsg('Harap masukkan atau pilih Username akun Anda!');
-      usernameInputRef.current?.focus();
+    if (!selectedUser) {
+      setErrorMsg('Silakan pilih salah satu akun terlebih dahulu!');
       return;
     }
     if (!pin.trim()) {
@@ -108,9 +86,9 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
 
     setIsSubmitting(true);
     try {
-      const res = await login(username, pin);
+      const res = await login(selectedUser.username, pin);
       if (!res.success) {
-        setErrorMsg(res.message || 'Login gagal. Periksa kembali Username dan PIN Anda.');
+        setErrorMsg(res.message || 'Login gagal. Periksa kembali PIN Anda.');
         setPin('');
         pinInputRef.current?.focus();
       } else {
@@ -125,23 +103,25 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
 
   return (
     <div className="min-h-screen p-4 flex flex-col justify-center items-center bg-slate-100/60 text-slate-800">
-      <div className="w-full max-w-sm space-y-3.5">
+      <div className="w-full max-w-lg space-y-3.5 my-auto">
         
-        {/* Header Sederhana */}
+        {/* Header */}
         <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center justify-center p-2 bg-slate-900 text-white rounded-2xl shadow-xs">
+          <div className="inline-flex items-center justify-center p-2.5 bg-slate-900 text-white rounded-2xl shadow-xs">
             <img 
               src="/icons/icon.svg" 
               alt="Logo" 
-              className="w-11 h-11 object-contain rounded-lg"
+              className="w-10 h-10 object-contain rounded-lg"
             />
           </div>
 
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight m-0">
-            Masuk ke Sistem
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight m-0">
+            {selectedUser ? `Halo, ${selectedUser.nama}` : 'Masuk ke Sistem'}
           </h1>
           <p className="text-xs text-slate-500 font-medium">
-            Pilih atau masukkan username dan PIN Anda
+            {selectedUser 
+              ? 'Masukkan PIN untuk melanjutkan ke aplikasi' 
+              : 'Pilih profil pengguna Anda di bawah'}
           </p>
         </div>
 
@@ -172,21 +152,14 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
           </div>
         )}
 
-        {/* Form Login Sederhana & Ringan */}
-        <div className="bg-white p-5 border border-slate-200/90 shadow-2xs rounded-2xl">
+        {/* Form Login Container */}
+        <div className="bg-white p-5 border border-slate-200/90 shadow-sm rounded-2xl">
           
           {/* Alert Feedback */}
           {errorMsg && (
             <div className="mb-3.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
               <span className="font-medium">{errorMsg}</span>
-            </div>
-          )}
-
-          {infoMsg && (
-            <div className="mb-3.5 p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-start gap-2">
-              <UserCheck size={14} className="shrink-0 mt-0.5 text-blue-600" />
-              <span className="font-medium">{infoMsg}</span>
             </div>
           )}
 
@@ -197,204 +170,221 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
             </div>
           )}
 
-          <form onSubmit={handleFormSubmit} className="space-y-3.5">
-            
-            {/* Searchable / Dropdown Username Field */}
-            <div ref={dropdownRef} className="relative">
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  Username
+          {/* STEP 1: PILIH PROFIL AKUN (GRID 100% TANPA PERLU SCROLL) */}
+          {!selectedUser ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Users size={14} className="text-slate-500" />
+                  <span>Pilih Profil Anda</span>
                 </label>
-                {matchedUser && (
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-0.5">
-                    <Check size={10} /> {matchedUser.nama} ({matchedUser.role})
-                  </span>
-                )}
+                <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
+                  {usersList.length} Akun
+                </span>
               </div>
 
-              <div className="relative">
-                {/* Avatar Preview or User Icon on Left */}
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  {matchedUser ? (
-                    <img
-                      src={matchedUser.avatar || DEFAULT_AVATAR}
-                      alt={matchedUser.nama}
-                      className="w-5 h-5 rounded-md object-cover border border-slate-200"
-                    />
-                  ) : (
-                    <User size={15} className="text-slate-400" />
-                  )}
-                </div>
-
-                <input
-                  ref={usernameInputRef}
-                  type="text"
-                  value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    if (!isDropdownOpen) setIsDropdownOpen(true);
-                  }}
-                  onFocus={() => setIsDropdownOpen(true)}
-                  placeholder="Ketik atau pilih username..."
-                  className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent font-medium text-slate-800 transition-colors"
-                />
-
-                {/* Dropdown Toggle / Clear Button */}
-                <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-0.5">
-                  {username && (
+              {/* Quick Search jika akun banyak */}
+              {usersList.length > 4 && (
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                    <Search size={13} />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Ketik untuk mencari nama..."
+                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-800 text-slate-800 transition-colors"
+                  />
+                  {searchQuery && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setUsername('');
-                        setInfoMsg('');
-                        usernameInputRef.current?.focus();
-                      }}
-                      className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                      title="Hapus"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600"
                     >
-                      <X size={13} />
+                      <X size={12} />
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Grid of Users - compact, fits on screen cleanly */}
+              <div id="login-user-grid" className="pt-1">
+                {isLoadingUsers && usersList.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                    <RefreshCw size={14} className="animate-spin text-slate-600" />
+                    <span>Memuat daftar pengguna...</span>
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
+                    <p className="font-medium text-slate-700 m-0">Tidak ada akun yang cocok.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {filteredUsers.map((user) => {
+                      const isAdminUser = user.role === 'Admin';
+
+                      return (
+                        <div
+                          key={user.id}
+                          onClick={() => handleSelectUser(user)}
+                          id={`user-item-${user.username}`}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleSelectUser(user);
+                            }
+                          }}
+                          className="group relative p-3 rounded-xl transition-all flex flex-col items-center text-center cursor-pointer select-none bg-slate-50/90 hover:bg-slate-900 hover:text-white border border-slate-200 hover:border-slate-900 hover:shadow-md active:scale-98"
+                        >
+                          {/* Avatar */}
+                          <div className="relative mb-2">
+                            <img
+                              src={user.avatar || DEFAULT_AVATAR}
+                              alt={user.nama}
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-200 group-hover:border-white/50 transition-colors shadow-2xs"
+                            />
+                          </div>
+
+                          {/* User Info */}
+                          <span className="text-xs font-bold leading-snug line-clamp-1 w-full text-slate-800 group-hover:text-white" title={user.nama}>
+                            {user.nama}
+                          </span>
+
+                          <span className="text-[10px] font-mono mt-0.5 truncate w-full text-slate-400 group-hover:text-slate-300">
+                            @{user.username}
+                          </span>
+
+                          {/* Role Tag */}
+                          <div className="mt-2">
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                              isAdminUser
+                                ? 'bg-rose-100 text-rose-700 group-hover:bg-rose-500 group-hover:text-white'
+                                : 'bg-slate-200/70 text-slate-600 group-hover:bg-white/20 group-hover:text-white'
+                            }`}>
+                              {user.role}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* STEP 2: MASUKKAN PIN UNTUK AKUN TERPILIH (FOKUS, BERSIH, TANPA SCROLL) */
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              
+              {/* Selected User Profile Card with "Ganti Akun" Button */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={selectedUser.avatar || DEFAULT_AVATAR}
+                    alt={selectedUser.nama}
+                    className="w-11 h-11 rounded-xl object-cover border border-slate-300 shrink-0 shadow-2xs"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-slate-900 truncate">
+                        {selectedUser.nama}
+                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                        selectedUser.role === 'Admin'
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {selectedUser.role}
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono text-slate-400 block">
+                      @{selectedUser.username}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Change Account Button */}
+                <button
+                  type="button"
+                  onClick={handleBackToUserList}
+                  id="change-account-btn"
+                  className="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                >
+                  <ArrowLeft size={12} />
+                  <span>Ganti Akun</span>
+                </button>
+              </div>
+
+              {/* PIN Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Kode PIN
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    Maks. 8 digit
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock size={16} />
+                  </div>
+                  <input
+                    ref={pinInputRef}
+                    type={showPin ? 'text' : 'password'}
+                    maxLength={8}
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="Masukkan PIN..."
+                    autoFocus
+                    className="w-full pl-10 pr-10 py-2.5 text-base bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent font-mono tracking-widest text-slate-800 transition-colors font-bold text-center"
+                  />
                   <button
                     type="button"
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="p-1 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
-                    title={isDropdownOpen ? 'Tutup daftar' : 'Buka daftar'}
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
+                    title={showPin ? 'Sembunyikan PIN' : 'Tampilkan PIN'}
                   >
-                    <ChevronDown size={15} className={`transition-transform ${isDropdownOpen ? 'rotate-180 text-slate-800' : ''}`} />
+                    {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              {/* Dropdown Menu List of Users */}
-              {isDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden max-h-56 flex flex-col">
-                  
-                  {/* Dropdown Header / Search Tip */}
-                  <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Search size={11} className="text-slate-600" />
-                      Pilih Akun Terdaftar:
-                    </span>
-                    <span className="text-[10px] bg-slate-200/80 px-1.5 py-0.2 rounded font-mono">
-                      {filteredUsers.length} Akun
-                    </span>
-                  </div>
-
-                  {/* Users List Scrollable */}
-                  <div className="overflow-y-auto divide-y divide-slate-100 p-1">
-                    {isLoadingUsers && usersList.length === 0 ? (
-                      <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
-                        <RefreshCw size={13} className="animate-spin text-slate-600" />
-                        <span>Memuat...</span>
-                      </div>
-                    ) : filteredUsers.length === 0 ? (
-                      <div className="p-3 text-center text-xs text-slate-500">
-                        <p className="font-medium text-slate-700 m-0">Tidak ada akun yang cocok.</p>
-                      </div>
-                    ) : (
-                      filteredUsers.map((user) => {
-                        const isSelected = username.toLowerCase() === user.username.toLowerCase();
-                        const isAdminUser = user.role === 'Admin';
-
-                        return (
-                          <button
-                            key={user.id}
-                            type="button"
-                            onClick={() => handleSelectUser(user)}
-                            className={`w-full p-2 rounded-lg transition-colors text-left flex items-center justify-between gap-2 cursor-pointer ${
-                              isSelected
-                                ? 'bg-slate-100 text-slate-900 font-semibold'
-                                : 'hover:bg-slate-50 text-slate-800'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <img
-                                src={user.avatar || DEFAULT_AVATAR}
-                                alt={user.nama}
-                                className="w-6 h-6 rounded-md object-cover border border-slate-200 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs font-semibold text-slate-800 truncate">
-                                    {user.nama}
-                                  </span>
-                                  <span className={`text-[9px] font-bold px-1 py-0.2 rounded ${
-                                    isAdminUser
-                                      ? 'bg-rose-100 text-rose-700'
-                                      : 'bg-slate-200 text-slate-700'
-                                  }`}>
-                                    {user.role}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-slate-400 font-mono block">
-                                  @{user.username}
-                                </span>
-                              </div>
-                            </div>
-
-                            {isSelected && (
-                              <CheckCircle2 size={14} className="text-slate-800 shrink-0" />
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* PIN Input */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  Kode PIN
-                </label>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Lock size={15} />
-                </div>
-                <input
-                  ref={pinInputRef}
-                  type={showPin ? 'text' : 'password'}
-                  maxLength={8}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="Masukkan PIN..."
-                  className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent font-mono tracking-widest text-slate-800 transition-colors font-bold"
-                />
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
-                  title={showPin ? 'Sembunyikan PIN' : 'Tampilkan PIN'}
+                  onClick={handleBackToUserList}
+                  disabled={isSubmitting}
+                  className="px-3.5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {showPin ? <EyeOff size={15} /> : <Eye size={15} />}
+                  Kembali
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !pin.trim()}
+                  id="login-submit-btn"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Memverifikasi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn size={15} />
+                      <span>Masuk</span>
+                    </>
+                  )}
                 </button>
               </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full mt-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw size={14} className="animate-spin" />
-                  <span>Memverifikasi...</span>
-                </>
-              ) : (
-                <>
-                  <LogIn size={15} />
-                  <span>Masuk</span>
-                </>
-              )}
-            </button>
-          </form>
+            </form>
+          )}
 
           {/* Footer Info & Sync */}
           <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
@@ -402,6 +392,7 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
               type="button"
               onClick={handleRefresh}
               disabled={isRefreshing}
+              id="sync-users-btn"
               className="hover:text-slate-600 flex items-center gap-1 cursor-pointer"
               title="Perbarui daftar akun"
             >
@@ -415,5 +406,3 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
     </div>
   );
 }
-
-
