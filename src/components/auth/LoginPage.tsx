@@ -1,7 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfile } from '../../types';
-import { DEFAULT_AVATAR } from '../../data/avatarPresets';
 import { 
   LogIn, 
   CheckCircle2, 
@@ -41,8 +40,7 @@ export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps)
     if (!query) return usersList;
     return usersList.filter(u => 
       u.username.toLowerCase().includes(query) ||
-      u.nama.toLowerCase().includes(query) ||
-      u.role.toLowerCase().includes(query)
+      u.nama.toLowerCase().includes(query)
     );
   }, [usersList, searchQuery]);
 
@@ -221,55 +219,31 @@ export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps)
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    {filteredUsers.map((user) => {
-                      const isAdminUser = user.role === 'Admin';
+                    {filteredUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => handleSelectUser(user)}
+                        id={`user-item-${user.username}`}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleSelectUser(user);
+                          }
+                        }}
+                        className="p-3 rounded-xl flex flex-col items-start text-left cursor-pointer select-none bg-white hover:bg-slate-100/80 border border-slate-200 hover:border-slate-300"
+                      >
+                        {/* User Info */}
+                        <span className="text-xs font-semibold leading-snug truncate w-full text-slate-800" title={user.nama}>
+                          {user.nama}
+                        </span>
 
-                      return (
-                        <div
-                          key={user.id}
-                          onClick={() => handleSelectUser(user)}
-                          id={`user-item-${user.username}`}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              handleSelectUser(user);
-                            }
-                          }}
-                          className="group relative p-3 rounded-xl transition-all flex flex-col items-center text-center cursor-pointer select-none bg-slate-50/90 hover:bg-slate-900 hover:text-white border border-slate-200 hover:border-slate-900 hover:shadow-md active:scale-98"
-                        >
-                          {/* Avatar */}
-                          <div className="relative mb-2">
-                            <img
-                              src={user.avatar || DEFAULT_AVATAR}
-                              alt={user.nama}
-                              className="w-12 h-12 rounded-xl object-cover border border-slate-200 group-hover:border-white/50 transition-colors shadow-2xs"
-                            />
-                          </div>
-
-                          {/* User Info */}
-                          <span className="text-xs font-bold leading-snug line-clamp-1 w-full text-slate-800 group-hover:text-white" title={user.nama}>
-                            {user.nama}
-                          </span>
-
-                          <span className="text-[10px] font-mono mt-0.5 truncate w-full text-slate-400 group-hover:text-slate-300">
-                            @{user.username}
-                          </span>
-
-                          {/* Role Tag */}
-                          <div className="mt-2">
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full transition-colors ${
-                              isAdminUser
-                                ? 'bg-rose-100 text-rose-700 group-hover:bg-rose-500 group-hover:text-white'
-                                : 'bg-slate-200/70 text-slate-600 group-hover:bg-white/20 group-hover:text-white'
-                            }`}>
-                              {user.role}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        <span className="text-[11px] font-mono mt-0.5 truncate w-full text-slate-500">
+                          @{user.username}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -280,29 +254,13 @@ export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps)
               
               {/* Selected User Profile Card with "Ganti Akun" Button */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={selectedUser.avatar || DEFAULT_AVATAR}
-                    alt={selectedUser.nama}
-                    className="w-11 h-11 rounded-xl object-cover border border-slate-300 shrink-0 shadow-2xs"
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-slate-900 truncate">
-                        {selectedUser.nama}
-                      </span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        selectedUser.role === 'Admin'
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {selectedUser.role}
-                      </span>
-                    </div>
-                    <span className="text-xs font-mono text-slate-400 block">
-                      @{selectedUser.username}
-                    </span>
-                  </div>
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-slate-900 truncate block">
+                    {selectedUser.nama}
+                  </span>
+                  <span className="text-xs font-mono text-slate-500 block">
+                    @{selectedUser.username}
+                  </span>
                 </div>
 
                 {/* Change Account Button */}
@@ -310,7 +268,7 @@ export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps)
                   type="button"
                   onClick={handleBackToUserList}
                   id="change-account-btn"
-                  className="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                  className="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer"
                 >
                   <ArrowLeft size={12} />
                   <span>Ganti Akun</span>
