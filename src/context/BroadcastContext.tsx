@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from '../supabase';
+import { 
+  supabase, 
+  isSupabaseConfigured,
+  sharedBroadcastSupabase,
+  isSharedBroadcastConfigured,
+  sharedBroadcastUrl,
+  saveSharedBroadcastCredentials,
+  removeSharedBroadcastCredentials,
+  testSharedBroadcastConnection,
+  ConnectionTestResult
+} from '../supabase';
 import { BroadcastMessage, BroadcastCategory } from '../types';
 import { 
   forceDeviceBroadcastAlert,
@@ -59,6 +69,11 @@ interface BroadcastContextType {
   soundEnabled: boolean;
   notificationPermission: NotificationPermission;
   isNotificationSupported: boolean;
+  isBridgeActive: boolean;
+  bridgeUrl: string;
+  testBridge: () => Promise<ConnectionTestResult>;
+  saveBridgeCredentials: (url: string, key: string) => void;
+  removeBridgeCredentials: () => void;
   requestNotificationPermission: () => Promise<NotificationPermission>;
   sendBroadcast: (data: {
     sender_name: string;
@@ -98,6 +113,7 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
 
   const soundEnabledRef = useRef(soundEnabled);
   const activeChannelRef = useRef<any>(null);
+  const sharedActiveChannelRef = useRef<any>(null);
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -172,24 +188,18 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Fetch messages from database table `broadcast` (with fallback to `broadcasts` / `broadcast_messages`)
-  const fetchMessages = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-
+  // Helper to fetch broadcasts from a specific Supabase client
+  const fetchFromClient = async (client: any): Promise<BroadcastMessage[]> => {
+    if (!client) return [];
     try {
-      // 1. Try primary table: 'broadcast'
-      let { data, error } = await supabase
+      let { data, error } = await client
         .from('broadcast')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
 
-      // 2. If 'broadcast' not found or error, try fallback table 'broadcasts'
       if (error) {
-        const fallback1 = await supabase
+        const fallback1 = await client
           .from('broadcasts')
           .select('*')
           .order('created_at', { ascending: false })
@@ -199,8 +209,7 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
           data = fallback1.data;
           error = null;
         } else {
-          // 3. Fallback table 'broadcast_messages'
-          const fallback2 = await supabase
+          const fallback2 = await client
             .from('broadcast_messages')
             .select('*')
             .order('created_at', { ascending: false })
@@ -214,10 +223,49 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!error && data) {
-        const normalized = data.map(normalizeBroadcast);
-        setMessages(normalized);
-        // Pre-populate processed IDs so initial load doesn't replay sounds
-        normalized.forEach(m => processedMessageIdsRef.current.add(m.id));
+        return data.map(normalizeBroadcast);
+      }
+    } catch (e) {
+      console.warn('Fetch broadcast error on client:', e);
+    }
+    return [];
+  };
+
+  // Fetch messages from primary Supabase and shared bridge Supabase (merging & deduplicating)
+  const fetchMessages = useCallback(async () => {
+    if (!isSupabaseConfigured && !isSharedBroadcastConfigured) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const fetchTasks = [];
+      if (isSupabaseConfigured) {
+        fetchTasks.push(fetchFromClient(supabase));
+      }
+      if (isSharedBroadcastConfigured && sharedBroadcastSupabase) {
+        fetchTasks.push(fetchFromClient(sharedBroadcastSupabase));
+      }
+
+      const results = await Promise.all(fetchTasks);
+      const combined = results.flat();
+
+      if (combined.length > 0) {
+        // Deduplicate by ID
+        const map = new Map<string, BroadcastMessage>();
+        combined.forEach(m => {
+          if (!map.has(m.id)) {
+            map.set(m.id, m);
+          }
+        });
+
+        // Sort descending by created_at
+        const sorted = Array.from(map.values()).sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        setMessages(sorted);
+        sorted.forEach(m => processedMessageIdsRef.current.add(m.id));
       }
     } catch (e) {
       console.error('Error fetching broadcast messages from database:', e);
@@ -226,95 +274,183 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Listen to both Supabase Broadcast WebSocket Channel & Postgres Realtime DB table `broadcast`
+  // Listen to both Supabase Broadcast WebSocket Channels & Postgres Realtime DB tables
   useEffect(() => {
     fetchMessages();
 
-    // Safely remove any existing channel with the same topic to prevent React StrictMode duplicate subscription crashes
-    try {
-      const existingChannels = (supabase as any).getChannels ? (supabase as any).getChannels() : [];
-      const match = existingChannels.find((c: any) => c.topic === 'realtime:broadcast_intercom_room');
-      if (match) {
-        supabase.removeChannel(match);
+    // 1. Primary Supabase Channel
+    let primaryChannel: any = null;
+    if (isSupabaseConfigured) {
+      try {
+        const existingChannels = (supabase as any).getChannels ? (supabase as any).getChannels() : [];
+        const match = existingChannels.find((c: any) => c.topic === 'realtime:broadcast_intercom_room');
+        if (match) supabase.removeChannel(match);
+      } catch (e) {
+        console.warn('Primary channel cleanup warning:', e);
       }
-    } catch (e) {
-      console.warn('Channel cleanup warning:', e);
+
+      primaryChannel = supabase.channel('broadcast_intercom_room');
+      activeChannelRef.current = primaryChannel;
+
+      primaryChannel
+        .on('broadcast', { event: 'new_broadcast' }, (payload: any) => {
+          const rawItem = payload.payload;
+          if (!rawItem) return;
+          const item = normalizeBroadcast(rawItem);
+          setMessages(prev => (prev.some(m => m.id === item.id) ? prev : [item, ...prev]));
+          handleIncomingAlert(item, rawItem.sessionId);
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast' }, (payload: any) => {
+          const raw = payload.new;
+          if (!raw) return;
+          const newItem = normalizeBroadcast(raw);
+          setMessages(prev => (prev.some(m => m.id === newItem.id) ? prev : [newItem, ...prev]));
+          handleIncomingAlert(newItem);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcast' }, (payload: any) => {
+          if (payload.old && payload.old.id) {
+            setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
+          } else {
+            fetchMessages();
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcasts' }, (payload: any) => {
+          const raw = payload.new;
+          if (!raw) return;
+          const newItem = normalizeBroadcast(raw);
+          setMessages(prev => (prev.some(m => m.id === newItem.id) ? prev : [newItem, ...prev]));
+          handleIncomingAlert(newItem);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcasts' }, (payload: any) => {
+          if (payload.old && payload.old.id) {
+            setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
+          } else {
+            fetchMessages();
+          }
+        })
+        .subscribe();
     }
 
-    // Unique channel instance for this app session
-    const channel = supabase.channel('broadcast_intercom_room');
-    activeChannelRef.current = channel;
+    // 2. Secondary / Shared Supabase Channel (Bridge to 2nd App)
+    let sharedChannel: any = null;
+    if (isSharedBroadcastConfigured && sharedBroadcastSupabase) {
+      try {
+        const existingChannels = (sharedBroadcastSupabase as any).getChannels ? (sharedBroadcastSupabase as any).getChannels() : [];
+        const match = existingChannels.find((c: any) => c.topic === 'realtime:broadcast_intercom_room');
+        if (match) sharedBroadcastSupabase.removeChannel(match);
+      } catch (e) {
+        console.warn('Shared channel cleanup warning:', e);
+      }
 
-    channel
-      .on('broadcast', { event: 'new_broadcast' }, (payload: any) => {
-        const rawItem = payload.payload;
-        if (!rawItem) return;
-        const item = normalizeBroadcast(rawItem);
+      sharedChannel = sharedBroadcastSupabase.channel('broadcast_intercom_room');
+      sharedActiveChannelRef.current = sharedChannel;
 
-        // Add to state if not exists
-        setMessages(prev => {
-          if (prev.some(m => m.id === item.id)) return prev;
-          return [item, ...prev];
-        });
-
-        // Trigger force multi-device alert
-        handleIncomingAlert(item, rawItem.sessionId);
-      })
-      // Realtime Postgres Changes on table 'broadcast'
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast' }, (payload: any) => {
-        const raw = payload.new;
-        if (!raw) return;
-        const newItem = normalizeBroadcast(raw);
-
-        setMessages(prev => {
-          if (prev.some(m => m.id === newItem.id)) return prev;
-          return [newItem, ...prev];
-        });
-
-        handleIncomingAlert(newItem);
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcast' }, (payload: any) => {
-        if (payload.old && payload.old.id) {
-          setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
-        } else {
-          fetchMessages();
-        }
-      })
-      // Realtime Postgres Changes on table 'broadcasts' (fallback)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcasts' }, (payload: any) => {
-        const raw = payload.new;
-        if (!raw) return;
-        const newItem = normalizeBroadcast(raw);
-
-        setMessages(prev => {
-          if (prev.some(m => m.id === newItem.id)) return prev;
-          return [newItem, ...prev];
-        });
-
-        handleIncomingAlert(newItem);
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcasts' }, (payload: any) => {
-        if (payload.old && payload.old.id) {
-          setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
-        } else {
-          fetchMessages();
-        }
-      })
-      .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') {
-          // Connected successfully
-        }
-      });
+      sharedChannel
+        .on('broadcast', { event: 'new_broadcast' }, (payload: any) => {
+          const rawItem = payload.payload;
+          if (!rawItem) return;
+          const item = normalizeBroadcast(rawItem);
+          setMessages(prev => (prev.some(m => m.id === item.id) ? prev : [item, ...prev]));
+          handleIncomingAlert(item, rawItem.sessionId);
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast' }, (payload: any) => {
+          const raw = payload.new;
+          if (!raw) return;
+          const newItem = normalizeBroadcast(raw);
+          setMessages(prev => (prev.some(m => m.id === newItem.id) ? prev : [newItem, ...prev]));
+          handleIncomingAlert(newItem);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcast' }, (payload: any) => {
+          if (payload.old && payload.old.id) {
+            setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
+          } else {
+            fetchMessages();
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcasts' }, (payload: any) => {
+          const raw = payload.new;
+          if (!raw) return;
+          const newItem = normalizeBroadcast(raw);
+          setMessages(prev => (prev.some(m => m.id === newItem.id) ? prev : [newItem, ...prev]));
+          handleIncomingAlert(newItem);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcasts' }, (payload: any) => {
+          if (payload.old && payload.old.id) {
+            setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
+          } else {
+            fetchMessages();
+          }
+        })
+        .subscribe();
+    }
 
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch {
-        // ignore
+      if (primaryChannel) {
+        try { supabase.removeChannel(primaryChannel); } catch {}
+        activeChannelRef.current = null;
       }
-      activeChannelRef.current = null;
+      if (sharedChannel && sharedBroadcastSupabase) {
+        try { sharedBroadcastSupabase.removeChannel(sharedChannel); } catch {}
+        sharedActiveChannelRef.current = null;
+      }
     };
   }, [fetchMessages, handleIncomingAlert]);
+
+  // Helper to insert a broadcast into any Supabase client table
+  const insertToDatabase = async (client: any, item: BroadcastMessage) => {
+    if (!client) return;
+    try {
+      const payloadData = {
+        id: item.id,
+        message: item.message,
+        content: item.message,
+        sender_name: item.sender_name,
+        author_name: item.sender_name,
+        title: item.title,
+        category: item.category,
+        priority: item.priority || 'Normal',
+        device_info: item.device_info,
+        is_active: true,
+        created_at: item.created_at
+      };
+
+      let { error } = await client.from('broadcast').insert([payloadData]);
+      if (error) {
+        const minimal = await client.from('broadcast').insert([{
+          id: item.id,
+          message: item.message,
+          sender_name: item.sender_name,
+          category: item.category,
+          created_at: item.created_at
+        }]);
+
+        if (minimal.error) {
+          const fallback = await client.from('broadcasts').insert([{
+            id: item.id,
+            title: item.title,
+            content: item.message,
+            category: item.category,
+            priority: item.priority || 'Normal',
+            author_name: item.sender_name,
+            created_at: item.created_at
+          }]);
+
+          if (fallback.error) {
+            await client.from('broadcast_messages').insert([{
+              id: item.id,
+              sender_name: item.sender_name,
+              message: item.message,
+              category: item.category,
+              device_info: item.device_info,
+              created_at: item.created_at
+            }]);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Database broadcast insert notice:', e);
+    }
+  };
 
   const sendBroadcast = async (data: {
     sender_name: string;
@@ -349,95 +485,62 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     // 1. Optimistic local update
     setMessages(prev => [broadcastItem, ...prev.filter(m => m.id !== tempId)]);
 
-    // 2. Broadcast immediately over websocket channel for zero-lag peer reception across all connected devices
-    try {
-      if (activeChannelRef.current) {
-        await activeChannelRef.current.send({
-          type: 'broadcast',
-          event: 'new_broadcast',
-          payload: broadcastItem
-        });
-      }
-    } catch (err) {
-      console.warn('Broadcast channel delivery note:', err);
+    // 2. Broadcast immediately over websocket channels for zero-lag peer reception across both applications
+    const broadcastPayload = {
+      type: 'broadcast',
+      event: 'new_broadcast',
+      payload: broadcastItem
+    };
+
+    if (activeChannelRef.current) {
+      activeChannelRef.current.send(broadcastPayload).catch((e: any) => console.warn('Primary WS broadcast send error:', e));
+    }
+    if (sharedActiveChannelRef.current) {
+      sharedActiveChannelRef.current.send(broadcastPayload).catch((e: any) => console.warn('Shared WS broadcast send error:', e));
     }
 
-    // 3. Persist to Supabase Database table `broadcast` (with flexible payload)
+    // 3. Concurrently persist to both Supabase Databases (Primary + Shared Bridge)
+    const dbTasks = [];
     if (isSupabaseConfigured) {
-      try {
-        const payloadData = {
-          id: tempId,
-          message: cleanMessage,
-          content: cleanMessage,
-          sender_name: cleanSender,
-          author_name: cleanSender,
-          title: cleanMessage.length > 50 ? cleanMessage.substring(0, 47) + '...' : cleanMessage,
-          category: category,
-          priority: 'Normal',
-          device_info: broadcastItem.device_info,
-          is_active: true,
-          created_at: createdAt
-        };
-
-        // Try primary table 'broadcast'
-        let { error } = await supabase.from('broadcast').insert([payloadData]);
-
-        // If table 'broadcast' has schema restriction or error, try fallback formats
-        if (error) {
-          console.warn('Initial insert to table broadcast result:', error.message);
-          
-          const minimalBroadcast = await supabase.from('broadcast').insert([{
-            id: tempId,
-            message: cleanMessage,
-            sender_name: cleanSender,
-            category: category,
-            created_at: createdAt
-          }]);
-
-          if (minimalBroadcast.error) {
-            const fallbackBroadcasts = await supabase.from('broadcasts').insert([{
-              id: tempId,
-              title: cleanMessage.length > 50 ? cleanMessage.substring(0, 47) + '...' : cleanMessage,
-              content: cleanMessage,
-              category: 'Pengumuman',
-              priority: 'Normal',
-              author_name: cleanSender,
-              created_at: createdAt
-            }]);
-
-            if (fallbackBroadcasts.error) {
-              await supabase.from('broadcast_messages').insert([{
-                id: tempId,
-                sender_name: cleanSender,
-                message: cleanMessage,
-                category: category,
-                device_info: broadcastItem.device_info,
-                created_at: createdAt
-              }]);
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Failed to save broadcast to database table broadcast:', e);
-      }
+      dbTasks.push(insertToDatabase(supabase, broadcastItem));
     }
+    if (isSharedBroadcastConfigured && sharedBroadcastSupabase) {
+      dbTasks.push(insertToDatabase(sharedBroadcastSupabase, broadcastItem));
+    }
+
+    await Promise.allSettled(dbTasks);
 
     return broadcastItem;
   };
 
+  const deleteFromClient = async (client: any, id: string) => {
+    if (!client) return;
+    try {
+      const res1 = await client.from('broadcast').delete().eq('id', id);
+      if (res1.error) {
+        await client.from('broadcasts').delete().eq('id', id);
+        await client.from('broadcast_messages').delete().eq('id', id);
+      }
+    } catch {}
+  };
+
   const deleteMessage = async (id: string) => {
     setMessages(prev => prev.filter(m => m.id !== id));
-    if (isSupabaseConfigured) {
-      try {
-        const res1 = await supabase.from('broadcast').delete().eq('id', id);
-        if (res1.error) {
-          await supabase.from('broadcasts').delete().eq('id', id);
-          await supabase.from('broadcast_messages').delete().eq('id', id);
-        }
-      } catch (e) {
-        console.error('Error deleting broadcast message from database:', e);
+    const tasks = [];
+    if (isSupabaseConfigured) tasks.push(deleteFromClient(supabase, id));
+    if (isSharedBroadcastConfigured && sharedBroadcastSupabase) tasks.push(deleteFromClient(sharedBroadcastSupabase, id));
+    await Promise.allSettled(tasks);
+  };
+
+  const clearAllFromClient = async (client: any) => {
+    if (!client) return;
+    try {
+      const res1 = await client.from('broadcast').delete().neq('id', '___NON_EXISTENT___');
+      if (res1.error) {
+        await client.from('broadcasts').delete().neq('id', '___NON_EXISTENT___');
+        await client.from('broadcast_messages').delete().neq('id', '___NON_EXISTENT___');
       }
-    }
+    } catch {}
   };
 
   const clearAllMessages = async () => {
@@ -448,17 +551,10 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
 
-    if (isSupabaseConfigured) {
-      try {
-        const res1 = await supabase.from('broadcast').delete().neq('id', '___NON_EXISTENT___');
-        if (res1.error) {
-          await supabase.from('broadcasts').delete().neq('id', '___NON_EXISTENT___');
-          await supabase.from('broadcast_messages').delete().neq('id', '___NON_EXISTENT___');
-        }
-      } catch (e) {
-        console.error('Error clearing all broadcast messages from database:', e);
-      }
-    }
+    const tasks = [];
+    if (isSupabaseConfigured) tasks.push(clearAllFromClient(supabase));
+    if (isSharedBroadcastConfigured && sharedBroadcastSupabase) tasks.push(clearAllFromClient(sharedBroadcastSupabase));
+    await Promise.allSettled(tasks);
   };
 
   const dismissIncomingBroadcast = useCallback(() => {
@@ -479,6 +575,11 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
         soundEnabled,
         notificationPermission,
         isNotificationSupported: isNotificationSupported(),
+        isBridgeActive: isSharedBroadcastConfigured,
+        bridgeUrl: sharedBroadcastUrl,
+        testBridge: testSharedBroadcastConnection,
+        saveBridgeCredentials: saveSharedBroadcastCredentials,
+        removeBridgeCredentials: removeSharedBroadcastCredentials,
         requestNotificationPermission: requestSysPermission,
         sendBroadcast,
         deleteMessage,
@@ -500,4 +601,5 @@ export function useBroadcast() {
   }
   return context;
 }
+
 

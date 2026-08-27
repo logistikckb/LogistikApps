@@ -45,6 +45,55 @@ function getResolvedKey(): string {
   return '';
 }
 
+// ============================================================================
+// SECONDARY / SHARED BROADCAST BRIDGE (Jembatan Pesan Siaran Antar-Aplikasi)
+// ============================================================================
+function getResolvedSharedBroadcastUrl(): string {
+  const envUrl = 
+    (import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_URL as string) || 
+    (import.meta.env.VITE_SHARED_SUPABASE_URL as string) || 
+    (import.meta.env.SUPABASE_BROADCAST_URL as string) || 
+    '';
+  
+  if (envUrl && envUrl.startsWith('https://') && !envUrl.includes('YOUR_SUPABASE_URL')) {
+    return envUrl.trim();
+  }
+
+  try {
+    const saved = localStorage.getItem('ckb_shared_broadcast_supabase_url');
+    if (saved && saved.startsWith('https://')) {
+      return saved.trim();
+    }
+  } catch {
+    // ignore
+  }
+
+  return '';
+}
+
+function getResolvedSharedBroadcastKey(): string {
+  const envKey = 
+    (import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_ANON_KEY as string) || 
+    (import.meta.env.VITE_SHARED_SUPABASE_ANON_KEY as string) || 
+    (import.meta.env.SUPABASE_BROADCAST_ANON_KEY as string) || 
+    '';
+
+  if (envKey && envKey.length > 20 && !envKey.includes('YOUR_SUPABASE_ANON_KEY')) {
+    return envKey.trim();
+  }
+
+  try {
+    const saved = localStorage.getItem('ckb_shared_broadcast_supabase_anon_key');
+    if (saved && saved.length > 20) {
+      return saved.trim();
+    }
+  } catch {
+    // ignore
+  }
+
+  return '';
+}
+
 const resolvedUrl = getResolvedUrl();
 const resolvedKey = getResolvedKey();
 
@@ -69,6 +118,36 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     },
   },
 });
+
+// Shared Broadcast Bridge Client
+const resolvedSharedUrl = getResolvedSharedBroadcastUrl();
+const resolvedSharedKey = getResolvedSharedBroadcastKey();
+
+export const isSharedBroadcastConfigured = Boolean(
+  resolvedSharedUrl &&
+  resolvedSharedKey &&
+  resolvedSharedUrl.startsWith('https://') &&
+  !resolvedSharedUrl.includes('placeholder') &&
+  // Only consider active if it is different from primary database OR explicitly configured
+  (resolvedSharedUrl !== resolvedUrl || Boolean(localStorage.getItem('ckb_shared_broadcast_supabase_url')))
+);
+
+export const sharedBroadcastUrl = isSharedBroadcastConfigured ? resolvedSharedUrl : '';
+export const sharedBroadcastAnonKey = isSharedBroadcastConfigured ? resolvedSharedKey : '';
+
+export const sharedBroadcastSupabase: SupabaseClient | null = isSharedBroadcastConfigured
+  ? createClient(resolvedSharedUrl, resolvedSharedKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: true,
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    })
+  : null;
 
 export interface ConnectionTestResult {
   connected: boolean;
@@ -182,6 +261,95 @@ export function saveCustomSupabaseCredentials(url: string, key: string): void {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Simpan Kredensial Database Jembatan Siaran Antar-Aplikasi (Secondary Supabase)
+ */
+export function saveSharedBroadcastCredentials(url: string, key: string): void {
+  try {
+    if (url) localStorage.setItem('ckb_shared_broadcast_supabase_url', url.trim());
+    if (key) localStorage.setItem('ckb_shared_broadcast_supabase_anon_key', key.trim());
+    window.location.reload();
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Hapus / Reset Kredensial Jembatan Siaran (Kembali ke mode database mandiri)
+ */
+export function removeSharedBroadcastCredentials(): void {
+  try {
+    localStorage.removeItem('ckb_shared_broadcast_supabase_url');
+    localStorage.removeItem('ckb_shared_broadcast_supabase_anon_key');
+    window.location.reload();
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Tes koneksi khusus untuk Database Jembatan Siaran Antar-Aplikasi (Secondary Supabase)
+ */
+export async function testSharedBroadcastConnection(): Promise<ConnectionTestResult> {
+  const startTime = Date.now();
+  const currentUrl = getResolvedSharedBroadcastUrl();
+  const currentKey = getResolvedSharedBroadcastKey();
+
+  if (!currentUrl || !currentKey || !sharedBroadcastSupabase) {
+    return {
+      connected: false,
+      url: currentUrl || 'Belum Terhubung',
+      tables: { users: false, broadcasts: false, links: false, todos: false },
+      details: 'Jembatan Siaran Antar-Aplikasi belum dikonfigurasi.',
+    };
+  }
+
+  const result: ConnectionTestResult = {
+    connected: false,
+    url: currentUrl,
+    tables: { users: false, broadcasts: false, links: false, todos: false },
+    details: '',
+  };
+
+  try {
+    // Test broadcast table on shared/secondary database
+    const { error: bErr } = await sharedBroadcastSupabase
+      .from('broadcast')
+      .select('id')
+      .limit(1);
+
+    if (!bErr) {
+      result.tables.broadcasts = true;
+      result.connected = true;
+    } else {
+      const { error: bErr2 } = await sharedBroadcastSupabase.from('broadcasts').select('id').limit(1);
+      if (!bErr2) {
+        result.tables.broadcasts = true;
+        result.connected = true;
+      } else {
+        const { error: bErr3 } = await sharedBroadcastSupabase.from('broadcast_messages').select('id').limit(1);
+        if (!bErr3) {
+          result.tables.broadcasts = true;
+          result.connected = true;
+        }
+      }
+    }
+
+    result.latencyMs = Date.now() - startTime;
+
+    if (result.connected) {
+      result.details = `Jembatan Siaran Terhubung Aktif! Siaran instan sinkron dengan Aplikasi Pasangan (${result.latencyMs}ms).`;
+    } else {
+      result.details = 'Koneksi ke Database Siaran Pasangan gagal. Pastikan URL & Anon Key benar dan tabel "broadcast" sudah dibuat.';
+    }
+  } catch (err: any) {
+    result.connected = false;
+    result.details = `Status jembatan siaran: ${err.message || err}`;
+  }
+
+  return result;
 }
 
 /**

@@ -16,7 +16,9 @@ import {
   Bell,
   BellRing,
   CheckCircle2,
-  UserCheck
+  UserCheck,
+  ArrowRightLeft,
+  Settings2
 } from 'lucide-react';
 import { BroadcastMessage } from '../../types';
 import { playBroadcastSound } from '../../utils/broadcastSound';
@@ -43,6 +45,8 @@ interface BroadcastModalProps {
   notificationPermission?: NotificationPermission;
   onRequestNotificationPermission?: () => Promise<any>;
   isNotificationSupported?: boolean;
+  isBridgeActive?: boolean;
+  onOpenBridgeSettings?: () => void;
 }
 
 export function BroadcastModal({
@@ -59,7 +63,9 @@ export function BroadcastModal({
   isAdmin,
   notificationPermission,
   onRequestNotificationPermission,
-  isNotificationSupported = true
+  isNotificationSupported = true,
+  isBridgeActive = false,
+  onOpenBridgeSettings
 }: BroadcastModalProps) {
   const { currentUser } = useAuth();
   const { showToast, showConfirm } = useNotification();
@@ -255,6 +261,44 @@ export function BroadcastModal({
         <div className="p-4 sm:p-5 overflow-y-auto flex-1 bg-white">
           {activeTab === 'compose' ? (
             <form onSubmit={handleSendBroadcast} className="space-y-3.5">
+              {/* Cross-App Bridge Connection Banner */}
+              {onOpenBridgeSettings && (
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition-all ${
+                  isBridgeActive 
+                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
+                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                      isBridgeActive ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      <ArrowRightLeft size={12} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[11px] leading-tight m-0 truncate">
+                        {isBridgeActive 
+                          ? 'Jembatan Siaran 2 Aplikasi Aktif' 
+                          : 'Jembatan Siaran Antar-Aplikasi'}
+                      </p>
+                      <p className="text-[10px] text-slate-500 leading-tight m-0 mt-0.5 truncate">
+                        {isBridgeActive 
+                          ? 'Pesan otomatis disiarkan ke database kedua aplikasi.' 
+                          : 'Hubungkan dengan aplikasi pasangan (database berbeda).'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onOpenBridgeSettings}
+                    className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] uppercase tracking-wider shrink-0 transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Settings2 size={11} />
+                    <span>{isBridgeActive ? 'Atur' : 'Sambungkan'}</span>
+                  </button>
+                </div>
+              )}
+
               {/* OS Notification Status Banner */}
               {isNotificationSupported && (
                 <div className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 text-xs transition-all ${

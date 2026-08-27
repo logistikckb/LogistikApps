@@ -18,6 +18,7 @@ import { BroadcastBar } from './components/broadcast/BroadcastBar';
 import { BroadcastModal } from './components/broadcast/BroadcastModal';
 import { FloatingRobotBroadcast } from './components/broadcast/FloatingRobotBroadcast';
 import { NotificationPermissionBanner } from './components/broadcast/NotificationPermissionBanner';
+import { SupabaseConnectionModal } from './components/common/SupabaseConnectionModal';
 import { useBroadcast } from './hooks/useBroadcast';
 import { 
   ArrowLeft, 
@@ -44,6 +45,7 @@ export default function App() {
     soundEnabled,
     notificationPermission,
     isNotificationSupported,
+    isBridgeActive,
     requestNotificationPermission,
     sendBroadcast,
     deleteMessage: deleteBroadcastMessage,
@@ -53,6 +55,8 @@ export default function App() {
   } = useBroadcast();
 
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [showDbModal, setShowDbModal] = useState(false);
+  const [dbModalTab, setDbModalTab] = useState<'primary' | 'bridge'>('primary');
   const [replySender, setReplySender] = useState<string>('');
 
   const currentTool = TOOLS_LIST.find((t) => t.id === activeToolId) || TOOLS_LIST[0];
@@ -272,6 +276,18 @@ export default function App() {
         notificationPermission={notificationPermission}
         onRequestNotificationPermission={requestNotificationPermission}
         isNotificationSupported={isNotificationSupported}
+        isBridgeActive={isBridgeActive}
+        onOpenBridgeSettings={() => {
+          setDbModalTab('bridge');
+          setShowDbModal(true);
+        }}
+      />
+
+      {/* Database & Cross-App Broadcast Bridge Configuration Modal */}
+      <SupabaseConnectionModal
+        isOpen={showDbModal}
+        onClose={() => setShowDbModal(false)}
+        initialTab={dbModalTab}
       />
 
       {/* Inactivity Security Warning Modal (30 Mins Auto-Logout) */}
