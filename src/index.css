@@ -11,6 +11,14 @@
 }
 
 @layer utilities {
+  /* Fast GPU Composite Acceleration */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+    will-change: transform, opacity;
+  }
+
   /* Minimalism Lite Card - Instant flat render, zero GPU composite lag */
   .glass-box, .lite-card {
     @apply bg-white border border-slate-200/90 shadow-2xs text-slate-800 rounded-2xl transition-colors;
@@ -41,6 +49,17 @@
   }
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: #f8fafc;
   color: #0f172a;
@@ -48,10 +67,18 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fast tap response & touch optimization for mobile */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Hide scrollbar for compact containers */

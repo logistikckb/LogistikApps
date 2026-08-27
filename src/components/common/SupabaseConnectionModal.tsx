@@ -108,17 +108,13 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
 
   return typeof document !== "undefined" ? createPortal(
     <div 
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/75 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/70 p-4 animate-fade-in"
       onClick={onClose}
     >
       <div 
-        className="glass-box !bg-white/95 p-5 sm:p-7 rounded-3xl max-w-xl w-full shadow-2xl border border-blue-400 relative overflow-hidden text-left max-h-[90vh] flex flex-col"
+        className="bg-white p-5 sm:p-7 rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 relative text-left max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Decorative Background */}
-        <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-blue-500/15 rounded-full blur-2xl pointer-events-none" />
-
         {/* Close Button */}
         <button 
           onClick={onClose}

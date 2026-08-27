@@ -1,24 +1,14 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useAuth } from './context/AuthContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { Hero } from './components/Hero';
 import { ToolsGridMenu, ToolId, TOOLS_LIST } from './components/ToolsNavigation';
-import { EdCheckerModule } from './components/logistics/EdCheckerModule';
-import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModule';
-import { IncomingModule } from './components/logistics/IncomingModule';
-import { QrGeneratorHoneywellModule } from './components/logistics/QrGeneratorHoneywellModule';
-import { PenyiapanModule } from './components/logistics/PenyiapanModule';
-import { PemusnahanModule } from './components/logistics/PemusnahanModule';
-import { RecoModule } from './components/logistics/RecoModule';
-import { InventoryModule } from './components/logistics/InventoryModule';
-import { RepackModule } from './components/logistics/RepackModule';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
 import { BroadcastBar } from './components/broadcast/BroadcastBar';
-import { BroadcastModal } from './components/broadcast/BroadcastModal';
 import { FloatingRobotBroadcast } from './components/broadcast/FloatingRobotBroadcast';
 import { NotificationPermissionBanner } from './components/broadcast/NotificationPermissionBanner';
-import { SupabaseConnectionModal } from './components/common/SupabaseConnectionModal';
+import { LazyFallback } from './components/common/LazyFallback';
 import { useBroadcast } from './hooks/useBroadcast';
 import { 
   ArrowLeft, 
@@ -29,6 +19,21 @@ import {
   LayoutGrid,
   ShieldCheck
 } from 'lucide-react';
+
+// Lazy Loaded Logistics Modules for instant initial interactive load
+const EdCheckerModule = lazy(() => import('./components/logistics/EdCheckerModule').then(m => ({ default: m.EdCheckerModule })));
+const DatabaseMasterModule = lazy(() => import('./components/logistics/DatabaseMasterModule').then(m => ({ default: m.DatabaseMasterModule })));
+const IncomingModule = lazy(() => import('./components/logistics/IncomingModule').then(m => ({ default: m.IncomingModule })));
+const QrGeneratorHoneywellModule = lazy(() => import('./components/logistics/QrGeneratorHoneywellModule').then(m => ({ default: m.QrGeneratorHoneywellModule })));
+const PenyiapanModule = lazy(() => import('./components/logistics/PenyiapanModule').then(m => ({ default: m.PenyiapanModule })));
+const PemusnahanModule = lazy(() => import('./components/logistics/PemusnahanModule').then(m => ({ default: m.PemusnahanModule })));
+const RecoModule = lazy(() => import('./components/logistics/RecoModule').then(m => ({ default: m.RecoModule })));
+const InventoryModule = lazy(() => import('./components/logistics/InventoryModule').then(m => ({ default: m.InventoryModule })));
+const RepackModule = lazy(() => import('./components/logistics/RepackModule').then(m => ({ default: m.RepackModule })));
+
+// Lazy Loaded Dialogs
+const BroadcastModal = lazy(() => import('./components/broadcast/BroadcastModal').then(m => ({ default: m.BroadcastModal })));
+const SupabaseConnectionModal = lazy(() => import('./components/common/SupabaseConnectionModal').then(m => ({ default: m.SupabaseConnectionModal })));
 
 export default function App() {
   const { currentUser, isAdmin } = useAuth();
@@ -153,44 +158,46 @@ export default function App() {
               {/* Modul Content */}
               <main className="space-y-2 sm:space-y-2.5">
                 <div className="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-                  {activeToolId === 'ed-checker' ? (
-                    <EdCheckerModule />
-                  ) : activeToolId === 'menu-a' ? (
-                    <DatabaseMasterModule />
-                  ) : activeToolId === 'menu-b' ? (
-                    <IncomingModule />
-                  ) : activeToolId === 'menu-c' ? (
-                    <QrGeneratorHoneywellModule />
-                  ) : activeToolId === 'menu-d' ? (
-                    <PenyiapanModule 
-                      onNavigateToPemusnahan={() => handleOpenTool('menu-e')} 
-                      onNavigateToReco={() => handleOpenTool('menu-f')}
-                      onNavigateToInventory={() => handleOpenTool('menu-g')}
-                      onNavigateToRepack={() => handleOpenTool('menu-h')}
-                    />
-                  ) : activeToolId === 'menu-e' ? (
-                    <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
-                  ) : activeToolId === 'menu-f' ? (
-                    <RecoModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
-                  ) : activeToolId === 'menu-g' ? (
-                    <InventoryModule 
-                      onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
-                      onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
-                      onNavigateToReco={() => handleOpenTool('menu-f')}
-                    />
-                  ) : activeToolId === 'menu-h' ? (
-                    <RepackModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
-                  ) : (
-                    <PlaceholderTool
-                      id={currentTool.id}
-                      title={currentTool.title}
-                      subtitle={currentTool.shortDesc}
-                      category={currentTool.category}
-                      icon={currentTool.icon}
-                      colorClass={currentTool.colorBg}
-                      plannedFeatures={currentTool.plannedFeatures}
-                    />
-                  )}
+                  <Suspense fallback={<LazyFallback title={`Memuat ${currentTool.title}...`} />}>
+                    {activeToolId === 'ed-checker' ? (
+                      <EdCheckerModule />
+                    ) : activeToolId === 'menu-a' ? (
+                      <DatabaseMasterModule />
+                    ) : activeToolId === 'menu-b' ? (
+                      <IncomingModule />
+                    ) : activeToolId === 'menu-c' ? (
+                      <QrGeneratorHoneywellModule />
+                    ) : activeToolId === 'menu-d' ? (
+                      <PenyiapanModule 
+                        onNavigateToPemusnahan={() => handleOpenTool('menu-e')} 
+                        onNavigateToReco={() => handleOpenTool('menu-f')}
+                        onNavigateToInventory={() => handleOpenTool('menu-g')}
+                        onNavigateToRepack={() => handleOpenTool('menu-h')}
+                      />
+                    ) : activeToolId === 'menu-e' ? (
+                      <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
+                    ) : activeToolId === 'menu-f' ? (
+                      <RecoModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
+                    ) : activeToolId === 'menu-g' ? (
+                      <InventoryModule 
+                        onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
+                        onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
+                        onNavigateToReco={() => handleOpenTool('menu-f')}
+                      />
+                    ) : activeToolId === 'menu-h' ? (
+                      <RepackModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
+                    ) : (
+                      <PlaceholderTool
+                        id={currentTool.id}
+                        title={currentTool.title}
+                        subtitle={currentTool.shortDesc}
+                        category={currentTool.category}
+                        icon={currentTool.icon}
+                        colorClass={currentTool.colorBg}
+                        plannedFeatures={currentTool.plannedFeatures}
+                      />
+                    )}
+                  </Suspense>
                 </div>
 
                 {/* Guide for ED Checker */}
@@ -258,37 +265,45 @@ export default function App() {
       />
 
       {/* Broadcast Messaging & History Modal */}
-      <BroadcastModal
-        isOpen={showBroadcastModal}
-        onClose={() => {
-          setShowBroadcastModal(false);
-          setReplySender('');
-        }}
-        messages={broadcastMessages}
-        loading={broadcastLoading}
-        soundEnabled={soundEnabled}
-        onToggleSound={toggleSound}
-        onSend={sendBroadcast}
-        onDeleteMessage={deleteBroadcastMessage}
-        onClearAll={clearAllBroadcasts}
-        initialSenderName={replySender}
-        isAdmin={isAdmin}
-        notificationPermission={notificationPermission}
-        onRequestNotificationPermission={requestNotificationPermission}
-        isNotificationSupported={isNotificationSupported}
-        isBridgeActive={isBridgeActive}
-        onOpenBridgeSettings={() => {
-          setDbModalTab('bridge');
-          setShowDbModal(true);
-        }}
-      />
+      {showBroadcastModal && (
+        <Suspense fallback={null}>
+          <BroadcastModal
+            isOpen={showBroadcastModal}
+            onClose={() => {
+              setShowBroadcastModal(false);
+              setReplySender('');
+            }}
+            messages={broadcastMessages}
+            loading={broadcastLoading}
+            soundEnabled={soundEnabled}
+            onToggleSound={toggleSound}
+            onSend={sendBroadcast}
+            onDeleteMessage={deleteBroadcastMessage}
+            onClearAll={clearAllBroadcasts}
+            initialSenderName={replySender}
+            isAdmin={isAdmin}
+            notificationPermission={notificationPermission}
+            onRequestNotificationPermission={requestNotificationPermission}
+            isNotificationSupported={isNotificationSupported}
+            isBridgeActive={isBridgeActive}
+            onOpenBridgeSettings={() => {
+              setDbModalTab('bridge');
+              setShowDbModal(true);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Database & Cross-App Broadcast Bridge Configuration Modal */}
-      <SupabaseConnectionModal
-        isOpen={showDbModal}
-        onClose={() => setShowDbModal(false)}
-        initialTab={dbModalTab}
-      />
+      {showDbModal && (
+        <Suspense fallback={null}>
+          <SupabaseConnectionModal
+            isOpen={showDbModal}
+            onClose={() => setShowDbModal(false)}
+            initialTab={dbModalTab}
+          />
+        </Suspense>
+      )}
 
       {/* Inactivity Security Warning Modal (30 Mins Auto-Logout) */}
       {currentUser && <InactivityWarningModal />}

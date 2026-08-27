@@ -32,18 +32,15 @@ export function InactivityWarningModal() {
   return typeof document !== "undefined" ? createPortal(
     <div 
       id="inactivity-warning-backdrop"
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/75 p-4 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="inactivity-warning-title"
     >
       <div 
         id="inactivity-warning-card"
-        className="glass-box !bg-white/95 max-w-md w-full p-6 sm:p-7 rounded-3xl shadow-2xl border-2 border-amber-400 relative overflow-hidden text-center space-y-4"
+        className="bg-white max-w-md w-full p-6 sm:p-7 rounded-2xl shadow-2xl border-2 border-amber-400 relative text-center space-y-4"
       >
-        {/* Ambient Glows */}
-        <div className="absolute -top-16 -right-16 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-red-500/15 rounded-full blur-2xl pointer-events-none" />
 
         {/* Security Badge Header */}
         <div className="flex items-center justify-center gap-2">

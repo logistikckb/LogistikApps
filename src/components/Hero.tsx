@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { isSupabaseConfigured } from '../supabase';
@@ -23,10 +23,11 @@ import {
   Lock
 } from 'lucide-react';
 import { InstallPwaButton } from './common/InstallPwaButton';
-import { AvatarPickerModal } from './profile/AvatarPickerModal';
-import { UserManagementModal } from './admin/UserManagementModal';
-import { SupabaseConnectionModal } from './common/SupabaseConnectionModal';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
+
+const AvatarPickerModal = lazy(() => import('./profile/AvatarPickerModal').then(m => ({ default: m.AvatarPickerModal })));
+const UserManagementModal = lazy(() => import('./admin/UserManagementModal').then(m => ({ default: m.UserManagementModal })));
+const SupabaseConnectionModal = lazy(() => import('./common/SupabaseConnectionModal').then(m => ({ default: m.SupabaseConnectionModal })));
 
 export function Hero() {
   const { currentUser, logout, isAdmin } = useAuth();
@@ -72,24 +73,34 @@ export function Hero() {
   return (
     <>
       {/* Modal Avatar Picker (Untuk Semua Pengguna) */}
-      <AvatarPickerModal
-        isOpen={showAvatarPicker}
-        onClose={() => setShowAvatarPicker(false)}
-      />
+      {showAvatarPicker && (
+        <Suspense fallback={null}>
+          <AvatarPickerModal
+            isOpen={showAvatarPicker}
+            onClose={() => setShowAvatarPicker(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Modal Manajemen User CRUD (Khusus Super Administrator) */}
-      {isAdmin && (
-        <UserManagementModal
-          isOpen={showUserManagement}
-          onClose={() => setShowUserManagement(false)}
-        />
+      {isAdmin && showUserManagement && (
+        <Suspense fallback={null}>
+          <UserManagementModal
+            isOpen={showUserManagement}
+            onClose={() => setShowUserManagement(false)}
+          />
+        </Suspense>
       )}
 
       {/* Modal Status Server & Jembatan Siaran Antar-Aplikasi */}
-      <SupabaseConnectionModal
-        isOpen={showDbModal}
-        onClose={() => setShowDbModal(false)}
-      />
+      {showDbModal && (
+        <Suspense fallback={null}>
+          <SupabaseConnectionModal
+            isOpen={showDbModal}
+            onClose={() => setShowDbModal(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Modal Detail Developer & Kontak */}
       {showPhotoModal && typeof document !== "undefined" && createPortal(

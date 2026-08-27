@@ -1,20 +1,36 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Resolve URL from Vite env, defines, or localStorage overrides
+function cleanUrl(raw: string): string {
+  if (!raw) return '';
+  let url = raw.trim().replace(/^['"]|['"]$/g, '');
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  return url.replace(/\/+$/, '');
+}
+
+function cleanKey(raw: string): string {
+  if (!raw) return '';
+  return raw.trim().replace(/^['"]|['"]$/g, '');
+}
+
 function getResolvedUrl(): string {
   const envUrl = 
     (import.meta.env.VITE_SUPABASE_URL as string) || 
     (import.meta.env.SUPABASE_URL as string) || 
     '';
   
-  if (envUrl && envUrl.startsWith('https://') && !envUrl.includes('YOUR_SUPABASE_URL')) {
-    return envUrl.trim();
+  if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL')) {
+    const cleaned = cleanUrl(envUrl);
+    if (cleaned.startsWith('https://')) return cleaned;
   }
 
   try {
     const saved = localStorage.getItem('ckb_custom_supabase_url');
-    if (saved && saved.startsWith('https://')) {
-      return saved.trim();
+    if (saved) {
+      const cleaned = cleanUrl(saved);
+      if (cleaned.startsWith('https://')) return cleaned;
     }
   } catch {
     // ignore
@@ -29,14 +45,16 @@ function getResolvedKey(): string {
     (import.meta.env.SUPABASE_ANON_KEY as string) || 
     '';
 
-  if (envKey && envKey.length > 20 && !envKey.includes('YOUR_SUPABASE_ANON_KEY')) {
-    return envKey.trim();
+  if (envKey && !envKey.includes('YOUR_SUPABASE_ANON_KEY')) {
+    const cleaned = cleanKey(envKey);
+    if (cleaned.length > 20) return cleaned;
   }
 
   try {
     const saved = localStorage.getItem('ckb_custom_supabase_anon_key');
-    if (saved && saved.length > 20) {
-      return saved.trim();
+    if (saved) {
+      const cleaned = cleanKey(saved);
+      if (cleaned.length > 20) return cleaned;
     }
   } catch {
     // ignore
@@ -55,14 +73,16 @@ function getResolvedSharedBroadcastUrl(): string {
     (import.meta.env.SUPABASE_BROADCAST_URL as string) || 
     '';
   
-  if (envUrl && envUrl.startsWith('https://') && !envUrl.includes('YOUR_SUPABASE_URL')) {
-    return envUrl.trim();
+  if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL')) {
+    const cleaned = cleanUrl(envUrl);
+    if (cleaned.startsWith('https://')) return cleaned;
   }
 
   try {
     const saved = localStorage.getItem('ckb_shared_broadcast_supabase_url');
-    if (saved && saved.startsWith('https://')) {
-      return saved.trim();
+    if (saved) {
+      const cleaned = cleanUrl(saved);
+      if (cleaned.startsWith('https://')) return cleaned;
     }
   } catch {
     // ignore
@@ -78,14 +98,16 @@ function getResolvedSharedBroadcastKey(): string {
     (import.meta.env.SUPABASE_BROADCAST_ANON_KEY as string) || 
     '';
 
-  if (envKey && envKey.length > 20 && !envKey.includes('YOUR_SUPABASE_ANON_KEY')) {
-    return envKey.trim();
+  if (envKey && !envKey.includes('YOUR_SUPABASE_ANON_KEY')) {
+    const cleaned = cleanKey(envKey);
+    if (cleaned.length > 20) return cleaned;
   }
 
   try {
     const saved = localStorage.getItem('ckb_shared_broadcast_supabase_anon_key');
-    if (saved && saved.length > 20) {
-      return saved.trim();
+    if (saved) {
+      const cleaned = cleanKey(saved);
+      if (cleaned.length > 20) return cleaned;
     }
   } catch {
     // ignore

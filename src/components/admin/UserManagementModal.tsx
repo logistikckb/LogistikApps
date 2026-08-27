@@ -318,11 +318,11 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
 
   return (
     <div 
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-2 sm:p-4 animate-fade-in"
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/70 p-2 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div 
-        className="glass-box !bg-white/95 p-4 sm:p-6 rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-blue-400 relative overflow-hidden text-left"
+        className="bg-white p-4 sm:p-6 rounded-2xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 relative text-left"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
@@ -597,11 +597,11 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
         {/* ========================================================================= */}
         {showAddEditModal && typeof document !== "undefined" && createPortal(
           <div 
-            className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in"
+            className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/70 p-3 sm:p-4 animate-fade-in"
             onClick={() => setShowAddEditModal(false)}
           >
             <div 
-              className="glass-box !bg-white p-5 sm:p-6 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-blue-400 relative text-left"
+              className="bg-white p-5 sm:p-6 rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 relative text-left"
               onClick={(e) => e.stopPropagation()}
             >
               <button 
@@ -867,11 +867,11 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
         {/* ========================================================================= */}
         {resetPinUser && (
           <div 
-            className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 animate-fade-in"
+            className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/70 p-4 animate-fade-in"
             onClick={() => setResetPinUser(null)}
           >
             <div 
-              className="glass-box !bg-white p-5 sm:p-6 rounded-3xl max-w-sm w-full shadow-2xl border border-amber-400 relative text-left"
+              className="bg-white p-5 sm:p-6 rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 relative text-left"
               onClick={(e) => e.stopPropagation()}
             >
               <button 

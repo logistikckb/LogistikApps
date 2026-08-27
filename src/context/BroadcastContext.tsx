@@ -231,6 +231,10 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     return [];
   };
 
+  // Track app start timestamp so polling only alerts for items created after load
+  const sessionStartTimeRef = useRef<number>(Date.now());
+  const initialFetchDoneRef = useRef<boolean>(false);
+
   // Fetch messages from primary Supabase and shared bridge Supabase (merging & deduplicating)
   const fetchMessages = useCallback(async () => {
     if (!isSupabaseConfigured && !isSharedBroadcastConfigured) {
@@ -264,15 +268,29 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
 
+        // Check if there are brand new incoming messages (during background polling)
+        if (initialFetchDoneRef.current) {
+          sorted.forEach(item => {
+            if (!processedMessageIdsRef.current.has(item.id)) {
+              const itemTime = new Date(item.created_at).getTime();
+              // Only alert if the message was sent around or after this session started (within 5 mins)
+              if (itemTime >= sessionStartTimeRef.current - 10000) {
+                handleIncomingAlert(item);
+              }
+            }
+          });
+        }
+
         setMessages(sorted);
         sorted.forEach(m => processedMessageIdsRef.current.add(m.id));
       }
+      initialFetchDoneRef.current = true;
     } catch (e) {
       console.error('Error fetching broadcast messages from database:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [handleIncomingAlert]);
 
   // Listen to both Supabase Broadcast WebSocket Channels & Postgres Realtime DB tables
   useEffect(() => {
@@ -384,7 +402,30 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
         .subscribe();
     }
 
+    // 3. Resilient Hybrid Fallback Polling (Ensures cross-app sync even if WebSockets drop or are proxy-filtered)
+    const pollInterval = setInterval(() => {
+      fetchMessages();
+    }, 4000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMessages();
+      }
+    };
+    const onOnline = () => {
+      fetchMessages();
+    };
+
+    window.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onOnline);
+    window.addEventListener('online', onOnline);
+
     return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onOnline);
+      window.removeEventListener('online', onOnline);
+
       if (primaryChannel) {
         try { supabase.removeChannel(primaryChannel); } catch {}
         activeChannelRef.current = null;
