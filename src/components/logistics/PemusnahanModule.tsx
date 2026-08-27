@@ -2199,11 +2199,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                         <div className="font-extrabold text-slate-800 text-xs truncate">
                           {item.item_name}
                         </div>
-                        {item.item_code && (
-                          <div className="text-[10px] font-mono text-slate-500">
-                            {item.item_code}
-                          </div>
-                        )}
                       </td>
 
                       {/* Qty */}
