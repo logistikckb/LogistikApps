@@ -2544,32 +2544,35 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           // 2. item_name
           const itemName = String(getVal(['item_name', 'itemname', 'Item Name', 'Nama Barang', 'namabarang', 'deskripsi', 'nama_item']) || '').trim();
           // 3. category
-          const category = String(getVal(['category', 'Category', 'Kategori', 'kategori']) || 'Finished Good').trim();
+          const category = String(getVal(['category', 'Category', 'Kategori', 'kategori', 'kelompok', 'group']) || '').trim();
           // 4. location
-          const location = String(getVal(['location', 'Location', 'Lokasi', 'rak', 'bin', 'posisi']) || '-').trim();
+          const location = String(getVal(['location', 'Location', 'Lokasi', 'rak', 'bin', 'posisi', 'storage_location']) || '').trim();
           // 5. location_type
-          const locationType = String(getVal(['location_type', 'locationtype', 'Location Type', 'Tipe Lokasi', 'tipe']) || '-').trim();
+          const locationType = String(getVal(['location_type', 'locationtype', 'Location Type', 'Tipe Lokasi', 'tipe', 'jenislokasi']) || '').trim();
           // 6. first_qty
-          const firstQty = Number(getVal(['first_qty', 'firstqty', 'First Qty', 'Qty Awal', 'qtyawal', 'po_qty', 'qtysj'])) || 0;
+          const firstQtyRaw = getVal(['first_qty', 'firstqty', 'First Qty', 'Qty Awal', 'qtyawal', 'po_qty', 'qtysj', 'qty']);
+          const lastQtyRaw = getVal(['last_qty', 'lastqty', 'Last Qty', 'Qty Akhir', 'qty_penyiapan', 'qty_aktual']);
+          const firstQty = firstQtyRaw !== '' ? Number(firstQtyRaw) || 0 : (lastQtyRaw !== '' ? Number(lastQtyRaw) || 0 : 0);
           // 7. last_qty
-          const lastQty = Number(getVal(['last_qty', 'lastqty', 'Last Qty', 'Qty Akhir', 'qty_penyiapan', 'qty_aktual', 'qty'])) || firstQty || 0;
+          const lastQty = lastQtyRaw !== '' ? Number(lastQtyRaw) || 0 : (firstQtyRaw !== '' ? Number(firstQtyRaw) || 0 : 0);
           // 8. uom
-          const uom = String(getVal(['uom', 'Uom', 'UOM', 'Satuan', 'unit']) || 'CTN').trim();
+          const uom = String(getVal(['uom', 'Uom', 'UOM', 'Satuan', 'unit']) || '').trim();
           // 9. qty_convert
-          const qtyConvert = Number(getVal(['qty_convert', 'qtyconvert', 'Qty Convert', 'Qty Konversi', 'qtykonversi', 'qty_pcs', 'total_pcs'])) || lastQty || 0;
+          const qtyConvertRaw = getVal(['qty_convert', 'qtyconvert', 'Qty Convert', 'Qty Konversi', 'qtykonversi', 'qty_pcs', 'total_pcs']);
+          const qtyConvert = qtyConvertRaw !== '' ? Number(qtyConvertRaw) || 0 : (lastQty !== undefined ? lastQty : 0);
           // 10. uom_convert
-          const uomConvert = String(getVal(['uom_convert', 'uomconvert', 'Uom Convert', 'Satuan Konversi', 'satuankonversi', 'satuan_terkecil']) || 'PCS').trim();
+          const uomConvert = String(getVal(['uom_convert', 'uomconvert', 'Uom Convert', 'Satuan Konversi', 'satuankonversi', 'satuan_terkecil']) || '').trim();
           // 11. lpn_serial_number
-          const lpn = String(getVal(['lpn_serial_number', 'lpnserialnumber', 'LPN/Serial Number', 'LPN Serial Number', 'LPN', 'Serial Number', 'lpn', 'no_seri', 'serial_number']) || '-').trim();
+          const lpn = String(getVal(['lpn_serial_number', 'lpnserialnumber', 'LPN/Serial Number', 'LPN Serial Number', 'LPN', 'Serial Number', 'lpn', 'no_seri', 'serial_number', 'sn']) || '').trim();
           // 12. batch
-          const batch = String(getVal(['batch', 'Batch', 'No Batch', 'nobatch', 'kode_batch', 'lot', 'batch_no']) || '-').trim();
+          const batch = String(getVal(['batch', 'Batch', 'No Batch', 'nobatch', 'kode_batch', 'lot', 'batch_no']) || '').trim();
           // 13. vendor_batch
-          const vendorBatch = String(getVal(['vendor_batch', 'vendorbatch', 'Vendor Batch', 'Batch Vendor', 'batchvendor', 'lot_vendor']) || '-').trim();
+          const vendorBatch = String(getVal(['vendor_batch', 'vendorbatch', 'Vendor Batch', 'Batch Vendor', 'batchvendor', 'lot_vendor']) || '').trim();
           // 14. sloc
-          const sloc = String(getVal(['sloc', 'SLOC', 'SLoc', 'storage_location']) || 'SL02').trim();
+          const sloc = String(getVal(['sloc', 'SLOC', 'SLoc', 'storage_location', 'gudang']) || '').trim();
 
           // 15. expired_date
-          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date', 'exp_date', 'tanggal_ed', 'kadaluwarsa', 'ed']) || '').trim();
+          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date', 'exp_date', 'tanggal_ed', 'kadaluwarsa', 'ed', 'exp']) || '').trim();
           if (/^\d{5}$/.test(expDate)) {
             const excelEpoch = new Date(1899, 11, 30);
             const dateObj = new Date(excelEpoch.getTime() + Number(expDate) * 86400000);
@@ -2595,15 +2598,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
           // 19. shelf_life
           let shelfLife = String(getVal(['shelf_life', 'shelflife', 'Shelf Life', 'masa_simpan']) || '').trim();
-          if (!expDate && batch && batch !== '-' && itemName) {
-            const autoCalc = getEdIsoDateString(itemCode, itemName, batch);
-            if (autoCalc && autoCalc.isoDate) {
-              expDate = autoCalc.isoDate;
-              if (!shelfLife) {
-                shelfLife = autoCalc.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${autoCalc.result.lamaEdTahun * 12} Bulan`;
-              }
-            }
-          }
 
           // 20. source
           const source = String(getVal(['source', 'Source', 'Sumber', 'asal', 'source_location']) || '').trim();
@@ -2621,13 +2615,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           }
           existingIds.add(idGenerated.toLowerCase());
 
-          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pengiriman']) || '').trim();
+          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pengiriman', 'destinasi']) || '').trim();
 
           // 21. status: Kosong atau isi status dari excel
-          const rawStatus = String(getVal(['status', 'Status', 'status_penyiapan']) || '').trim();
+          const rawStatus = String(getVal(['status', 'Status', 'status_penyiapan', 'kondisi']) || '').trim();
           const status = rawStatus;
 
-          const note = String(getVal(['note', 'Note', 'catatan', 'keterangan']) || '').trim();
+          const note = String(getVal(['note', 'Note', 'catatan', 'keterangan', 'remark']) || '').trim();
 
           return {
             id_penyiapan: idGenerated,
@@ -2645,19 +2639,19 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             batch,
             vendor_batch: vendorBatch,
             sloc,
-            expired_date: expDate || '-',
+            expired_date: expDate,
             destination_code: destCode,
             qc_code: qcCode,
             user_tally: userTally,
             shelf_life: shelfLife,
             source,
             tujuan,
-            user_input: currentUser?.nama || 'Admin',
+            user_input: currentUser?.nama || currentUser?.username || '',
             status,
             note,
             created_at: nowIso
           };
-        }).filter(r => r.item_code && r.item_name);
+        }).filter(r => (r.item_code && r.item_code.trim() !== '') || (r.item_name && r.item_name.trim() !== '') || (r.batch && r.batch.trim() !== ''));
 
         setParsedExcelRows(rawList);
         if (rawList.length > 0) {

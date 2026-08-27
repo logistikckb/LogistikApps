@@ -1222,7 +1222,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   const downloadExcelTemplate = () => {
     const templateData = [
       {
-        'ID Pemusnahan': 'PMS-2026-0001',
         'Item Code': '21104508',
         'Item Name': 'KINO CANDY MINT 150G (EXPIRED)',
         'Category': 'Damaged',
@@ -1251,7 +1250,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
     const ws = XLSX.utils.json_to_sheet(templateData);
     ws['!cols'] = [
-      { wch: 18 }, // ID Pemusnahan
       { wch: 16 }, // Item Code
       { wch: 35 }, // Item Name
       { wch: 18 }, // Category
@@ -1280,7 +1278,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template_Pemusnahan');
     XLSX.writeFile(wb, 'Template_Upload_Pemusnahan_Barang.xlsx');
-    showToast('Template Terunduh', 'File Template_Upload_Pemusnahan_Barang.xlsx siap digunakan', 'success');
+    showToast('Template Terunduh', 'File Template_Upload_Pemusnahan_Barang.xlsx siap digunakan (tanpa ID Pemusnahan, ID dibuat otomatis oleh sistem)', 'success');
   };
 
   // Export Data to Excel
@@ -1292,31 +1290,31 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
     const exportRows = filteredPemusnahan.map((item, idx) => ({
       'No': idx + 1,
-      'ID Pemusnahan': item.id_pemusnahan,
-      'Status': item.status || 'Siap Dimusnahkan',
-      'Item Code': item.item_code,
-      'Item Name': item.item_name,
-      'Category': item.category || 'Damaged',
-      'Location': item.location || 'WH-REJECT-01',
-      'Location Type': item.location_type || 'Quarantine',
+      'ID Pemusnahan': item.id_pemusnahan || '',
+      'Status': item.status || '',
+      'Item Code': item.item_code || '',
+      'Item Name': item.item_name || '',
+      'Category': item.category || '',
+      'Location': item.location || '',
+      'Location Type': item.location_type || '',
       'First Qty': item.first_qty ?? 0,
       'Last Qty': item.last_qty ?? 0,
-      'UOM': item.uom || 'CTN',
+      'UOM': item.uom || '',
       'Qty Convert': item.qty_convert ?? 0,
-      'UOM Convert': item.uom_convert || 'PCS',
-      'LPN/Serial Number': item.lpn_serial_number || '-',
-      'Batch': item.batch || '-',
-      'Vendor Batch': item.vendor_batch || '-',
-      'SLOC': item.sloc || 'SL99',
-      'Expired Date': item.expired_date || '-',
-      'Destination Code': item.destination_code || 'INCINERATOR',
-      'QC Code': item.qc_code || 'QC-REJECT',
-      'User Tally': item.user_tally || '-',
-      'Shelf Life': item.shelf_life || '-',
-      'Source / Asal': item.source || '-',
-      'Tujuan': item.tujuan || 'Pemusnahan Limbah Terkontrol',
-      'User Input': item.user_input || '-',
-      'Tanggal Update': item.tanggal_update ? new Date(item.tanggal_update).toLocaleString('id-ID') : '-',
+      'UOM Convert': item.uom_convert || '',
+      'LPN/Serial Number': item.lpn_serial_number || '',
+      'Batch': item.batch || '',
+      'Vendor Batch': item.vendor_batch || '',
+      'SLOC': item.sloc || '',
+      'Expired Date': item.expired_date || '',
+      'Destination Code': item.destination_code || '',
+      'QC Code': item.qc_code || '',
+      'User Tally': item.user_tally || '',
+      'Shelf Life': item.shelf_life || '',
+      'Source / Asal': item.source || '',
+      'Tujuan': item.tujuan || '',
+      'User Input': item.user_input || '',
+      'Tanggal Update': item.tanggal_update ? new Date(item.tanggal_update).toLocaleString('id-ID') : '',
       'Catatan': item.note || ''
     }));
 
@@ -1370,37 +1368,44 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
           const itemCode = String(getVal(['item_code', 'itemcode', 'Item Code', 'Kode Barang', 'SKU', 'kode_barang']) || '').trim();
           const itemName = String(getVal(['item_name', 'itemname', 'Item Name', 'Nama Barang', 'nama_barang', 'description']) || '').trim();
-          const category = String(getVal(['category', 'Category', 'kategori', 'Jenis']) || 'Damaged').trim();
-          const location = String(getVal(['location', 'Location', 'lokasi', 'rak', 'bin', 'wh_location']) || 'WH-REJECT-01').trim();
-          const locationType = String(getVal(['location_type', 'locationtype', 'Location Type', 'tipe_lokasi']) || 'Quarantine').trim();
-          const firstQty = Number(getVal(['first_qty', 'firstqty', 'First Qty', 'Qty Awal', 'qty_awal', 'qty']) || 0);
-          const lastQty = Number(getVal(['last_qty', 'lastqty', 'Last Qty', 'Qty Akhir', 'qty_akhir']) || firstQty);
-          const uom = String(getVal(['uom', 'Uom', 'UOM', 'Satuan', 'satuan']) || 'CTN').trim();
-          const qtyConvert = Number(getVal(['qty_convert', 'qtyconvert', 'Qty Convert', 'Konversi Qty']) || lastQty);
-          const uomConvert = String(getVal(['uom_convert', 'uomconvert', 'Uom Convert', 'Satuan Konversi']) || 'PCS').trim();
-          const lpn = String(getVal(['lpn_serial_number', 'lpn', 'LPN', 'LPN/Serial Number', 'Serial Number', 'serial_number']) || `LPN-PMS-${Date.now().toString().slice(-6)}-${idx + 1}`).trim();
-          const batch = String(getVal(['batch', 'Batch', 'No Batch', 'nobatch', 'kode_batch', 'lot', 'batch_no']) || '-').trim();
-          const vendorBatch = String(getVal(['vendor_batch', 'vendorbatch', 'Vendor Batch', 'Batch Vendor']) || '-').trim();
-          const sloc = String(getVal(['sloc', 'SLOC', 'SLoc', 'storage_location']) || 'SL99').trim();
+          const category = String(getVal(['category', 'Category', 'kategori', 'Jenis', 'kelompok', 'group']) || '').trim();
+          const location = String(getVal(['location', 'Location', 'lokasi', 'rak', 'bin', 'wh_location', 'storage_location']) || '').trim();
+          const locationType = String(getVal(['location_type', 'locationtype', 'Location Type', 'tipe_lokasi', 'jenislokasi']) || '').trim();
+          const firstQtyRaw = getVal(['first_qty', 'firstqty', 'First Qty', 'Qty Awal', 'qty_awal', 'qty', 'jumlah']);
+          const lastQtyRaw = getVal(['last_qty', 'lastqty', 'Last Qty', 'Qty Akhir', 'qty_akhir']);
+          const firstQty = firstQtyRaw !== '' ? Number(firstQtyRaw) || 0 : (lastQtyRaw !== '' ? Number(lastQtyRaw) || 0 : 0);
+          const lastQty = lastQtyRaw !== '' ? Number(lastQtyRaw) || 0 : (firstQtyRaw !== '' ? Number(firstQtyRaw) || 0 : 0);
+          const uom = String(getVal(['uom', 'Uom', 'UOM', 'Satuan', 'satuan', 'unit']) || '').trim();
+          const qtyConvertRaw = getVal(['qty_convert', 'qtyconvert', 'Qty Convert', 'Konversi Qty', 'qty_konversi']);
+          const qtyConvert = qtyConvertRaw !== '' ? Number(qtyConvertRaw) || 0 : (lastQty !== undefined ? lastQty : 0);
+          const uomConvert = String(getVal(['uom_convert', 'uomconvert', 'Uom Convert', 'Satuan Konversi', 'satuan_konversi']) || '').trim();
+          const lpn = String(getVal(['lpn_serial_number', 'lpn', 'LPN', 'LPN/Serial Number', 'Serial Number', 'serial_number', 'sn']) || '').trim();
+          const batch = String(getVal(['batch', 'Batch', 'No Batch', 'nobatch', 'kode_batch', 'lot', 'batch_no']) || '').trim();
+          const vendorBatch = String(getVal(['vendor_batch', 'vendorbatch', 'Vendor Batch', 'Batch Vendor', 'batchvendor']) || '').trim();
+          const sloc = String(getVal(['sloc', 'SLOC', 'SLoc', 'storage_location', 'gudang']) || '').trim();
 
-          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date', 'exp_date', 'tanggal_ed']) || '').trim();
+          let expDate = String(getVal(['expired_date', 'expireddate', 'Expired Date', 'exp_date', 'tanggal_ed', 'ed', 'exp', 'kadaluarsa']) || '').trim();
           if (/^\d{5}$/.test(expDate)) {
             const excelEpoch = new Date(1899, 11, 30);
             const dateObj = new Date(excelEpoch.getTime() + Number(expDate) * 86400000);
-            expDate = dateObj.toISOString().slice(0, 10);
+            if (!isNaN(dateObj.getTime())) {
+              expDate = dateObj.toISOString().slice(0, 10);
+            }
           }
 
-          const destCode = String(getVal(['destination_code', 'destinationcode', 'Destination Code', 'kode_tujuan']) || 'INCINERATOR').trim();
-          let shelfLife = String(getVal(['shelf_life', 'shelflife', 'Shelf Life', 'masa_simpan']) || 'Expired').trim();
+          const destCode = String(getVal(['destination_code', 'destinationcode', 'Destination Code', 'kode_tujuan', 'destination_loc']) || '').trim();
+          let shelfLife = String(getVal(['shelf_life', 'shelflife', 'Shelf Life', 'masa_simpan']) || '').trim();
 
-          const qcCode = String(getVal(['qc_code', 'qccode', 'QC Code', 'Status QC', 'qc']) || 'QC-REJECT').trim().toUpperCase();
-          const userTally = String(getVal(['user_tally', 'usertally', 'User Tally', 'Petugas Tally', 'tally']) || currentUser?.nama || 'Tally QC').trim();
-          const source = String(getVal(['source', 'Source', 'Sumber', 'asal']) || 'Pemusnahan Langsung').trim();
+          const qcCode = String(getVal(['qc_code', 'qccode', 'QC Code', 'Status QC', 'qc', 'statusqc']) || '').trim().toUpperCase();
+          const userTally = String(getVal(['user_tally', 'usertally', 'User Tally', 'Petugas Tally', 'tally', 'checker']) || '').trim();
+          const source = String(getVal(['source', 'Source', 'Sumber', 'asal', 'asal_barang']) || '').trim();
           const rawId = String(getVal(['id_pemusnahan', 'idpemusnahan', 'ID Pemusnahan', 'id']) || '').trim();
-          const idGenerated = rawId || `PMS-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(idx + 1).padStart(4, '0')}`;
-          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination']) || 'Pemusnahan Limbah Terkontrol').trim();
-          const status = String(getVal(['status', 'Status', 'status_pemusnahan']) || 'Siap Dimusnahkan').trim();
-          const note = String(getVal(['note', 'Note', 'catatan', 'keterangan']) || '').trim();
+          const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          const randSuffix = Math.floor(1000 + Math.random() * 9000);
+          const idGenerated = rawId || `PMS-${dateTag}-${randSuffix}-${String(idx + 1).padStart(4, '0')}`;
+          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pemusnahan', 'destinasi']) || '').trim();
+          const status = String(getVal(['status', 'Status', 'status_pemusnahan', 'kondisi']) || '').trim();
+          const note = String(getVal(['note', 'Note', 'catatan', 'keterangan', 'remark']) || '').trim();
 
           return {
             id_pemusnahan: idGenerated,
@@ -1418,21 +1423,21 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
             batch,
             vendor_batch: vendorBatch,
             sloc,
-            expired_date: expDate || '-',
+            expired_date: expDate,
             destination_code: destCode,
             qc_code: qcCode,
             user_tally: userTally,
             shelf_life: shelfLife,
             source,
             tujuan,
-            user_input: currentUser?.nama || 'QA Officer',
+            user_input: currentUser?.nama || currentUser?.username || '',
             tanggal_update: new Date().toISOString(),
             status,
             note,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
-        }).filter(r => r.item_code && r.item_name);
+        }).filter(r => (r.item_code && r.item_code.trim() !== '') || (r.item_name && r.item_name.trim() !== '') || (r.batch && r.batch.trim() !== ''));
 
         const pemusnahanMap = new Map<string, PemusnahanItem>();
         rawList.forEach(item => {
@@ -2185,8 +2190,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                       </td>
 
                       {/* Tujuan */}
-                      <td className="px-2.5 py-1.5 text-xs font-bold text-slate-800 min-w-[140px] max-w-[200px] truncate" title={item.tujuan || 'Pemusnahan Limbah Terkontrol'}>
-                        {item.tujuan || 'Pemusnahan Limbah Terkontrol'}
+                      <td className="px-2.5 py-1.5 text-xs font-bold text-slate-800 min-w-[140px] max-w-[200px] truncate" title={item.tujuan || '-'}>
+                        {item.tujuan || '-'}
                       </td>
 
                       {/* Item Name */}
@@ -2208,7 +2213,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
                       {/* Uom */}
                       <td className="px-2 py-1.5 text-center font-bold text-slate-700 text-xs min-w-[60px] uppercase">
-                        {item.uom || 'CTN'}
+                        {item.uom || '-'}
                       </td>
 
                       {/* Batch */}
@@ -2223,17 +2228,21 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
                       {/* Status Column (Badge) */}
                       <td className="px-2 py-1.5 text-center min-w-[130px]">
-                        <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-extrabold border ${
-                          /^\d+$/.test(item.status || '') 
-                            ? 'bg-indigo-50 text-indigo-900 border-indigo-300 font-mono'
-                            : (item.status || '').toLowerCase().includes('disposed') || (item.status || '').toLowerCase().includes('musnah')
-                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                            : (item.status || '').toLowerCase().includes('proses')
-                            ? 'bg-blue-100 text-blue-900 border-blue-300'
-                            : 'bg-rose-100 text-rose-900 border-rose-300'
-                        }`}>
-                          {item.status || 'Siap Dimusnahkan'}
-                        </span>
+                        {item.status ? (
+                          <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                            /^\d+$/.test(item.status) 
+                              ? 'bg-indigo-50 text-indigo-900 border-indigo-300 font-mono'
+                              : item.status.toLowerCase().includes('disposed') || item.status.toLowerCase().includes('musnah')
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : item.status.toLowerCase().includes('proses')
+                              ? 'bg-blue-100 text-blue-900 border-blue-300'
+                              : 'bg-rose-100 text-rose-900 border-rose-300'
+                          }`}>
+                            {item.status}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-[10px]">-</span>
+                        )}
                       </td>
 
                       {/* Note (Direct inline cell editing) */}
