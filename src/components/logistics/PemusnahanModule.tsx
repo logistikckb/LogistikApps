@@ -859,21 +859,39 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       console.warn('Error saving pemusnahan cache:', e);
     }
 
-    // 2. Supabase Cloud Update in chunks
+    // 2. Supabase Cloud Update in chunks using upsert to guarantee persistence even for newly imported/local records
     let cloudError = false;
     if (isSupabaseConfigured) {
       try {
         const chunkSize = 50;
-        for (let i = 0; i < targetIds.length; i += chunkSize) {
-          const chunk = targetIds.slice(i, i + chunkSize);
+        for (let i = 0; i < targetItems.length; i += chunkSize) {
+          const chunk = targetItems.slice(i, i + chunkSize);
+          const sanitizedBatch = chunk.map(item => ({
+            ...item,
+            status: finalStatus,
+            expired_date: normalizeToIsoDate(item.expired_date) || null as any,
+            first_qty: Number(item.first_qty) || 0,
+            last_qty: Number(item.last_qty) || 0,
+            qty_convert: Number(item.qty_convert) || 0,
+            updated_at: nowIso
+          }));
+
           const { error } = await supabase
             .from('data_pemusnahan')
-            .update({ status: finalStatus, updated_at: nowIso })
-            .in('id_pemusnahan', chunk);
+            .upsert(sanitizedBatch, { onConflict: 'id_pemusnahan' });
 
           if (error) {
-            console.error('Error updating status chunk in data_pemusnahan:', error);
-            cloudError = true;
+            console.error('Error upserting status chunk in data_pemusnahan:', error);
+            // Fallback to update
+            const chunkIds = chunk.map(c => c.id_pemusnahan);
+            const { error: updateErr } = await supabase
+              .from('data_pemusnahan')
+              .update({ status: finalStatus, updated_at: nowIso })
+              .in('id_pemusnahan', chunkIds);
+            if (updateErr) {
+              console.error('Error updating status chunk fallback in data_pemusnahan:', updateErr);
+              cloudError = true;
+            }
           }
         }
       } catch (err: any) {
@@ -1176,16 +1194,31 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     // 2. Sync to Supabase Cloud
     if (isSupabaseConfigured) {
       try {
+        const sanitizedItem = {
+          ...updatedItem,
+          expired_date: normalizeToIsoDate(updatedItem.expired_date) || null as any,
+          first_qty: Number(updatedItem.first_qty) || 0,
+          last_qty: Number(updatedItem.last_qty) || 0,
+          qty_convert: Number(updatedItem.qty_convert) || 0,
+          updated_at: nowIso
+        };
+
         const { error } = await supabase
           .from('data_pemusnahan')
-          .update({
-            [field]: processedValue,
-            ...(updatedItem.expired_date !== item.expired_date ? { expired_date: updatedItem.expired_date, shelf_life: updatedItem.shelf_life } : {}),
-            updated_at: nowIso
-          })
-          .eq('id_pemusnahan', item.id_pemusnahan);
+          .upsert(sanitizedItem, { onConflict: 'id_pemusnahan' });
 
-        if (error) throw error;
+        if (error) {
+          // Fallback to update
+          const { error: updateErr } = await supabase
+            .from('data_pemusnahan')
+            .update({
+              [field]: processedValue,
+              ...(updatedItem.expired_date !== item.expired_date ? { expired_date: updatedItem.expired_date, shelf_life: updatedItem.shelf_life } : {}),
+              updated_at: nowIso
+            })
+            .eq('id_pemusnahan', item.id_pemusnahan);
+          if (updateErr) throw error;
+        }
       } catch (err: any) {
         console.error(`Failed to inline update ${String(field)} on Supabase:`, err);
         showToast('Peringatan Sync', `Gagal menyimpan perubahan ${String(field)} ke database: ${err.message}`, 'warning');
@@ -1198,21 +1231,37 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   // Update Status directly from row
   const handleUpdateStatus = async (item: PemusnahanItem, newStatus: string) => {
     const oldStatus = item.status;
+    const nowIso = new Date().toISOString();
+    const updatedItem = { ...item, status: newStatus, updated_at: nowIso };
     
-    setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? { ...p, status: newStatus } : p));
+    setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p));
 
     if (isSupabaseConfigured) {
       try {
+        const sanitized = {
+          ...updatedItem,
+          expired_date: normalizeToIsoDate(updatedItem.expired_date) || null as any,
+          first_qty: Number(updatedItem.first_qty) || 0,
+          last_qty: Number(updatedItem.last_qty) || 0,
+          qty_convert: Number(updatedItem.qty_convert) || 0,
+          updated_at: nowIso
+        };
+
         const { error } = await supabase
           .from('data_pemusnahan')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
-          .eq('id_pemusnahan', item.id_pemusnahan);
+          .upsert(sanitized, { onConflict: 'id_pemusnahan' });
 
-        if (error) throw error;
+        if (error) {
+          const { error: err2 } = await supabase
+            .from('data_pemusnahan')
+            .update({ status: newStatus, updated_at: nowIso })
+            .eq('id_pemusnahan', item.id_pemusnahan);
+          if (err2) throw error;
+        }
         showToast('Status Diperbarui', `Status ${item.id_pemusnahan} diubah menjadi "${newStatus}"`, 'success');
       } catch (err: any) {
-        console.error('Failed to update status', err);
-        showToast('Error', 'Gagal mengubah status di server', 'danger');
+        console.error('Failed to update status in Supabase:', err);
+        showToast('Error', 'Gagal mengubah status di database', 'danger');
         setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? { ...p, status: oldStatus } : p));
       }
     }
@@ -2221,23 +2270,36 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                         {item.expired_date || '-'}
                       </td>
 
-                      {/* Status Column (Badge) */}
-                      <td className="px-2 py-1.5 text-center min-w-[130px]">
-                        {item.status ? (
-                          <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-extrabold border ${
-                            /^\d+$/.test(item.status) 
-                              ? 'bg-indigo-50 text-indigo-900 border-indigo-300 font-mono'
-                              : item.status.toLowerCase().includes('disposed') || item.status.toLowerCase().includes('musnah')
-                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                              : item.status.toLowerCase().includes('proses')
-                              ? 'bg-blue-100 text-blue-900 border-blue-300'
-                              : 'bg-rose-100 text-rose-900 border-rose-300'
-                          }`}>
-                            {item.status}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-mono text-[10px]">-</span>
-                        )}
+                      {/* Status Column (Direct inline editing / badge with full title & text support) */}
+                      <td className="px-2 py-1 text-center min-w-[140px] max-w-[240px]" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          defaultValue={item.status || ''}
+                          key={`status-${item.id_pemusnahan}-${item.status}`}
+                          placeholder="Isi status / No. Dok..."
+                          onBlur={(e) => {
+                            if (e.target.value.trim() !== (item.status || '')) {
+                              handleInlineCellUpdate(item, 'status', e.target.value.trim());
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className={`w-full px-2 py-1 text-[11px] font-bold text-center rounded border outline-none transition-all truncate shadow-2xs ${
+                            /^\d+/.test(item.status || '')
+                              ? 'bg-indigo-50/90 text-indigo-900 border-indigo-300 focus:bg-white focus:ring-1.5 focus:ring-indigo-500 font-mono'
+                              : (item.status || '').toLowerCase().includes('disposed') || (item.status || '').toLowerCase().includes('musnah')
+                              ? 'bg-emerald-50 text-emerald-900 border-emerald-300 focus:bg-white focus:ring-1.5 focus:ring-emerald-500'
+                              : (item.status || '').toLowerCase().includes('proses')
+                              ? 'bg-blue-50 text-blue-900 border-blue-300 focus:bg-white focus:ring-1.5 focus:ring-blue-500'
+                              : (item.status || '')
+                              ? 'bg-rose-50 text-rose-900 border-rose-300 focus:bg-white focus:ring-1.5 focus:ring-rose-500'
+                              : 'bg-transparent border-transparent hover:border-slate-300 focus:bg-white focus:border-rose-400 text-slate-700 placeholder:text-slate-300 font-normal'
+                          }`}
+                          title={item.status ? `Status / No. Dokumen: ${item.status} (Klik untuk edit)` : 'Klik untuk isi status / nomor dokumen'}
+                        />
                       </td>
 
                       {/* Note (Direct inline cell editing) */}
@@ -2352,17 +2414,21 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status Pemusnahan</label>
-                  <select
-                    value={formData.status || 'Siap Dimusnahkan'}
+                  <label className="block font-bold text-slate-700 mb-1">Status / No. Dokumen</label>
+                  <input
+                    type="text"
+                    list="status-pemusnahan-options"
+                    value={formData.status || ''}
                     onChange={(e) => handleFormInputChange('status', e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
-                  >
-                    <option value="Siap Dimusnahkan">Siap Dimusnahkan</option>
-                    <option value="Dalam Proses">Dalam Proses</option>
-                    <option value="Disposed">Disposed (Musnah)</option>
-                    <option value="Dibatalkan">Dibatalkan</option>
-                  </select>
+                    placeholder="Contoh: 49000000 / Disposed"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs focus:ring-1.5 focus:ring-rose-500 focus:outline-none"
+                  />
+                  <datalist id="status-pemusnahan-options">
+                    <option value="Siap Dimusnahkan" />
+                    <option value="Dalam Proses" />
+                    <option value="Disposed" />
+                    <option value="Dibatalkan" />
+                  </datalist>
                 </div>
 
                 <div>
