@@ -8,8 +8,8 @@ import {
   Volume2, 
   VolumeX, 
   Trash2, 
-  Bot,
-  Heart,
+  Mail,
+  MailOpen,
   Database,
   ShieldCheck,
   AlertCircle,
@@ -125,7 +125,7 @@ export function BroadcastModal({
         playBroadcastSound('info');
       }
 
-      showToast('Terkirim!', 'Robot kurir berhasil menyiarkan pesan Anda.', 'success');
+      showToast('Terkirim!', 'Pesan siaran berhasil dikirim ke seluruh perangkat.', 'success');
       setMessageText('');
       setActiveTab('history');
     } catch (err: any) {
@@ -191,15 +191,15 @@ export function BroadcastModal({
         {/* Simple Modern Header */}
         <div className="px-4 py-3 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white shadow-md shrink-0 border border-pink-300">
-              <Heart size={16} className="fill-white animate-pulse" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 shadow-md shrink-0 border border-amber-300">
+              <MailOpen size={16} className="text-slate-950" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-white tracking-tight leading-none truncate m-0 flex items-center gap-1.5">
                 <span>Kirim Pesan Siaran</span>
               </h3>
-              <p className="text-[11px] text-pink-200 font-medium m-0 mt-0.5 truncate">
-                Disampaikan oleh Robot Pink Love ke semua layar
+              <p className="text-[11px] text-amber-200/90 font-medium m-0 mt-0.5 truncate">
+                Disampaikan via Animasi Amplop Siaran ke semua perangkat
               </p>
             </div>
           </div>
@@ -213,7 +213,7 @@ export function BroadcastModal({
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                   : 'bg-white/5 text-slate-400 border-white/10'
               }`}
-              title={soundEnabled ? 'Suara Robot Aktif' : 'Suara Mute'}
+              title={soundEnabled ? 'Suara Notifikasi Aktif' : 'Suara Mute'}
             >
               {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
             </button>

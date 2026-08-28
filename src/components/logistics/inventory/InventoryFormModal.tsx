@@ -246,7 +246,7 @@ export function InventoryFormModal({
                 {isEdit ? 'Edit Data Inventory' : 'Tambah Data Inventory Baru'}
               </h3>
               <p className="text-[11px] text-teal-200 m-0 font-medium">
-                Tabel Supabase: public.data_inventory
+                Penyimpanan: Data Inventory Gudang
               </p>
             </div>
           </div>

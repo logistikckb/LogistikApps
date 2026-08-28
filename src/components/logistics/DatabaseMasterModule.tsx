@@ -167,7 +167,7 @@ export function DatabaseMasterModule() {
     setLoading(true);
     await Promise.all([fetchDataBarang(), fetchDataDistributor()]);
     setLoading(false);
-    showToast('Tersinkron', 'Data master berhasil diperbarui dari Supabase', 'info');
+    showToast('Tersinkron', 'Data master berhasil diperbarui dari server pusat', 'info');
   }, [fetchDataBarang, fetchDataDistributor, showToast]);
 
   useEffect(() => {
@@ -308,10 +308,10 @@ export function DatabaseMasterModule() {
 
           if (error) throw error;
         }
-        showToast('Berhasil Disimpan', `Barang ${cleanName} berhasil disimpan ke Supabase!`, 'success');
+        showToast('Berhasil Disimpan', `Barang ${cleanName} berhasil disimpan ke database!`, 'success');
       } catch (err: any) {
         console.error('Error saving data_barang to Supabase:', err);
-        showToast('Catatan', `Tersimpan di memori lokal. (Supabase error: ${err.message || 'offline'})`, 'info');
+        showToast('Catatan', `Tersimpan di memori lokal. (Koneksi cloud offline: ${err.message || 'offline'})`, 'info');
       }
     } else {
       showToast('Tersimpan', `Data barang ${cleanName} berhasil disimpan`, 'success');
@@ -569,10 +569,10 @@ export function DatabaseMasterModule() {
 
           if (error) throw error;
         }
-        showToast('Berhasil Disimpan', `Distributor ${cleanNama} berhasil disimpan ke Supabase!`, 'success');
+        showToast('Berhasil Disimpan', `Distributor ${cleanNama} berhasil disimpan ke database!`, 'success');
       } catch (err: any) {
         console.error('Error saving data_distributor to Supabase:', err);
-        showToast('Catatan', `Tersimpan di memori lokal. (Supabase error: ${err.message || 'offline'})`, 'info');
+        showToast('Catatan', `Tersimpan di memori lokal. (Koneksi cloud offline: ${err.message || 'offline'})`, 'info');
       }
     } else {
       showToast('Tersimpan', `Data distributor ${cleanNama} berhasil disimpan`, 'success');
@@ -2618,7 +2618,7 @@ export function DatabaseMasterModule() {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-white m-0 flex items-center gap-2">
-                    Panduan Setup Database SQL
+                    Panduan Inisialisasi Database Master
                   </h3>
                   <p className="text-xs text-indigo-200/80 font-medium m-0">
                     Pastikan tabel <code className="text-amber-300 font-mono">data_distributor</code> dan <code className="text-amber-300 font-mono">data_barang</code> sudah dibuat di database
@@ -2649,7 +2649,7 @@ export function DatabaseMasterModule() {
                   </span>
                 </div>
                 <div className="text-xs font-mono bg-white p-2.5 rounded-xl border border-slate-200 text-slate-600 flex items-center justify-between">
-                  <span className="truncate">Database Host: {supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'Belum diisi di environment (.env)'}</span>
+                  <span className="truncate">Server Host: {supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'Belum diisi di environment (.env)'}</span>
                 </div>
                 {lastSupabaseError && (
                   <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono">
@@ -2669,9 +2669,9 @@ export function DatabaseMasterModule() {
                 </h4>
                 <ol className="text-xs space-y-2 list-decimal list-inside text-slate-600 bg-blue-50/50 p-3.5 rounded-2xl border border-blue-200/80 font-medium">
                   <li>Buka Dashboard database cloud project Anda di browser.</li>
-                  <li>Pilih menu <strong>SQL Editor / Query Tool</strong>.</li>
-                  <li>Salin (Copy) kode SQL di bawah ini, lalu tempel (Paste) di SQL Editor.</li>
-                  <li>Jalankan perintah (Run) query tersebut hingga berhasil.</li>
+                  <li>Buka menu query database atau konsol administrasi server.</li>
+                  <li>Salin kode skema di bawah ini, lalu eksekusi di konsol server.</li>
+                  <li>Jalankan perintah eksekusi tersebut hingga selesai.</li>
                   <li>Kembali ke aplikasi ini dan klik tombol <strong>"Sinkron Database"</strong> pada tabel Distributor.</li>
                 </ol>
               </div>
@@ -2680,7 +2680,7 @@ export function DatabaseMasterModule() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                    Script SQL Tabel Data Distributor & Barang (PostgreSQL)
+                    Skema Database Data Distributor & Barang
                   </label>
                   <button
                     type="button"
@@ -2716,12 +2716,12 @@ CREATE TABLE IF NOT EXISTS public.data_barang (
 ALTER TABLE public.data_barang DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE public.data_barang TO anon, authenticated, service_role;`;
                       navigator.clipboard.writeText(sql);
-                      showToast('SQL Tersalin', 'Script SQL berhasil disalin ke clipboard!', 'success');
+                      showToast('Skema Tersalin', 'Skema database berhasil disalin ke clipboard!', 'success');
                     }}
                     className="px-3 py-1.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Copy size={13} />
-                    <span>Salin Script SQL</span>
+                    <span>Salin Skema Database</span>
                   </button>
                 </div>
 

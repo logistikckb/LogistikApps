@@ -494,7 +494,7 @@ export async function saveAppSettingToSupabase<T = any>(
   if (!isSupabaseConfigured) {
     return {
       success: true,
-      message: 'Tersimpan di perangkat lokal (Supabase belum terkonfigurasi).'
+      message: 'Tersimpan di perangkat lokal (Server cloud belum terkonfigurasi).'
     };
   }
 
@@ -509,27 +509,27 @@ export async function saveAppSettingToSupabase<T = any>(
       }, { onConflict: 'key' });
 
     if (error) {
-      // Jika tabel app_settings belum dibuat di Supabase
+      // Jika tabel app_settings belum dibuat
       if (error.code === '42P01' || error.message.includes('relation "app_settings" does not exist')) {
         return {
           success: false,
-          message: 'Tabel "app_settings" belum dibuat di Supabase. Silakan jalankan SQL Setup yang disediakan.'
+          message: 'Tabel konfigurasi sistem belum tersedia pada Server Pusat. Silakan lakukan inisialisasi skema.'
         };
       }
       return {
         success: false,
-        message: `Gagal menyimpan ke Supabase: ${error.message}`
+        message: `Gagal menyimpan ke Server Pusat: ${error.message}`
       };
     }
 
     return {
       success: true,
-      message: 'Berhasil disimpan ke Database Supabase! Konfigurasi kini otomatis aktif di semua perangkat tim.'
+      message: 'Berhasil disimpan ke Server Pusat! Konfigurasi kini otomatis aktif di semua perangkat tim.'
     };
   } catch (err: any) {
     return {
       success: false,
-      message: err?.message || 'Gagal menyimpan ke Supabase.'
+      message: err?.message || 'Gagal menyimpan ke Server Pusat.'
     };
   }
 }

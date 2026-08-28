@@ -92,7 +92,7 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
   const handleSaveBridgeCredentials = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputBridgeUrl.trim() || !inputBridgeKey.trim()) {
-      alert('Harap isi URL Supabase Aplikasi ke-2 dan Access Anon Key!');
+      alert('Harap isi URL Server Aplikasi ke-2 dan Access Key!');
       return;
     }
     saveSharedBroadcastCredentials(inputBridgeUrl.trim(), inputBridgeKey.trim());
@@ -274,26 +274,26 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Supabase Project URL
+                    URL Server Cloud / Database Utama
                   </label>
                   <input
                     type="text"
                     value={inputUrl}
                     onChange={(e) => setInputUrl(e.target.value)}
-                    placeholder="https://xyzcompany.supabase.co"
+                    placeholder="https://your-cloud-database.co"
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Supabase Anon Public API Key
+                    Access Public API Key
                   </label>
                   <input
                     type="password"
                     value={inputKey}
                     onChange={(e) => setInputKey(e.target.value)}
-                    placeholder="Masukkan anon key..."
+                    placeholder="Masukkan public access key..."
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono"
                   />
                 </div>
@@ -304,7 +304,7 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
                     className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Save size={14} />
-                    <span>Simpan Database Utama</span>
+                    <span>Simpan Kredensial Database</span>
                   </button>
                 </div>
               </form>
@@ -321,10 +321,10 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
                   <span>Jembatan Realtime Multi-Database (Dual-Sync Bridge)</span>
                 </div>
                 <p className="leading-relaxed m-0 text-[11px] text-blue-800">
-                  Fitur ini memungkinkan <strong>Aplikasi 1</strong> dan <strong>Aplikasi 2</strong> saling mengirim dan menerima Pesan Siaran secara langsung (realtime & berbunyi di kedua aplikasi), meskipun masing-masing aplikasi memakai database Supabase yang berbeda.
+                  Fitur ini memungkinkan <strong>Aplikasi 1</strong> dan <strong>Aplikasi 2</strong> saling mengirim dan menerima Pesan Siaran secara langsung (realtime & berbunyi di kedua aplikasi), meskipun masing-masing aplikasi memakai server database yang berbeda.
                 </p>
                 <div className="p-2.5 rounded-xl bg-white/80 border border-blue-200/80 font-mono text-[10px] text-slate-700">
-                  <strong>Cara Mudah:</strong> Masukkan URL & Anon Key Supabase Aplikasi Pasangan Anda di bawah ini. Aplikasi akan otomatis mensinkronkan pesan siaran ke kedua database sekaligus!
+                  <strong>Cara Mudah:</strong> Masukkan URL & Access Key Server Aplikasi Pasangan Anda di bawah ini. Aplikasi akan otomatis mensinkronkan pesan siaran ke kedua server data sekaligus!
                 </div>
               </div>
 
@@ -396,32 +396,32 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                     <ArrowRightLeft size={13} className="text-blue-900" />
-                    <span>Kredensial Database Supabase Aplikasi ke-2</span>
+                    <span>Kredensial Server Data Aplikasi ke-2</span>
                   </label>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    URL Supabase Aplikasi Pasangan (Aplikasi ke-2)
+                    URL Server Aplikasi Pasangan (Aplikasi ke-2)
                   </label>
                   <input
                     type="text"
                     value={inputBridgeUrl}
                     onChange={(e) => setInputBridgeUrl(e.target.value)}
-                    placeholder="https://app2-supabase.supabase.co"
+                    placeholder="https://app2-cloud-server.co"
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Anon Public API Key Aplikasi Pasangan
+                    Access Key Aplikasi Pasangan
                   </label>
                   <input
                     type="password"
                     value={inputBridgeKey}
                     onChange={(e) => setInputBridgeKey(e.target.value)}
-                    placeholder="Masukkan anon key dari aplikasi pasangan..."
+                    placeholder="Masukkan access key dari aplikasi pasangan..."
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono"
                   />
                 </div>

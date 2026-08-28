@@ -293,7 +293,7 @@ export function useAuth() {
       }
 
       if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        throw new Error("Kredensial Supabase (URL/KEY) belum diisi di Environment Variables.");
+        throw new Error("Kredensial Server Database belum terkonfigurasi pada Environment Variables.");
       }
 
       // Coba autentikasi menggunakan tabel users
@@ -306,10 +306,10 @@ export function useAuth() {
       
       if (error) {
         if (error.code === 'PGRST116') {
-           throw new Error('Email atau password salah (atau data tidak ditemukan).');
+           throw new Error('Email atau password salah (atau akun tidak ditemukan).');
         }
         if (error.code === '42P01') {
-           throw new Error('Tabel users belum ada. Jalankan supabase_schema.sql di SQL Editor.');
+           throw new Error('Data pengguna belum terinisialisasi pada Server Pusat.');
         }
         throw new Error(error.message);
       }

@@ -67,8 +67,8 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-indigo-200',
     colorIcon: 'text-indigo-600',
     plannedFeatures: [
-      'Master Data Barang (data_barang: SKU, Barcode, Nama, Status)',
-      'Master Data Distributor (data_distributor: Kode LD, Nama, Status)',
+      'Master Data Barang (SKU, Barcode, Nama, Status)',
+      'Master Data Distributor (Kode LD, Nama, Status)',
       'Operasi CRUD Lengkap & Sinkronisasi Cloud',
       'Upload & Download Excel (.xlsx) dengan Template Standar'
     ]
@@ -84,7 +84,7 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-emerald-200',
     colorIcon: 'text-emerald-600',
     plannedFeatures: [
-      'Pencatatan Transaksi Kedatangan Barang Realtime (Tabel incoming)',
+      'Pencatatan Transaksi Kedatangan Barang Realtime',
       'Upload & Batch Import Excel (.xlsx/.xls/.csv) Cepat',
       'Download Template Excel Standar & Export Laporan Excel',
       'Manajemen Status QC (QC-PASS, QC-HOLD, QC-REJECT) & Petugas Tally'
@@ -111,7 +111,7 @@ export const TOOLS_LIST: ToolItem[] = [
   {
     id: 'menu-d',
     title: 'Penyiapan',
-    shortDesc: 'Manajemen Data Penyiapan Outbound (data_penyiapan), Upload Excel & Sinkron Supabase',
+    shortDesc: 'Manajemen Data Penyiapan Outbound, Upload Excel & Sinkronisasi Cloud',
     category: 'Outbound & Logistik',
     icon: Boxes,
     isReady: true,
@@ -120,16 +120,16 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-sky-200',
     colorIcon: 'text-sky-600',
     plannedFeatures: [
-      'Manajemen Data Penyiapan Outbound (Tabel Supabase: public.data_penyiapan)',
+      'Manajemen Data Penyiapan Outbound',
       'Upload File Excel Massal Khusus Role Admin (20 Kolom Standar Logistik)',
       'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/QC',
-      'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Supabase'
+      'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Realtime'
     ]
   },
   {
     id: 'menu-e',
     title: 'Pemusnahan',
-    shortDesc: 'Pemusnahan & Disposal Barang Terkontrol (data_pemusnahan) dengan Relasi Modul Penyiapan',
+    shortDesc: 'Pemusnahan & Disposal Barang Terkontrol dengan Relasi Modul Penyiapan',
     category: 'Disposal & Karantina',
     icon: Flame,
     isReady: true,
@@ -138,7 +138,7 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-rose-200',
     colorIcon: 'text-rose-600',
     plannedFeatures: [
-      'Manajemen Transaksi Pemusnahan Barang (Tabel Supabase: public.data_pemusnahan)',
+      'Manajemen Transaksi Pemusnahan Barang',
       'Relasi Otomatis dari Modul Penyiapan (Kirim item dengan status Oke / Siap Musnah)',
       'Tracking Lokasi Karantina (WH-REJECT-01), SLOC (SL99) & Destinasi Incinerator',
       'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
@@ -147,7 +147,7 @@ export const TOOLS_LIST: ToolItem[] = [
   {
     id: 'menu-f',
     title: 'Reco',
-    shortDesc: 'Permintaan Barang (data_reco) - Dikelola & Dipindahkan dari Modul Penyiapan',
+    shortDesc: 'Permintaan Barang - Dikelola & Dipindahkan dari Modul Penyiapan',
     category: 'Permintaan & Relokasi',
     icon: ClipboardList,
     isReady: true,
@@ -156,7 +156,7 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-purple-200',
     colorIcon: 'text-purple-600',
     plannedFeatures: [
-      'Manajemen Permintaan Barang (Tabel Supabase: public.data_reco)',
+      'Manajemen Permintaan Barang & Relokasi',
       'Pindah Massal & Terintegrasi dari Modul Penyiapan',
       'Tracking Lokasi (WH-RECO-01), SLOC (SL03) & Status Permintaan',
       'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
@@ -165,7 +165,7 @@ export const TOOLS_LIST: ToolItem[] = [
   {
     id: 'menu-g',
     title: 'Inventory',
-    shortDesc: 'Manajemen Data Inventory Gudang (data_inventory), Upload Excel & Sinkron Supabase',
+    shortDesc: 'Manajemen Data Inventory Gudang, Upload Excel & Sinkronisasi Cloud',
     category: 'Inventory & Stok',
     icon: Package,
     isReady: true,
@@ -174,16 +174,16 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-teal-200',
     colorIcon: 'text-teal-600',
     plannedFeatures: [
-      'Manajemen Data Inventory Gudang (Tabel Supabase: public.data_inventory)',
+      'Manajemen Data Inventory Gudang Terpadu',
       'Upload File Excel Massal Khusus Role Admin (Format Kolom Standar Logistik)',
       'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/Status',
-      'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Supabase Realtime'
+      'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Realtime'
     ]
   },
   {
     id: 'menu-h',
     title: 'Repack',
-    shortDesc: 'Manajemen Repacking Produk & Promo Bundling (data_repack) dari Modul Penyiapan',
+    shortDesc: 'Manajemen Repacking Produk & Promo Bundling dari Modul Penyiapan',
     category: 'Repack & Bundling',
     icon: Boxes,
     isReady: true,
@@ -192,7 +192,7 @@ export const TOOLS_LIST: ToolItem[] = [
     colorBorder: 'border-amber-200',
     colorIcon: 'text-amber-600',
     plannedFeatures: [
-      'Manajemen Data Repack & Bundling (Tabel Supabase: public.data_repack)',
+      'Manajemen Data Repack & Bundling Produk',
       'Transfer Massal Otomatis dari Modul Penyiapan Outbound',
       'Tracking Lokasi Repack (WH-REPACK-01), SLOC (SL04) & Destinasi Promo',
       'Upload & Export Laporan Excel (.xlsx) dengan Template Standar'

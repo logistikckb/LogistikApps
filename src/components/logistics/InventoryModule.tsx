@@ -157,7 +157,7 @@ export function InventoryModule({
 
     try {
       if (!isSupabaseConfigured) {
-        throw new Error('Supabase belum terkonfigurasi. Menggunakan cache lokal.');
+        throw new Error('Server cloud belum terkonfigurasi. Menggunakan cache lokal.');
       }
 
       // Fetch master barang if empty
@@ -970,7 +970,7 @@ export function InventoryModule({
             onClick={() => fetchInventoryData(true)}
             disabled={isRefreshing}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
-            title="Sinkronisasi dengan database cloud Supabase"
+            title="Sinkronisasi dengan database cloud pusat"
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-teal-700' : 'text-slate-500'} />
             <span className="hidden sm:inline">Sinkron</span>

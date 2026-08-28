@@ -253,7 +253,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Robot Popup */}
+      {/* Floating Animated Broadcast Envelope Popup */}
       <FloatingRobotBroadcast
         broadcast={incomingBroadcast}
         onClose={dismissIncomingBroadcast}

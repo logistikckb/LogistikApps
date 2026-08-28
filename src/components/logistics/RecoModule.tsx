@@ -311,7 +311,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       }
     } catch (err: any) {
       console.error('Error fetching data_reco:', err);
-      setLastSupabaseError(err?.message || 'Gagal memuat data dari database Supabase.');
+      setLastSupabaseError(err?.message || 'Gagal memuat data dari server pusat.');
     } finally {
       setIsLoading(false);
     }
@@ -709,7 +709,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       setIsConfigFromSupabase(true);
       showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
     } else {
-      showToast('Perhatian', res.message || 'Gagal menyimpan ke Supabase.', 'warning');
+      showToast('Perhatian', res.message || 'Gagal menyimpan ke server pusat.', 'warning');
       if (res.message?.includes('app_settings')) {
         setShowSqlHelp(true);
       }
@@ -1166,7 +1166,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
         showToast('Tersimpan Lokal', `Data tersimpan di offline storage. Error Cloud: ${err.message}`, 'warning');
       }
     } else {
-      showToast('Tersimpan Lokal', 'Data tersimpan di offline storage (Supabase belum terkonfigurasi).', 'info');
+      showToast('Tersimpan Lokal', 'Data tersimpan di offline storage (Server cloud belum terkonfigurasi).', 'info');
     }
 
     setIsPushing(false);
@@ -1510,7 +1510,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 text-xs font-bold transition-colors border border-slate-200 shadow-2xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-            title="Refresh Data dari Cloud Supabase"
+            title="Refresh Data dari Server Pusat"
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-blue-600' : 'text-slate-600'} />
             <span>{isRefreshing ? 'Memuat...' : 'Refresh'}</span>
@@ -1523,7 +1523,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
         <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <AlertCircle size={16} className="text-rose-600 shrink-0" />
-            <span>Koneksi Cloud Error: {lastSupabaseError}</span>
+            <span>Koneksi Server Error: {lastSupabaseError}</span>
           </div>
           <button
             onClick={handleRefresh}
@@ -1782,7 +1782,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
               type="button"
               onClick={() => setShowBulkDeleteModal(true)}
               className="px-3 py-1.5 rounded-lg bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 hover:text-rose-900 text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
-              title="Hapus massal data terpilih dari TABEL & DATABASE Supabase"
+              title="Hapus massal data terpilih dari tabel dan database pusat"
             >
               <Trash2 size={13} className="text-rose-600" />
               <span>Hapus Massal {selectedIds.size > 0 ? `(${selectedIds.size})` : `(${filteredReco.length})`}</span>

@@ -1224,7 +1224,7 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
               onClick={handlePushAllToCloud}
               disabled={isPushing}
               className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 text-xs font-bold border border-amber-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-              title="Push semua data lokal ke Supabase table: public.data_repack"
+              title="Kirim semua data lokal ke server cloud database"
             >
               <Database size={13} className={isPushing ? 'animate-spin' : ''} />
               <span>{isPushing ? 'Menyinkronkan...' : 'Sync Cloud'}</span>

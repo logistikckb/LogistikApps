@@ -334,7 +334,7 @@ export function InventoryExcelModal({
       onClose();
     } catch (err: any) {
       console.error('Import save error:', err);
-      showToast('Gagal Simpan', err.message || 'Gagal menyimpan data ke Supabase.', 'error');
+      showToast('Gagal Simpan', err.message || 'Gagal menyimpan data ke server cloud.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -355,7 +355,7 @@ export function InventoryExcelModal({
                 Upload Data Excel Massal (Inventory)
               </h3>
               <p className="text-[11px] text-teal-200 m-0 font-medium">
-                Tabel Supabase: public.data_inventory
+                Penyimpanan: Data Inventory Gudang
               </p>
             </div>
           </div>
@@ -500,7 +500,7 @@ export function InventoryExcelModal({
             {isSaving ? (
               <>
                 <RefreshCw size={14} className="animate-spin" />
-                <span>Menyimpan ke Supabase...</span>
+                <span>Menyimpan ke Database...</span>
               </>
             ) : (
               <>

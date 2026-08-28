@@ -1682,7 +1682,7 @@ export function IncomingModule() {
       setIsConfigFromSupabase(true);
       showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
     } else {
-      showToast('Perhatian', res.message || 'Gagal menyimpan ke Supabase.', 'warning');
+      showToast('Perhatian', res.message || 'Gagal menyimpan ke server pusat.', 'warning');
       if (res.message?.includes('app_settings')) {
         setShowSqlHelp(true);
       }
@@ -4073,10 +4073,10 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 <Database size={20} className="text-emerald-400" />
                 <div>
                   <h3 className="text-base font-black m-0 leading-tight">
-                    Setup Skema Tabel Database (public.incoming)
+                    Setup Skema Struktur Database (Incoming)
                   </h3>
                   <p className="text-xs text-slate-400 m-0">
-                    Salin script SQL di bawah dan eksekusi pada SQL Editor database jika tabel belum tersedia.
+                    Salin skema struktur data di bawah dan eksekusi pada konsol database jika tabel belum tersedia.
                   </p>
                 </div>
               </div>
@@ -4191,7 +4191,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         {isConfigFromSupabase && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
                             <Database size={10} />
-                            Cloud Supabase
+                            Server Cloud Pusat
                           </span>
                         )}
 
@@ -4221,7 +4221,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   <div className="text-xs leading-relaxed">
                     <span className="font-bold text-amber-900">URL Webhook Belum Diatur: </span>
                     <span className="text-slate-600">
-                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke database cloud Supabase agar otomatis terpasang di seluruh perangkat tim.
+                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke server cloud pusat agar otomatis terpasang di seluruh perangkat tim.
                     </span>
                   </div>
                 </div>
@@ -4243,7 +4243,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                       disabled={isSavingToSupabase || !gSheetConfig.webhookUrl.trim()}
                       onClick={handleSaveConfigToSupabase}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                      title="Simpan ke Cloud Supabase agar otomatis aktif di semua HP/Laptop tim"
+                      title="Simpan ke Server Cloud agar otomatis aktif di semua HP/Laptop tim"
                     >
                       {isSavingToSupabase ? (
                         <>
@@ -4352,24 +4352,24 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                       className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <Info size={13} />
-                      <span>{showSqlHelp ? 'Sembunyikan Script SQL Supabase' : 'Petunjuk Tabel Supabase (app_settings)'}</span>
+                      <span>{showSqlHelp ? 'Sembunyikan Skema Tabel' : 'Petunjuk Inisialisasi Tabel (app_settings)'}</span>
                     </button>
 
                     {showSqlHelp && (
                       <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] space-y-2 animate-fade-in border border-slate-800">
                         <div className="flex items-center justify-between text-slate-400 font-sans text-xs pb-1 border-b border-slate-800">
-                          <span>Jalankan di Supabase SQL Editor:</span>
+                          <span>Eksekusi pada konsol database:</span>
                           <button
                             type="button"
                             onClick={() => {
                               const sql = `CREATE TABLE IF NOT EXISTS app_settings (\n  key TEXT PRIMARY KEY,\n  value JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT NOW(),\n  updated_by TEXT\n);\nALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`;
                               navigator.clipboard.writeText(sql);
-                              showToast('SQL Disalin', 'Query SQL telah disalin ke clipboard!', 'success');
+                              showToast('Skema Disalin', 'Skema konfigurasi telah disalin ke clipboard!', 'success');
                             }}
                             className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-sans font-bold flex items-center gap-1 cursor-pointer transition-colors"
                           >
                             <Copy size={11} />
-                            <span>Salin SQL</span>
+                            <span>Salin Skema</span>
                           </button>
                         </div>
                         <pre className="overflow-x-auto whitespace-pre-wrap text-emerald-400 text-[10px] leading-relaxed m-0">

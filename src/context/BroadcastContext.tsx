@@ -151,7 +151,7 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     // If sent by this same exact tab, skip sound/popup to avoid self-echo, but sync state
     if (fromSessionId === SESSION_CLIENT_ID) return;
 
-    // Trigger on-screen floating robot, vibration, audio, and OS notification
+    // Trigger on-screen floating envelope animation, vibration, audio, and OS notification
     setIncomingBroadcast(item);
     forceDeviceBroadcastAlert(item, soundEnabledRef.current, () => {
       setIncomingBroadcast(item);
