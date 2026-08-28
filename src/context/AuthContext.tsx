@@ -25,8 +25,9 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; message?: string }>;
   updateUser: (id: string, updates: Partial<UserProfile> & { pin?: string }) => Promise<{ success: boolean; message?: string }>;
   deleteUser: (id: string) => Promise<{ success: boolean; message?: string }>;
-  // Avatar Update for Any User
+  // Avatar & PIN Update for Any Logged-in User
   updateMyAvatar: (avatarUrl: string) => Promise<{ success: boolean; message?: string }>;
+  changeMyPin: (oldPin: string, newPin: string) => Promise<{ success: boolean; message?: string }>;
   // Inactivity & Security Auto-Logout (30 Menit)
   sessionExpiryWarning: { isWarning: boolean; secondsRemaining: number } | null;
   sessionExpiredNotice: string | null;
@@ -491,6 +492,101 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // =========================================================================
+  // CHANGE PIN (Untuk Semua Pengguna Mandiri)
+  // =========================================================================
+  const changeMyPin = async (oldPin: string, newPin: string): Promise<{ success: boolean; message?: string }> => {
+    if (!currentUser) {
+      return { success: false, message: 'Anda belum login ke dalam sistem!' };
+    }
+
+    const cleanOldPin = oldPin.trim();
+    const cleanNewPin = newPin.trim();
+
+    if (!cleanOldPin) {
+      return { success: false, message: 'PIN lama wajib diisi untuk verifikasi keamanan!' };
+    }
+
+    if (!cleanNewPin) {
+      return { success: false, message: 'PIN baru tidak boleh kosong!' };
+    }
+
+    if (cleanNewPin.length < 4) {
+      return { success: false, message: 'PIN baru minimal harus terdiri dari 4 digit/karakter!' };
+    }
+
+    if (cleanOldPin === cleanNewPin) {
+      return { success: false, message: 'PIN baru tidak boleh sama dengan PIN lama Anda saat ini!' };
+    }
+
+    // 1. Verifikasi PIN Lama di Supabase (jika terhubung)
+    if (isSupabaseConfigured) {
+      try {
+        const { data: dbUser, error: fetchErr } = await supabase
+          .from('users')
+          .select('id, pin')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+        if (fetchErr || !dbUser) {
+          // Jika gagal fetch dari database, cek fallback ke cache lokal
+          const cached = usersList.find((u) => u.id === currentUser.id);
+          if (cached?.pin && cached.pin !== cleanOldPin) {
+            return { success: false, message: 'PIN lama yang Anda masukkan tidak sesuai!' };
+          }
+        } else if (dbUser.pin !== cleanOldPin) {
+          return { success: false, message: 'PIN lama yang Anda masukkan tidak sesuai!' };
+        }
+
+        // Update PIN baru ke Supabase
+        const { error: updateErr } = await supabase
+          .from('users')
+          .update({
+            pin: cleanNewPin,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentUser.id);
+
+        if (updateErr) {
+          console.error('Supabase update PIN error:', updateErr);
+          return { success: false, message: `Gagal memperbarui PIN di server: ${updateErr.message}` };
+        }
+      } catch (err: any) {
+        console.error('Change PIN database error:', err);
+        return { success: false, message: err.message || 'Terjadi kesalahan sistem saat memperbarui PIN.' };
+      }
+    } else {
+      // Offline / Local State Fallback
+      const cached = usersList.find((u) => u.id === currentUser.id);
+      if (cached?.pin && cached.pin !== cleanOldPin) {
+        return { success: false, message: 'PIN lama yang Anda masukkan tidak sesuai!' };
+      }
+    }
+
+    // 2. Update state lokal
+    setUsersList((prev) =>
+      prev.map((u) =>
+        u.id === currentUser.id
+          ? { ...u, pin: cleanNewPin, updated_at: new Date().toISOString() }
+          : u
+      )
+    );
+
+    try {
+      const updatedCache = usersList.map((u) =>
+        u.id === currentUser.id
+          ? { ...u, pin: cleanNewPin, updated_at: new Date().toISOString() }
+          : u
+      );
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(updatedCache));
+    } catch {
+      // ignore
+    }
+
+    await refreshUsers();
+    return { success: true, message: 'PIN keamanan Anda berhasil diubah! Gunakan PIN baru ini untuk login berikutnya.' };
+  };
+
+  // =========================================================================
   // SUPER ADMINISTRATOR: CRUD MANAJEMEN USER
   // =========================================================================
   const addUser = async (userData: {
@@ -681,6 +777,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateUser,
         deleteUser,
         updateMyAvatar,
+        changeMyPin,
         sessionExpiryWarning,
         sessionExpiredNotice,
         clearSessionExpiredNotice,

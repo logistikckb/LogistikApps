@@ -226,7 +226,7 @@ CREATE TABLE IF NOT EXISTS public.data_penyiapan (
     source VARCHAR(100) DEFAULT 'Stok Gudang',
     user_input VARCHAR(100) DEFAULT 'Admin',
     tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
-    status VARCHAR(50) DEFAULT 'Ready',
+    status TEXT DEFAULT 'Ready',
     note TEXT,
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS public.data_pemusnahan (
     source VARCHAR(100) DEFAULT 'Retur Customer',
     user_input VARCHAR(100) DEFAULT 'QA Officer',
     tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
-    status VARCHAR(50) DEFAULT 'Disposed',
+    status TEXT DEFAULT 'Disposed',
     note TEXT,
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL

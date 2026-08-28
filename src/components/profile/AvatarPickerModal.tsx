@@ -9,15 +9,17 @@ import {
   Check, 
   CheckCircle2, 
   RefreshCw,
-  Layers
+  Layers,
+  KeyRound
 } from 'lucide-react';
 
 interface AvatarPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenChangePin?: () => void;
 }
 
-export function AvatarPickerModal({ isOpen, onClose }: AvatarPickerModalProps) {
+export function AvatarPickerModal({ isOpen, onClose, onOpenChangePin }: AvatarPickerModalProps) {
   const { currentUser, updateMyAvatar } = useAuth();
   const { showToast } = useNotification();
   
@@ -185,18 +187,35 @@ export function AvatarPickerModal({ isOpen, onClose }: AvatarPickerModalProps) {
         </div>
 
         {/* Footer info & cancel */}
-        <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-          <span className="text-[11px]">
+        <div className="mt-4 pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+          <span className="text-[11px] text-center sm:text-left">
             Avatar berbasis grafik vektor aman, tidak membebani memori, & langsung tersimpan ke akun Anda.
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSaving}
-            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer shrink-0 ml-2"
-          >
-            {isSaving ? <RefreshCw size={14} className="animate-spin" /> : 'Tutup'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenChangePin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenChangePin();
+                }}
+                disabled={isSaving}
+                className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 transition-all cursor-pointer flex items-center gap-1.5"
+                title="Buka menu ganti PIN keamanan"
+              >
+                <KeyRound size={13} className="text-amber-600" />
+                <span>Ganti PIN</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer"
+            >
+              {isSaving ? <RefreshCw size={14} className="animate-spin" /> : 'Tutup'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

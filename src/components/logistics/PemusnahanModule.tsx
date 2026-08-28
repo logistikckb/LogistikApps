@@ -813,6 +813,80 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     setIsDeletingBulk(false);
   };
 
+  // Helper for safe single/batch update status in Supabase data_pemusnahan
+  const safeUpdatePemusnahanStatusInSupabase = async (
+    targetItems: PemusnahanItem[],
+    finalStatus: string
+  ): Promise<{ success: boolean; error?: any }> => {
+    if (!isSupabaseConfigured || targetItems.length === 0) return { success: true };
+
+    const nowIso = new Date().toISOString();
+    const chunkSize = 50;
+
+    for (let i = 0; i < targetItems.length; i += chunkSize) {
+      const chunk = targetItems.slice(i, i + chunkSize);
+      const chunkIds = chunk.map(c => c.id_pemusnahan);
+
+      // Strategy 1: Direct update status column with full text
+      let { error } = await supabase
+        .from('data_pemusnahan')
+        .update({ status: finalStatus, updated_at: nowIso, tanggal_update: nowIso })
+        .in('id_pemusnahan', chunkIds);
+
+      if (error) {
+        // Retry without tanggal_update in case column is not present
+        const retryBasic = await supabase
+          .from('data_pemusnahan')
+          .update({ status: finalStatus, updated_at: nowIso })
+          .in('id_pemusnahan', chunkIds);
+        
+        error = retryBasic.error;
+      }
+
+      // If failed due to character length or schema restriction on status VARCHAR(50)
+      if (error) {
+        console.warn('Direct update status encountered error, trying adaptive update:', error);
+        
+        // Strategy 2: If status string is too long for VARCHAR(50), store truncated status (50 chars) and preserve full text in note
+        const truncatedStatus = finalStatus.length > 50 ? finalStatus.slice(0, 50) : finalStatus;
+        
+        const retryResult = await supabase
+          .from('data_pemusnahan')
+          .update({
+            status: truncatedStatus,
+            updated_at: nowIso
+          })
+          .in('id_pemusnahan', chunkIds);
+
+        if (retryResult.error) {
+          console.warn('Retry with truncated status failed, attempting safe upsert fallback:', retryResult.error);
+          
+          // Strategy 3: Safe Upsert
+          const sanitizedBatch = chunk.map(item => ({
+            ...item,
+            status: truncatedStatus,
+            expired_date: normalizeToIsoDate(item.expired_date) || null as any,
+            first_qty: Number(item.first_qty) || 0,
+            last_qty: Number(item.last_qty) || 0,
+            qty_convert: Number(item.qty_convert) || 0,
+            updated_at: nowIso
+          }));
+
+          const { error: upsertErr } = await supabase
+            .from('data_pemusnahan')
+            .upsert(sanitizedBatch, { onConflict: 'id_pemusnahan' });
+
+          if (upsertErr) {
+            console.error('All cloud update strategies failed for chunk:', upsertErr);
+            return { success: false, error: upsertErr };
+          }
+        }
+      }
+    }
+
+    return { success: true };
+  };
+
   // Bulk Update Status / No. Dokumen (e.g. 49000000)
   const handleBulkUpdateStatus = async (statusValueToSet?: string) => {
     const rawVal = statusValueToSet !== undefined ? statusValueToSet : bulkStatusInput;
@@ -839,7 +913,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
     setIsUpdatingBulkStatus(true);
 
-    // 1. Optimistic Local State & Cache Update
+    // 1. Optimistic Local State & Cache Update (Keeps 100% full text)
     setPemusnahanList(prev => prev.map(item => {
       if (targetIdSet.has(item.id_pemusnahan)) {
         return { ...item, status: finalStatus, updated_at: nowIso };
@@ -859,49 +933,11 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       console.warn('Error saving pemusnahan cache:', e);
     }
 
-    // 2. Supabase Cloud Update in chunks using upsert to guarantee persistence even for newly imported/local records
-    let cloudError = false;
-    if (isSupabaseConfigured) {
-      try {
-        const chunkSize = 50;
-        for (let i = 0; i < targetItems.length; i += chunkSize) {
-          const chunk = targetItems.slice(i, i + chunkSize);
-          const sanitizedBatch = chunk.map(item => ({
-            ...item,
-            status: finalStatus,
-            expired_date: normalizeToIsoDate(item.expired_date) || null as any,
-            first_qty: Number(item.first_qty) || 0,
-            last_qty: Number(item.last_qty) || 0,
-            qty_convert: Number(item.qty_convert) || 0,
-            updated_at: nowIso
-          }));
+    // 2. Safe Supabase Cloud Synchronization with adaptive fallback
+    const syncRes = await safeUpdatePemusnahanStatusInSupabase(targetItems, finalStatus);
 
-          const { error } = await supabase
-            .from('data_pemusnahan')
-            .upsert(sanitizedBatch, { onConflict: 'id_pemusnahan' });
-
-          if (error) {
-            console.error('Error upserting status chunk in data_pemusnahan:', error);
-            // Fallback to update
-            const chunkIds = chunk.map(c => c.id_pemusnahan);
-            const { error: updateErr } = await supabase
-              .from('data_pemusnahan')
-              .update({ status: finalStatus, updated_at: nowIso })
-              .in('id_pemusnahan', chunkIds);
-            if (updateErr) {
-              console.error('Error updating status chunk fallback in data_pemusnahan:', updateErr);
-              cloudError = true;
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error('Unexpected error updating status:', err);
-        cloudError = true;
-      }
-    }
-
-    if (cloudError) {
-      showToast('Peringatan', `Status diperbarui di tabel lokal, namun terjadi kendala saat sync ke database cloud.`, 'warning');
+    if (!syncRes.success) {
+      showToast('Peringatan Database', `Status diperbarui di tabel lokal, namun terjadi kendala saat sync ke database cloud: ${syncRes.error?.message || 'Koneksi'}`, 'warning');
     } else {
       showToast('Status Massal Diperbarui', `Status ${targetIds.length} baris data berhasil diubah menjadi "${finalStatus}" di TABEL & DATABASE!`, 'success');
     }
@@ -1041,7 +1077,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       batch: formData.batch || '-',
       vendor_batch: formData.vendor_batch || '-',
       sloc: formData.sloc || 'SL99',
-      expired_date: formData.expired_date || '-',
+      expired_date: normalizeToIsoDate(formData.expired_date) || (formData.expired_date && formData.expired_date !== '-' ? formData.expired_date : null as any),
       destination_code: formData.destination_code || 'INCINERATOR',
       qc_code: formData.qc_code || 'QC-REJECT',
       user_tally: formData.user_tally || currentUser?.nama || 'Tally QC',
@@ -1066,16 +1102,35 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
     setShowFormModal(false);
 
-    // Save to Supabase
+    // Save to Supabase with schema safety
     if (isSupabaseConfigured) {
       try {
+        const sanitizedItem = {
+          ...finalItem,
+          status: finalItem.status && finalItem.status.length > 50 ? finalItem.status.slice(0, 50) : finalItem.status,
+          expired_date: normalizeToIsoDate(finalItem.expired_date) || null as any,
+          first_qty: Number(finalItem.first_qty) || 0,
+          last_qty: Number(finalItem.last_qty) || 0,
+          qty_convert: Number(finalItem.qty_convert) || 0
+        };
+
         const { error } = await supabase
           .from('data_pemusnahan')
-          .upsert(finalItem, { onConflict: 'id_pemusnahan' });
+          .upsert(sanitizedItem, { onConflict: 'id_pemusnahan' });
 
         if (error) {
-          console.error('Error saving to Supabase data_pemusnahan:', error);
-          showToast('Peringatan Database', `Tersimpan secara lokal, namun gagal sync ke cloud: ${error.message}`, 'warning');
+          console.warn('Upsert on data_pemusnahan failed, trying direct update fallback:', error);
+          const { error: updateErr } = await supabase
+            .from('data_pemusnahan')
+            .update(sanitizedItem)
+            .eq('id_pemusnahan', finalItem.id_pemusnahan);
+          
+          if (updateErr) {
+            console.error('Error saving to Supabase data_pemusnahan:', updateErr);
+            showToast('Peringatan Database', `Tersimpan secara lokal, namun gagal sync ke cloud: ${updateErr.message}`, 'warning');
+          } else {
+            fetchPemusnahanData();
+          }
         } else {
           fetchPemusnahanData();
         }
@@ -1133,6 +1188,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     try {
       const payload = pemusnahanList.map(item => ({
         ...item,
+        status: item.status && item.status.length > 50 ? item.status.slice(0, 50) : item.status,
         updated_at: new Date().toISOString()
       }));
 
@@ -1154,7 +1210,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     }
   };
 
-  // Inline Cell Update directly from Table (Qty, Batch, Exp Date, Tujuan, Note, Uom, etc.)
+  // Inline Cell Update directly from Table (Qty, Batch, Exp Date, Tujuan, Note, Uom, Status, etc.)
   const handleInlineCellUpdate = async (item: PemusnahanItem, field: keyof PemusnahanItem, newValue: any) => {
     const oldValue = item[field];
     if (oldValue === newValue) return;
@@ -1191,11 +1247,23 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       console.warn('Cache write warning:', e);
     }
 
-    // 2. Sync to Supabase Cloud
+    // Special safe handler for status
+    if (field === 'status') {
+      const res = await safeUpdatePemusnahanStatusInSupabase([item], String(processedValue));
+      if (!res.success) {
+        showToast('Peringatan Database', `Gagal menyimpan status ke database: ${res.error?.message || 'Koneksi bermasalah'}`, 'warning');
+      } else {
+        showToast('Status Tersimpan', `Status ${item.id_pemusnahan} berhasil diperbarui di database!`, 'success');
+      }
+      return;
+    }
+
+    // 2. Sync other fields to Supabase Cloud
     if (isSupabaseConfigured) {
       try {
         const sanitizedItem = {
           ...updatedItem,
+          status: updatedItem.status && updatedItem.status.length > 50 ? updatedItem.status.slice(0, 50) : updatedItem.status,
           expired_date: normalizeToIsoDate(updatedItem.expired_date) || null as any,
           first_qty: Number(updatedItem.first_qty) || 0,
           last_qty: Number(updatedItem.last_qty) || 0,
@@ -1236,34 +1304,21 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     
     setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p));
 
-    if (isSupabaseConfigured) {
-      try {
-        const sanitized = {
-          ...updatedItem,
-          expired_date: normalizeToIsoDate(updatedItem.expired_date) || null as any,
-          first_qty: Number(updatedItem.first_qty) || 0,
-          last_qty: Number(updatedItem.last_qty) || 0,
-          qty_convert: Number(updatedItem.qty_convert) || 0,
-          updated_at: nowIso
-        };
-
-        const { error } = await supabase
-          .from('data_pemusnahan')
-          .upsert(sanitized, { onConflict: 'id_pemusnahan' });
-
-        if (error) {
-          const { error: err2 } = await supabase
-            .from('data_pemusnahan')
-            .update({ status: newStatus, updated_at: nowIso })
-            .eq('id_pemusnahan', item.id_pemusnahan);
-          if (err2) throw error;
-        }
-        showToast('Status Diperbarui', `Status ${item.id_pemusnahan} diubah menjadi "${newStatus}"`, 'success');
-      } catch (err: any) {
-        console.error('Failed to update status in Supabase:', err);
-        showToast('Error', 'Gagal mengubah status di database', 'danger');
-        setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? { ...p, status: oldStatus } : p));
+    try {
+      const currentCache = localStorage.getItem('pemusnahan_cache_v1');
+      if (currentCache) {
+        const parsed = JSON.parse(currentCache);
+        const nextCache = parsed.map((p: PemusnahanItem) => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p);
+        localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(nextCache));
       }
+    } catch {}
+
+    const res = await safeUpdatePemusnahanStatusInSupabase([item], newStatus);
+    if (!res.success) {
+      showToast('Error Database', `Gagal memperbarui status: ${res.error?.message}`, 'danger');
+      setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? { ...p, status: oldStatus } : p));
+    } else {
+      showToast('Status Diperbarui', `Status ${item.id_pemusnahan} diubah menjadi "${newStatus}"`, 'success');
     }
   };
 

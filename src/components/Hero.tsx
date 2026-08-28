@@ -20,12 +20,14 @@ import {
   Sparkles,
   UserCog,
   Clock,
-  Lock
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { InstallPwaButton } from './common/InstallPwaButton';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
 
 const AvatarPickerModal = lazy(() => import('./profile/AvatarPickerModal').then(m => ({ default: m.AvatarPickerModal })));
+const ChangePinModal = lazy(() => import('./profile/ChangePinModal').then(m => ({ default: m.ChangePinModal })));
 const UserManagementModal = lazy(() => import('./admin/UserManagementModal').then(m => ({ default: m.UserManagementModal })));
 const SupabaseConnectionModal = lazy(() => import('./common/SupabaseConnectionModal').then(m => ({ default: m.SupabaseConnectionModal })));
 
@@ -43,6 +45,7 @@ export function Hero() {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
 
   useEffect(() => {
@@ -78,6 +81,17 @@ export function Hero() {
           <AvatarPickerModal
             isOpen={showAvatarPicker}
             onClose={() => setShowAvatarPicker(false)}
+            onOpenChangePin={() => setShowChangePinModal(true)}
+          />
+        </Suspense>
+      )}
+
+      {/* Modal Ganti PIN Mandiri (Untuk Semua Pengguna) */}
+      {showChangePinModal && (
+        <Suspense fallback={null}>
+          <ChangePinModal
+            isOpen={showChangePinModal}
+            onClose={() => setShowChangePinModal(false)}
           />
         </Suspense>
       )}
@@ -257,6 +271,16 @@ export function Hero() {
               >
                 <Sparkles size={12} className="text-amber-500" />
                 <span>Ganti Avatar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowChangePinModal(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200/80 hover:border-amber-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs active:scale-95"
+                title="Ganti kode PIN keamanan akun Anda"
+              >
+                <KeyRound size={12} className="text-amber-600" />
+                <span>Ganti PIN</span>
               </button>
 
               <button
