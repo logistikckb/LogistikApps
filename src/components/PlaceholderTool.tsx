@@ -6,7 +6,7 @@ interface PlaceholderToolProps {
   title: string;
   subtitle: string;
   category: string;
-  icon: LucideIcon;
+  icon: LucideIcon | React.ElementType;
   colorClass: string;
   plannedFeatures: string[];
 }

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Info, X, Trash2, HelpCircle, Bell } from 'lucide-react';
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'danger';
 
 export interface ToastMessage {
   id: string;

@@ -22,7 +22,9 @@ export function BroadcastBar({
   onRequestNotificationPermission,
   isNotificationSupported = true
 }: BroadcastBarProps) {
-  const hasMessages = messageCount > 0 && latestBroadcast;
+  const hasMessages = messageCount > 0 && !!latestBroadcast;
+  const latestSender = latestBroadcast?.sender_name || latestBroadcast?.author_name || 'Pos Logistik';
+  const latestMsg = latestBroadcast?.message || latestBroadcast?.content || '';
 
   return (
     <div 
@@ -57,10 +59,10 @@ export function BroadcastBar({
           {latestBroadcast ? (
             <div className="flex items-center gap-1.5 truncate text-slate-700 font-semibold group-hover:text-rose-700 transition-colors">
               <span className="font-bold text-rose-700 sm:text-blue-900 uppercase shrink-0">
-                [{latestBroadcast.sender_name}]:
+                [{latestSender}]:
               </span>
               <span className="truncate text-slate-700 font-medium">
-                "{latestBroadcast.message}"
+                "{latestMsg}"
               </span>
               <ChevronRight size={13} className="text-rose-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-transform shrink-0 hidden sm:inline" />
             </div>

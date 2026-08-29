@@ -1215,7 +1215,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     filteredPenyiapan.forEach(item => {
       const lQty = Number(item.last_qty) || 0;
       const fQty = Number(item.first_qty) || 0;
-      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && item.qty_convert !== ''
+      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && (item.qty_convert as any) !== ''
         ? (Number(item.qty_convert) || 0)
         : lQty || fQty || 0;
 
@@ -1294,7 +1294,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     selectedItemsData.forEach(item => {
       const lQty = Number(item.last_qty) || 0;
       const fQty = Number(item.first_qty) || 0;
-      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && item.qty_convert !== ''
+      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && (item.qty_convert as any) !== ''
         ? (Number(item.qty_convert) || 0)
         : lQty || fQty || 0;
 
@@ -1491,7 +1491,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       vendor_batch: '-',
       sloc: 'SL02',
       expired_date: '',
-      ed: '',
       destination_code: '',
       qc_code: '',
       user_tally: '',

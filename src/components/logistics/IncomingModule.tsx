@@ -984,7 +984,7 @@ export function IncomingModule() {
     tableName: string,
     items: T[],
     keyField: keyof T,
-    chunkSize = 50
+    chunkSize = 500
   ): Promise<{ successCount: number; error: any }> => {
     // Deduplicate by keyField to eliminate 21000 ON CONFLICT DO UPDATE command cannot affect row a second time
     const uniqueMap = new Map<string, T>();
@@ -2061,7 +2061,7 @@ export function IncomingModule() {
           updated_at: new Date().toISOString()
         }));
 
-        const { successCount, error } = await safeBatchUpsert('incoming', payload, 'id_incoming', 50);
+        const { successCount, error } = await safeBatchUpsert('incoming', payload, 'id_incoming', 500);
 
         if (error && successCount === 0) {
           console.error('Upsert error on incoming:', error);

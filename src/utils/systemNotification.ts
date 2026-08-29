@@ -34,20 +34,40 @@ export async function triggerSystemBroadcastNotification(
   broadcast: BroadcastMessage,
   onNotificationClick?: () => void
 ) {
+  if (!broadcast || typeof broadcast !== 'object') return;
+
+  const msgText = String(broadcast.message || broadcast.content || broadcast.title || '');
+  const senderText = String(broadcast.sender_name || broadcast.author_name || 'Pos Logistik');
+
   // 1. Flash browser tab title & favicon (works on ALL browsers even if OS permission is denied)
-  const shortMsg = broadcast.message.length > 30 
-    ? broadcast.message.substring(0, 30) + '...' 
-    : broadcast.message;
-  startTabAlert(`🚨 [SIARAN] ${broadcast.sender_name}: ${shortMsg}`);
+  const shortMsg = msgText.length > 30 
+    ? msgText.substring(0, 30) + '...' 
+    : msgText;
+  try {
+    startTabAlert(`🚨 [SIARAN] ${senderText}: ${shortMsg}`);
+  } catch (err) {
+    console.warn('startTabAlert error:', err);
+  }
 
   // 2. Trigger OS Notification if permitted
-  if (!isNotificationSupported() || Notification.permission !== 'granted') {
+  if (!isNotificationSupported()) {
     return;
   }
 
-  const title = `📢 Pesan Siaran: ${broadcast.sender_name}`;
+  let perm = 'denied';
+  try {
+    perm = Notification.permission;
+  } catch {
+    return;
+  }
+
+  if (perm !== 'granted') {
+    return;
+  }
+
+  const title = `📢 Pesan Siaran: ${senderText}`;
   const options: any = {
-    body: broadcast.message,
+    body: msgText,
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     tag: `ckb-broadcast-${broadcast.id || Date.now()}`,
@@ -56,20 +76,27 @@ export async function triggerSystemBroadcastNotification(
     silent: false,
     vibrate: [300, 150, 300, 150, 450],
     data: {
-      url: window.location.href,
+      url: typeof window !== 'undefined' ? window.location.href : '',
       broadcastId: broadcast.id,
-      senderName: broadcast.sender_name,
-      message: broadcast.message
+      senderName: senderText,
+      message: msgText
     }
   };
 
   try {
-    // Priority A: Try through active Service Worker registration (handles Android Chrome, Edge, PWA best)
-    if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready;
-      if (reg && typeof reg.showNotification === 'function') {
-        await reg.showNotification(title, options);
-        return;
+    // Priority A: Try through active Service Worker registration with timeout
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker) {
+      try {
+        const swReadyPromise = navigator.serviceWorker.ready;
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 1200));
+        const reg = await Promise.race([swReadyPromise, timeoutPromise]) as ServiceWorkerRegistration;
+        
+        if (reg && typeof reg.showNotification === 'function') {
+          await reg.showNotification(title, options);
+          return;
+        }
+      } catch {
+        // Fallback to standard Notification API
       }
     }
 
@@ -77,8 +104,8 @@ export async function triggerSystemBroadcastNotification(
     const notif = new Notification(title, options);
     notif.onclick = (e) => {
       e.preventDefault();
-      window.focus();
-      notif.close();
+      try { window.focus(); } catch {}
+      try { notif.close(); } catch {}
       stopTabAlert();
       if (onNotificationClick) {
         onNotificationClick();
@@ -88,12 +115,12 @@ export async function triggerSystemBroadcastNotification(
     console.warn('Standard showNotification failed, trying lightweight fallback:', err);
     try {
       const fallbackNotif = new Notification(title, {
-        body: broadcast.message,
+        body: msgText,
         icon: '/favicon.svg'
       });
       fallbackNotif.onclick = () => {
-        window.focus();
-        fallbackNotif.close();
+        try { window.focus(); } catch {}
+        try { fallbackNotif.close(); } catch {}
         stopTabAlert();
         if (onNotificationClick) onNotificationClick();
       };
@@ -189,9 +216,13 @@ function startFaviconFlash() {
   const redAlertIcon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="%23ef4444" stroke="%23ffffff" stroke-width="8"/><path d="M50 24v32M50 68v8" stroke="%23ffffff" stroke-width="10" stroke-linecap="round"/></svg>';
 
   faviconFlashInterval = setInterval(() => {
-    if (favicon) {
-      favicon.href = isRed ? (originalFaviconHref || '/favicon.svg') : redAlertIcon;
-      isRed = !isRed;
+    try {
+      if (favicon) {
+        favicon.href = isRed ? (originalFaviconHref || '/favicon.svg') : redAlertIcon;
+        isRed = !isRed;
+      }
+    } catch {
+      // Ignore favicon error
     }
   }, 800);
 }

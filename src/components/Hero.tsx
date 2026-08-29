@@ -307,7 +307,7 @@ export function Hero() {
 
               <button
                 type="button"
-                onClick={logout}
+                onClick={() => logout()}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200/80 hover:border-red-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
                 title="Keluar dari sesi"
               >

@@ -124,6 +124,7 @@ export interface DataBarang {
   item_name: string;
   category?: string;
   uom?: string;
+  shelf_life?: string;
   status: 'Aktif' | 'Nonaktif';
   created_at?: string;
   updated_at?: string;

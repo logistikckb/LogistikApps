@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
 import { PwaProvider } from './context/PwaContext.tsx';
 import { BroadcastProvider } from './context/BroadcastContext.tsx';
+import { ErrorBoundary } from './components/common/ErrorBoundary.tsx';
 import { registerServiceWorker } from './pwa.ts';
 import './index.css';
 
@@ -13,14 +14,16 @@ registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <NotificationProvider>
-        <PwaProvider>
-          <BroadcastProvider>
-            <App />
-          </BroadcastProvider>
-        </PwaProvider>
-      </NotificationProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <NotificationProvider>
+          <PwaProvider>
+            <BroadcastProvider>
+              <App />
+            </BroadcastProvider>
+          </PwaProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

@@ -49,6 +49,20 @@ interface BroadcastModalProps {
   onOpenBridgeSettings?: () => void;
 }
 
+function safeFormatTime(dateInput?: any): string {
+  if (!dateInput) return '';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return '';
+  }
+}
+
 export function BroadcastModal({
   isOpen,
   onClose,
@@ -470,10 +484,9 @@ export function BroadcastModal({
               ) : (
                 <div className="space-y-2 max-h-[44vh] overflow-y-auto pr-0.5">
                   {messages.map(item => {
-                    const timeStr = new Date(item.created_at).toLocaleTimeString('id-ID', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    });
+                    const timeStr = safeFormatTime(item.created_at);
+                    const senderName = item.sender_name || item.author_name || 'Pos Logistik';
+                    const messageText = item.message || item.content || '';
 
                     return (
                       <div
@@ -483,7 +496,7 @@ export function BroadcastModal({
                         <div className="flex items-center justify-between gap-1.5 text-[11px]">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="font-bold text-slate-800 truncate">
-                              {item.sender_name}
+                              {senderName}
                             </span>
                             {item.device_info && (
                               <span className="text-[10px] text-slate-400">
@@ -493,11 +506,11 @@ export function BroadcastModal({
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0 text-slate-400 text-[10px]">
-                            <span>{timeStr}</span>
+                            {timeStr && <span>{timeStr}</span>}
                             {isAdmin && onDeleteMessage && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteSingle(item.id, item.sender_name)}
+                                onClick={() => handleDeleteSingle(item.id, senderName)}
                                 className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all cursor-pointer"
                                 title="Hapus pesan ini dari database (Admin)"
                               >
@@ -508,7 +521,7 @@ export function BroadcastModal({
                         </div>
 
                         <p className="text-xs text-slate-700 font-medium m-0 leading-relaxed whitespace-pre-wrap break-words">
-                          {item.message}
+                          {messageText}
                         </p>
                       </div>
                     );

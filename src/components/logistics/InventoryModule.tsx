@@ -286,8 +286,12 @@ export function InventoryModule({
     showToast('Data Tersimpan', `Data inventory ${cleanItem.id_inventory} berhasil disimpan.`, 'success');
   };
 
-  // Bulk Import Excel
-  const handleImportExcelSuccess = async (newRows: InventoryItem[]) => {
+  // Bulk Import Excel (High-Speed Turbo Batching: 500 rows/batch with concurrency)
+  const handleImportExcelSuccess = async (
+    newRows: InventoryItem[],
+    onProgress?: (processed: number, total: number, speed: number) => void
+  ) => {
+    const startTime = performance.now();
     const sanitizedRows: InventoryItem[] = newRows.map(row => ({
       ...row,
       expired_date: normalizeToIsoDate(row.expired_date) || null as any,
@@ -298,16 +302,41 @@ export function InventoryModule({
     }));
 
     if (isSupabaseConfigured) {
-      // Chunk inserts/upserts in batches of 50 to prevent payload size or timeout limits
-      const chunkSize = 50;
-      for (let i = 0; i < sanitizedRows.length; i += chunkSize) {
-        const chunk = sanitizedRows.slice(i, i + chunkSize);
-        const { error } = await supabase
-          .from('data_inventory')
-          .upsert(chunk, { onConflict: 'id_inventory' });
-        if (error) {
-          console.error('Supabase upsert chunk error:', error);
-          throw error;
+      // Chunk inserts/upserts in high-performance batches of 500 with concurrency 2
+      const chunkSize = 500;
+      const totalRows = sanitizedRows.length;
+      const chunks: InventoryItem[][] = [];
+      for (let i = 0; i < totalRows; i += chunkSize) {
+        chunks.push(sanitizedRows.slice(i, i + chunkSize));
+      }
+
+      let processedCount = 0;
+      const concurrency = 2;
+
+      for (let i = 0; i < chunks.length; i += concurrency) {
+        const currentBatch = chunks.slice(i, i + concurrency);
+        const results = await Promise.all(
+          currentBatch.map(async (chunk) => {
+            const { error } = await supabase
+              .from('data_inventory')
+              .upsert(chunk, { onConflict: 'id_inventory' });
+            return { chunkLength: chunk.length, error };
+          })
+        );
+
+        for (const res of results) {
+          if (res.error) {
+            console.error('Supabase upsert chunk error:', res.error);
+            throw res.error;
+          }
+          processedCount += res.chunkLength;
+        }
+
+        const elapsedSec = Math.max(0.1, (performance.now() - startTime) / 1000);
+        const currentSpeed = Math.round(processedCount / elapsedSec);
+
+        if (onProgress) {
+          onProgress(processedCount, totalRows, currentSpeed);
         }
       }
     }
@@ -320,7 +349,8 @@ export function InventoryModule({
       return updated;
     });
 
-    showToast('Upload Sukses', `Berhasil menyimpan ${sanitizedRows.length} baris data ke tabel Inventory.`, 'success');
+    const totalSeconds = ((performance.now() - startTime) / 1000).toFixed(1);
+    showToast('Upload Sukses', `Berhasil menyimpan ${sanitizedRows.length.toLocaleString('id-ID')} baris data ke tabel Inventory dalam ${totalSeconds} detik.`, 'success');
     fetchInventoryData(false);
   };
 

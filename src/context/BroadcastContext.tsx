@@ -20,9 +20,16 @@ import {
 } from '../utils/systemNotification';
 import { initAudioUnlock } from '../utils/broadcastSound';
 
-const SESSION_CLIENT_ID = typeof crypto !== 'undefined' && crypto.randomUUID 
-  ? crypto.randomUUID() 
-  : 'client-' + Math.random().toString(36).substring(2, 9);
+const generateUUID = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch {}
+  return 'bc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+};
+
+const SESSION_CLIENT_ID = generateUUID();
 
 const STORAGE_KEY_BROADCAST_CACHE = 'ckb_logistic_broadcasts_cache';
 
@@ -38,13 +45,36 @@ try {
 
 // Helper to normalize any broadcast row format from Supabase database table `broadcast` or `broadcasts`
 function normalizeBroadcast(raw: any): BroadcastMessage {
-  if (!raw) return raw;
-  const messageText = raw.message || raw.content || raw.pesan || raw.title || '';
-  const senderText = raw.sender_name || raw.author_name || raw.sender || raw.pengirim || raw.nama || 'Pos Logistik';
+  if (!raw || typeof raw !== 'object') {
+    return {
+      id: generateUUID(),
+      sender_name: 'Pos Logistik',
+      author_name: 'Pos Logistik',
+      message: typeof raw === 'string' ? raw : '',
+      content: typeof raw === 'string' ? raw : '',
+      title: 'Pesan Siaran',
+      category: 'info',
+      priority: 'Normal',
+      device_info: '',
+      is_pinned: false,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+  }
+
+  const messageText = String(raw.message || raw.content || raw.pesan || raw.title || raw.text || '').trim();
+  const senderText = String(raw.sender_name || raw.author_name || raw.sender || raw.pengirim || raw.nama || 'Pos Logistik').trim();
   const category = (raw.category || raw.kategori || raw.tipe || 'info') as BroadcastCategory;
-  const createdAt = raw.created_at || raw.timestamp || raw.tanggal || new Date().toISOString();
-  const deviceInfo = raw.device_info || raw.device || raw.author_role || '';
-  const id = String(raw.id || raw.id_broadcast || crypto.randomUUID());
+  
+  let createdAt = raw.created_at || raw.timestamp || raw.tanggal;
+  if (!createdAt || isNaN(new Date(createdAt).getTime())) {
+    createdAt = new Date().toISOString();
+  } else if (typeof createdAt !== 'string') {
+    createdAt = new Date(createdAt).toISOString();
+  }
+
+  const deviceInfo = String(raw.device_info || raw.device || raw.author_role || '');
+  const id = String(raw.id || raw.id_broadcast || raw._id || generateUUID());
 
   return {
     id,
@@ -263,18 +293,20 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-        // Sort descending by created_at
-        const sorted = Array.from(map.values()).sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        // Sort descending by created_at safely
+        const sorted = Array.from(map.values()).sort((a, b) => {
+          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+        });
 
         // Check if there are brand new incoming messages (during background polling)
         if (initialFetchDoneRef.current) {
           sorted.forEach(item => {
             if (!processedMessageIdsRef.current.has(item.id)) {
-              const itemTime = new Date(item.created_at).getTime();
+              const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
               // Only alert if the message was sent around or after this session started (within 5 mins)
-              if (itemTime >= sessionStartTimeRef.current - 10000) {
+              if (!isNaN(itemTime) && itemTime >= sessionStartTimeRef.current - 10000) {
                 handleIncomingAlert(item);
               }
             }
