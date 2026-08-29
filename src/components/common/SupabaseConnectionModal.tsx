@@ -471,3 +471,5 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
   , document.body) : null;
 }
 
+export default SupabaseConnectionModal;
+

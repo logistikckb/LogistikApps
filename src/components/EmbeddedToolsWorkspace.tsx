@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { 
@@ -6,16 +6,16 @@ import {
   X, Maximize2, RefreshCw, Download, Upload, Copy, Check, Eye, Eraser, Trash2, Sparkles, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { LogisticsTab } from './logistics/LogisticsModal';
-import { LazyFallback } from './common/LazyFallback';
 import { useNotification } from '../context/NotificationContext';
 import { QrItem } from './BatchQrSection';
 
-const EdCheckerModule = lazy(() => import('./logistics/EdCheckerModule').then(m => ({ default: m.EdCheckerModule })));
-const StockOpnameModule = lazy(() => import('./logistics/StockOpnameModule').then(m => ({ default: m.StockOpnameModule })));
-const SnGeneratorModule = lazy(() => import('./logistics/SnGeneratorModule').then(m => ({ default: m.SnGeneratorModule })));
-const BatchCheckerModule = lazy(() => import('./logistics/BatchCheckerModule').then(m => ({ default: m.BatchCheckerModule })));
-const PromosiModule = lazy(() => import('./logistics/PromosiModule').then(m => ({ default: m.PromosiModule })));
-const SuratJalanModule = lazy(() => import('./logistics/SuratJalanModule').then(m => ({ default: m.SuratJalanModule })));
+// Logistics Modules - Direct imports
+import { EdCheckerModule } from './logistics/EdCheckerModule';
+import { StockOpnameModule } from './logistics/StockOpnameModule';
+import { SnGeneratorModule } from './logistics/SnGeneratorModule';
+import { BatchCheckerModule } from './logistics/BatchCheckerModule';
+import { PromosiModule } from './logistics/PromosiModule';
+import { SuratJalanModule } from './logistics/SuratJalanModule';
 
 export type MainToolTab = 'qr-generator' | LogisticsTab;
 
@@ -460,14 +460,12 @@ export function EmbeddedToolsWorkspace({
             </div>
           )}
 
-          <Suspense fallback={<LazyFallback title="Memuat lembar kerja modul..." />}>
-            {activeTool === 'ed-checker' && <EdCheckerModule />}
-            {activeTool === 'stock-opname' && <StockOpnameModule />}
-            {activeTool === 'sn-generator' && <SnGeneratorModule />}
-            {activeTool === 'batch-checker' && <BatchCheckerModule />}
-            {activeTool === 'promosi' && <PromosiModule />}
-            {activeTool === 'surat-jalan' && <SuratJalanModule />}
-          </Suspense>
+          {activeTool === 'ed-checker' && <EdCheckerModule />}
+          {activeTool === 'stock-opname' && <StockOpnameModule />}
+          {activeTool === 'sn-generator' && <SnGeneratorModule />}
+          {activeTool === 'batch-checker' && <BatchCheckerModule />}
+          {activeTool === 'promosi' && <PromosiModule />}
+          {activeTool === 'surat-jalan' && <SuratJalanModule />}
         </div>
       </div>
     </div>

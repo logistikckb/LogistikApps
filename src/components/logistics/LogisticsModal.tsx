@@ -1,14 +1,13 @@
-import React, { lazy, Suspense } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Calendar, Layers, Barcode, ArrowRightLeft, PackageCheck, FileText } from 'lucide-react';
-import { LazyFallback } from '../common/LazyFallback';
 
-const EdCheckerModule = lazy(() => import('./EdCheckerModule').then(m => ({ default: m.EdCheckerModule })));
-const StockOpnameModule = lazy(() => import('./StockOpnameModule').then(m => ({ default: m.StockOpnameModule })));
-const SnGeneratorModule = lazy(() => import('./SnGeneratorModule').then(m => ({ default: m.SnGeneratorModule })));
-const BatchCheckerModule = lazy(() => import('./BatchCheckerModule').then(m => ({ default: m.BatchCheckerModule })));
-const PromosiModule = lazy(() => import('./PromosiModule').then(m => ({ default: m.PromosiModule })));
-const SuratJalanModule = lazy(() => import('./SuratJalanModule').then(m => ({ default: m.SuratJalanModule })));
+import { EdCheckerModule } from './EdCheckerModule';
+import { StockOpnameModule } from './StockOpnameModule';
+import { SnGeneratorModule } from './SnGeneratorModule';
+import { BatchCheckerModule } from './BatchCheckerModule';
+import { PromosiModule } from './PromosiModule';
+import { SuratJalanModule } from './SuratJalanModule';
 
 export type LogisticsTab = 'ed-checker' | 'stock-opname' | 'sn-generator' | 'batch-checker' | 'promosi' | 'surat-jalan';
 
@@ -91,11 +90,9 @@ export function LogisticsModal({ isOpen, onClose, initialTab = 'ed-checker' }: L
           </button>
         </div>
 
-        {/* Dedicated Tool Content Form with Suspense */}
+        {/* Dedicated Tool Content Form */}
         <div className="flex-1 overflow-y-auto pr-1">
-          <Suspense fallback={<LazyFallback title={`Memuat ${currentTool.title}...`} />}>
-            {currentTool.component}
-          </Suspense>
+          {currentTool.component}
         </div>
       </div>
     </div>

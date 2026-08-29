@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { isSupabaseConfigured } from '../supabase';
@@ -25,11 +25,10 @@ import {
 } from 'lucide-react';
 import { InstallPwaButton } from './common/InstallPwaButton';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
-
-const AvatarPickerModal = lazy(() => import('./profile/AvatarPickerModal').then(m => ({ default: m.AvatarPickerModal })));
-const ChangePinModal = lazy(() => import('./profile/ChangePinModal').then(m => ({ default: m.ChangePinModal })));
-const UserManagementModal = lazy(() => import('./admin/UserManagementModal').then(m => ({ default: m.UserManagementModal })));
-const SupabaseConnectionModal = lazy(() => import('./common/SupabaseConnectionModal').then(m => ({ default: m.SupabaseConnectionModal })));
+import { AvatarPickerModal } from './profile/AvatarPickerModal';
+import { ChangePinModal } from './profile/ChangePinModal';
+import { UserManagementModal } from './admin/UserManagementModal';
+import { SupabaseConnectionModal } from './common/SupabaseConnectionModal';
 
 export function Hero() {
   const { currentUser, logout, isAdmin } = useAuth();
@@ -77,43 +76,35 @@ export function Hero() {
     <>
       {/* Modal Avatar Picker (Untuk Semua Pengguna) */}
       {showAvatarPicker && (
-        <Suspense fallback={null}>
-          <AvatarPickerModal
-            isOpen={showAvatarPicker}
-            onClose={() => setShowAvatarPicker(false)}
-            onOpenChangePin={() => setShowChangePinModal(true)}
-          />
-        </Suspense>
+        <AvatarPickerModal
+          isOpen={showAvatarPicker}
+          onClose={() => setShowAvatarPicker(false)}
+          onOpenChangePin={() => setShowChangePinModal(true)}
+        />
       )}
 
       {/* Modal Ganti PIN Mandiri (Untuk Semua Pengguna) */}
       {showChangePinModal && (
-        <Suspense fallback={null}>
-          <ChangePinModal
-            isOpen={showChangePinModal}
-            onClose={() => setShowChangePinModal(false)}
-          />
-        </Suspense>
+        <ChangePinModal
+          isOpen={showChangePinModal}
+          onClose={() => setShowChangePinModal(false)}
+        />
       )}
 
       {/* Modal Manajemen User CRUD (Khusus Super Administrator) */}
       {isAdmin && showUserManagement && (
-        <Suspense fallback={null}>
-          <UserManagementModal
-            isOpen={showUserManagement}
-            onClose={() => setShowUserManagement(false)}
-          />
-        </Suspense>
+        <UserManagementModal
+          isOpen={showUserManagement}
+          onClose={() => setShowUserManagement(false)}
+        />
       )}
 
       {/* Modal Status Server & Jembatan Siaran Antar-Aplikasi */}
       {showDbModal && (
-        <Suspense fallback={null}>
-          <SupabaseConnectionModal
-            isOpen={showDbModal}
-            onClose={() => setShowDbModal(false)}
-          />
-        </Suspense>
+        <SupabaseConnectionModal
+          isOpen={showDbModal}
+          onClose={() => setShowDbModal(false)}
+        />
       )}
 
       {/* Modal Detail Developer & Kontak */}

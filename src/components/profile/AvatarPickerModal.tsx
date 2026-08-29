@@ -221,3 +221,5 @@ export function AvatarPickerModal({ isOpen, onClose, onOpenChangePin }: AvatarPi
     </div>
   , document.body) : null;
 }
+
+export default AvatarPickerModal;

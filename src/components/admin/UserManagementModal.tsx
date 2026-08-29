@@ -950,3 +950,5 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
     </div>
   );
 }
+
+export default UserManagementModal;

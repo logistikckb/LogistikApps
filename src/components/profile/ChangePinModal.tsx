@@ -445,3 +445,5 @@ export function ChangePinModal({ isOpen, onClose }: ChangePinModalProps) {
     </div>
   , document.body) : null;
 }
+
+export default ChangePinModal;
