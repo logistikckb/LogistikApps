@@ -57,6 +57,7 @@ import {
   ArrowUp,
   ArrowDown,
   ClipboardList,
+  ClipboardPaste,
   Globe,
   Settings,
   ExternalLink
@@ -232,6 +233,21 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [excelUploadTujuan, setExcelUploadTujuan] = useState<string>('');
+  
+  // Copy-Paste from Excel State (Akses Role User & Admin)
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pastedRawText, setPastedRawText] = useState('');
+  const [pastedRows, setPastedRows] = useState<PenyiapanItem[]>([]);
+  const [isProcessingPaste, setIsProcessingPaste] = useState(false);
+  const [pasteDefaultTujuan, setPasteDefaultTujuan] = useState<string>('');
+  const [pasteDefaultStatus, setPasteDefaultStatus] = useState<string>('');
+  const [pasteDefaultLocation, setPasteDefaultLocation] = useState<string>('');
+  const [pasteHasHeader, setPasteHasHeader] = useState<boolean>(true);
+  const [pasteFormatPreset, setPasteFormatPreset] = useState<'auto' | 'db_full' | 'db_tujuan' | 'export_excel' | 'form_sku'>('auto');
+  const [previewColumnView, setPreviewColumnView] = useState<'all_db' | 'compact'>('all_db');
+  const [isSavingPastedRows, setIsSavingPastedRows] = useState(false);
+  const [pasteSaveProgress, setPasteSaveProgress] = useState({ current: 0, total: 0, percentage: 0, statusText: '' });
+
   const [showPemusnahanModal, setShowPemusnahanModal] = useState(false);
   const [pemusnahanTargetItem, setPemusnahanTargetItem] = useState<PenyiapanItem | null>(null);
   const [pemusnahanFormData, setPemusnahanFormData] = useState<any>({});
@@ -709,9 +725,64 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const currentBatch = chunks.slice(i, i + concurrency);
       const results = await Promise.all(
         currentBatch.map(async (chunk) => {
-          const { error } = await supabase
+          // Attempt 1: Upsert with onConflict: 'id_penyiapan'
+          let { error } = await supabase
             .from('data_penyiapan')
             .upsert(chunk as any, { onConflict: 'id_penyiapan' });
+
+          // Fallback 1: If ON CONFLICT fails because no unique constraint exists on id_penyiapan
+          if (error && (error.code === '42P10' || error.message?.includes('ON CONFLICT') || error.message?.includes('constraint'))) {
+            const insertRes = await supabase
+              .from('data_penyiapan')
+              .insert(chunk as any);
+            error = insertRes.error;
+          }
+
+          // Fallback 2: If schema cache has missing column error (e.g. PGRST204)
+          if (error && (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('column'))) {
+            const sanitizedChunk = chunk.map((c: any) => ({
+              id_penyiapan: c.id_penyiapan,
+              item_code: c.item_code,
+              item_name: c.item_name,
+              category: c.category,
+              location: c.location,
+              location_type: c.location_type,
+              first_qty: c.first_qty,
+              last_qty: c.last_qty,
+              uom: c.uom,
+              qty_convert: c.qty_convert,
+              uom_convert: c.uom_convert,
+              lpn_serial_number: c.lpn_serial_number,
+              batch: c.batch,
+              vendor_batch: c.vendor_batch,
+              sloc: c.sloc,
+              expired_date: c.expired_date,
+              destination_code: c.destination_code,
+              qc_code: c.qc_code,
+              user_tally: c.user_tally,
+              shelf_life: c.shelf_life,
+              source: c.source,
+              tujuan: c.tujuan,
+              user_input: c.user_input,
+              status: c.status,
+              note: c.note,
+              created_at: c.created_at
+            }));
+
+            const retryUpsert = await supabase
+              .from('data_penyiapan')
+              .upsert(sanitizedChunk as any, { onConflict: 'id_penyiapan' });
+
+            if (retryUpsert.error) {
+              const retryInsert = await supabase
+                .from('data_penyiapan')
+                .insert(sanitizedChunk as any);
+              error = retryInsert.error;
+            } else {
+              error = null;
+            }
+          }
+
           return { chunkLength: chunk.length, error };
         })
       );
@@ -719,7 +790,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       for (const res of results) {
         if (res.error) {
           lastErr = res.error;
-          console.warn('Upsert warning on data_penyiapan chunk:', res.error);
+          console.error('Database sync error on data_penyiapan chunk:', res.error);
         } else {
           totalSuccess += res.chunkLength;
         }
@@ -1186,98 +1257,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return selectedItemsData.reduce((acc, curr) => acc + (Number(curr.last_qty) || 0), 0);
   }, [selectedItemsData]);
 
-  // Summary Metrics for Filtered Items (Last Qty, Qty Convert, Row Count, Locations, etc.)
-  const filteredItemSummary = useMemo(() => {
-    if (filteredPenyiapan.length === 0) return null;
-
-    let totalLastQty = 0;
-    let totalQtyConvert = 0;
-    let totalFirstQty = 0;
-
-    const itemGroupMap = new Map<string, {
-      item_code: string;
-      item_name: string;
-      uom: string;
-      uom_convert: string;
-      last_qty: number;
-      qty_convert: number;
-      first_qty: number;
-      rowCount: number;
-      locations: Set<string>;
-      batches: Set<string>;
-    }>();
-
-    const uomSet = new Set<string>();
-    const uomConvertSet = new Set<string>();
-    const allLocations = new Set<string>();
-    const allBatches = new Set<string>();
-
-    filteredPenyiapan.forEach(item => {
-      const lQty = Number(item.last_qty) || 0;
-      const fQty = Number(item.first_qty) || 0;
-      const cQty = item.qty_convert !== undefined && item.qty_convert !== null && (item.qty_convert as any) !== ''
-        ? (Number(item.qty_convert) || 0)
-        : lQty || fQty || 0;
-
-      totalLastQty += lQty;
-      totalFirstQty += fQty;
-      totalQtyConvert += cQty;
-
-      const uomStr = (item.uom || '').trim().toUpperCase() || 'CTN';
-      const uomConvStr = (item.uom_convert || '').trim().toUpperCase() || 'PCS';
-      if (item.uom && item.uom !== '-') uomSet.add(uomStr);
-      if (item.uom_convert && item.uom_convert !== '-') uomConvertSet.add(uomConvStr);
-      if (item.location && item.location !== '-') allLocations.add(item.location.trim());
-      if (item.batch && item.batch !== '-') allBatches.add(item.batch.trim());
-
-      const rawName = (item.item_name || item.item_code || 'Tanpa Nama').trim();
-      const groupKey = rawName.toLowerCase();
-
-      if (!itemGroupMap.has(groupKey)) {
-        itemGroupMap.set(groupKey, {
-          item_code: item.item_code || '-',
-          item_name: rawName,
-          uom: uomStr,
-          uom_convert: uomConvStr,
-          last_qty: 0,
-          qty_convert: 0,
-          first_qty: 0,
-          rowCount: 0,
-          locations: new Set<string>(),
-          batches: new Set<string>()
-        });
-      }
-
-      const grp = itemGroupMap.get(groupKey)!;
-      grp.last_qty += lQty;
-      grp.qty_convert += cQty;
-      grp.first_qty += fQty;
-      grp.rowCount += 1;
-      if (item.location && item.location !== '-') grp.locations.add(item.location.trim());
-      if (item.batch && item.batch !== '-') grp.batches.add(item.batch.trim());
-    });
-
-    const displayUom = uomSet.size === 1 ? Array.from(uomSet)[0] : 'CTN';
-    const displayUomConvert = uomConvertSet.size === 1 ? Array.from(uomConvertSet)[0] : 'PCS';
-    const groupedItems = Array.from(itemGroupMap.values()).sort((a, b) => b.last_qty - a.last_qty);
-
-    return {
-      totalRows: filteredPenyiapan.length,
-      totalLastQty,
-      totalQtyConvert,
-      totalFirstQty,
-      displayUom,
-      displayUomConvert,
-      distinctItemCount: itemGroupMap.size,
-      distinctLocationCount: allLocations.size,
-      distinctBatchCount: allBatches.size,
-      groupedItems,
-      locationsList: Array.from(allLocations),
-      batchesList: Array.from(allBatches),
-      filterLabel: itemNameFilter.trim() || searchQuery.trim() || (locationFilter.trim() ? `Lokasi ${locationFilter}` : '')
-    };
-  }, [filteredPenyiapan, itemNameFilter, searchQuery, locationFilter]);
-
   // Summary Metrics when rows are selected (Total Last Qty, Total Qty Convert, and Row Count)
   const selectedSummary = useMemo(() => {
     if (selectedIds.length === 0) return null;
@@ -1466,42 +1445,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
   };
 
-  // Open Form Modal
+  // Open Add Modal (Directly opens Copy-Paste from Excel / Multi-SKU workflow)
   const handleOpenAddModal = () => {
     setIsEditMode(false);
     setSelectedItem(null);
     setBarangSearchText('');
     setIsBarangDropdownOpen(false);
     fetchMasterData();
-
-    setFormData({
-      id_penyiapan: generatePenyiapanId(),
-      item_code: '',
-      item_name: '',
-      category: 'Finished Good',
-      location: 'WH-B-01',
-      location_type: 'Floor',
-      first_qty: 0,
-      last_qty: 0,
-      uom: 'CTN',
-      qty_convert: 0,
-      uom_convert: 'PCS',
-      lpn_serial_number: '-',
-      batch: '',
-      vendor_batch: '-',
-      sloc: 'SL02',
-      expired_date: '',
-      destination_code: '',
-      qc_code: '',
-      user_tally: '',
-      shelf_life: '',
-      source: '',
-      tujuan: '',
-      user_input: currentUser?.nama || '',
-      status: '',
-      note: ''
-    });
-    setShowFormModal(true);
+    setShowPasteModal(true);
   };
 
   const handleOpenEditModal = (item: PenyiapanItem) => {
@@ -2614,7 +2565,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           }
           existingIds.add(idGenerated.toLowerCase());
 
-          const tujuan = String(getVal(['tujuan', 'Tujuan', 'destination', 'tujuan_pengiriman', 'destinasi']) || '').trim();
+          const tujuan = String(getVal(['tujuan', 'Tujuan', 'tujuan_penyiapan', 'tujuan_pengiriman', 'tujuankirim', 'alokasi', 'customer', 'delivery_to', 'depo_tujuan', 'outlet']) || '').trim();
 
           // 21. status: Kosong atau isi status dari excel
           const rawStatus = String(getVal(['status', 'Status', 'status_penyiapan', 'kondisi']) || '').trim();
@@ -2804,6 +2755,849 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       setIsProcessingExcel(false);
       isImportingRef.current = false;
       setUploadProgress(prev => ({ ...prev, isUploading: false }));
+    }
+  };
+
+  // =========================================================================
+  // COPY-PASTE DARI EXCEL HANDLERS (ROLE USER & ADMIN)
+  // Format Kolom Sesuai Input Form per SKU:
+  // Item Code | Item Name | Location | Last Qty | Uom | Qty Convert | Batch | Expired Date | LPN/Serial Number | Status | Note | Tujuan
+  // =========================================================================
+  // COPY-PASTE FROM EXCEL MODAL HANDLERS (ROLE USER & ADMIN)
+  // Mendukung Penuh Format Kolom Database data_penyiapan & Format Form per SKU
+  // =========================================================================
+  const handleOpenPasteModal = () => {
+    fetchMasterData();
+    setShowPasteModal(true);
+  };
+
+  // Copy template header format database data_penyiapan to clipboard
+  const handleCopyPasteTemplateHeader = (formatType: 'db_full' | 'form_sku' = 'db_full') => {
+    let headers: string[] = [];
+    if (formatType === 'db_full') {
+      // Urutan Persis Sesuai Gambar Tabel Database: Item Code (1), Item Name (2), Category (3), Location (4)...
+      headers = [
+        'Item Code',
+        'Item Name',
+        'Category',
+        'Location',
+        'Location Type',
+        'First Qty',
+        'Last Qty',
+        'Uom',
+        'Qty Convert',
+        'Uom Convert',
+        'LPN/Serial Number',
+        'Batch',
+        'Vendor Batch',
+        'SLOC',
+        'Expired Date',
+        'Destination Code',
+        'QC Code',
+        'User Tally',
+        'Shelf Life',
+        'Source',
+        'Status',
+        'Note',
+        'Tujuan'
+      ];
+    } else {
+      headers = [
+        'Item Code',
+        'Item Name',
+        'Category',
+        'Location',
+        'Last Qty',
+        'Uom',
+        'Qty Convert',
+        'Batch',
+        'Expired Date',
+        'LPN/Serial Number',
+        'Status',
+        'Note',
+        'Tujuan'
+      ];
+    }
+    const headerStr = headers.join('\t');
+    navigator.clipboard.writeText(headerStr);
+    showToast('Format Kolom Disalin', `Format kolom ${formatType === 'db_full' ? 'Tabel Database (23 kolom)' : 'Form Ringkas (13 kolom)'} berhasil disalin ke clipboard! Silakan paste di baris 1 Excel Anda.`, 'success');
+  };
+
+  // Download Excel Template for Copy-Paste (Sesuai Kolom Database data_penyiapan)
+  const handleDownloadPasteExcelTemplate = () => {
+    const sampleRows = [
+      {
+        'Item Code': '21104508',
+        'Item Name': 'CAP KAKI TIGA AIR MINERAL 330ML',
+        'Category': 'Finished Good',
+        'Location': 'WH-B-01',
+        'Location Type': 'Rack',
+        'First Qty': 100,
+        'Last Qty': 100,
+        'Uom': 'CTN',
+        'Qty Convert': 2400,
+        'Uom Convert': 'PCS',
+        'LPN/Serial Number': 'LPN-2026-0081',
+        'Batch': '0456',
+        'Vendor Batch': '-',
+        'SLOC': 'SL02',
+        'Expired Date': '2027-02-14',
+        'Destination Code': 'DST-02',
+        'QC Code': 'QC-PASS',
+        'User Tally': 'Tally Penyiapan',
+        'Shelf Life': '24 Bulan',
+        'Source': 'Stok Gudang',
+        'Status': '',
+        'Note': 'Siap picking',
+        'Tujuan': 'SPK Reguler'
+      },
+      {
+        'Item Code': '21104509',
+        'Item Name': 'CAP KAKI TIGA GUAVA 320ML',
+        'Category': 'Finished Good',
+        'Location': 'WH-B-02',
+        'Location Type': 'Floor',
+        'First Qty': 50,
+        'Last Qty': 50,
+        'Uom': 'CTN',
+        'Qty Convert': 1200,
+        'Uom Convert': 'PCS',
+        'LPN/Serial Number': 'LPN-2026-0082',
+        'Batch': '1126',
+        'Vendor Batch': '-',
+        'SLOC': 'SL02',
+        'Expired Date': '2027-04-22',
+        'Destination Code': 'DST-02',
+        'QC Code': 'QC-PASS',
+        'User Tally': 'Tally Penyiapan',
+        'Shelf Life': '24 Bulan',
+        'Source': 'Stok Gudang',
+        'Status': '',
+        'Note': 'Sesuai SPK',
+        'Tujuan': 'Pesanan Cabang'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(sampleRows);
+    ws['!cols'] = [
+      { wch: 16 }, { wch: 35 }, { wch: 18 }, { wch: 14 }, { wch: 15 },
+      { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
+      { wch: 20 }, { wch: 14 }, { wch: 15 }, { wch: 12 }, { wch: 16 },
+      { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 16 },
+      { wch: 12 }, { wch: 22 }, { wch: 20 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template_data_penyiapan');
+    XLSX.writeFile(wb, 'Template_Database_data_penyiapan.xlsx');
+    showToast('Template Terunduh', 'Template Excel Format Database data_penyiapan berhasil diunduh.', 'info');
+  };
+
+  // Load Sample Data into Paste Textarea (Database data_penyiapan structure)
+  const handleLoadSamplePasteData = () => {
+    const sampleText = `Item Code\tItem Name\tCategory\tLocation\tLocation Type\tFirst Qty\tLast Qty\tUom\tQty Convert\tUom Convert\tLPN/Serial Number\tBatch\tVendor Batch\tSLOC\tExpired Date\tDestination Code\tQC Code\tUser Tally\tShelf Life\tSource\tStatus\tNote\tTujuan
+21104508\tCAP KAKI TIGA AIR MINERAL 330ML\tFinished Good\tWH-B-01\tRack\t100\t100\tCTN\t2400\tPCS\tLPN-2026-0081\t0456\t-\tSL02\t2027-02-14\tDST-02\tQC-PASS\tTally 2\t24 Bulan\tStok Gudang\t\tSiap picking\tSPK Reguler
+21104509\tCAP KAKI TIGA GUAVA 320ML\tFinished Good\tWH-B-02\tFloor\t50\t50\tCTN\t1200\tPCS\tLPN-2026-0082\t1126\t-\tSL02\t2027-04-22\tDST-02\tQC-PASS\tTally 2\t24 Bulan\tStok Gudang\t\tSesuai SPK\tPesanan Cabang
+21104510\tLARUTAN PENYEGAR LECI 320ML\tFinished Good\tWH-B-03\tRack\t75\t75\tCTN\t1800\tPCS\t-\t0826\t-\tSL02\t2027-03-15\tDST-02\tQC-PASS\tTally 2\t24 Bulan\tStok Gudang\t\tPenyiapan Depo\tSPK Reguler`;
+    setPasteDefaultTujuan('SPK Reguler');
+    setPastedRawText(sampleText);
+    parsePastedText(sampleText, true, 'auto');
+    showToast('Contoh Dimuat', 'Data contoh sesuai format kolom database data_penyiapan berhasil dimasukkan ke form.', 'info');
+  };
+
+  // Helper normalizer
+  const normalizeKey = (key: string) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Comprehensive Dictionary for mapping headers to exact data_penyiapan properties
+  const fieldSynonyms: { [colKey in keyof PenyiapanItem | 'no']?: string[] } = {
+    id_penyiapan: ['idpenyiapan', 'id_penyiapan', 'kodepenyiapan', 'nopenyiapan', 'idtransaksi', 'id', 'nopenyiapanbarang', 'kodepenyiapanbarang'],
+    tujuan: ['tujuan', 'tujuanpenyiapan', 'tujuan_penyiapan', 'tujuanpengiriman', 'tujuan_pengiriman', 'tujuankirim', 'alokasi', 'customer', 'deliveryto', 'lokasitujuan', 'kirimke', 'tujuandistribusi', 'outlet', 'depotujuan', 'tujuandepo'],
+    item_code: ['itemcode', 'item_code', 'kodesku', 'kodebarang', 'kode_barang', 'sku', 'kode', 'code', 'item', 'kodeitem', 'kode_item', 'material', 'kodeproduk', 'productcode', 'partnumber', 'kodebarangitem'],
+    item_name: ['itemname', 'item_name', 'namabarang', 'nama_barang', 'namaproduk', 'deskripsibarang', 'namasku', 'deskripsi', 'nama', 'itemdesc', 'description', 'namaitem', 'productname', 'namabarangproduk'],
+    category: ['category', 'kategori', 'kelompok', 'group', 'jenis', 'kategoribarang', 'categoryname', 'kelompokbarang'],
+    location: ['location', 'lokasi', 'rak', 'bin', 'loc', 'lokasirak', 'lokasibin', 'storagelocation', 'storage_location', 'posisi', 'tempat', 'locationname', 'nomorrak'],
+    location_type: ['locationtype', 'location_type', 'tipelokasi', 'tipe_lokasi', 'jenislokasi', 'loctype', 'type', 'tipetempat', 'jenisposisi'],
+    first_qty: ['firstqty', 'first_qty', 'qtyawal', 'qty_awal', 'poqty', 'qtysj', 'stokawal', 'qtyorder', 'qtyplan', 'jumlahawal'],
+    last_qty: ['lastqty', 'last_qty', 'qty', 'qtyakhir', 'qty_akhir', 'qtypenyiapan', 'jumlah', 'kuantitas', 'qtyctn', 'ctn', 'totalqty', 'qtyaktual', 'actualqty', 'qtyfisik', 'qtyreal', 'qtypenyiapanbarang', 'jumlahpenyiapan'],
+    uom: ['uom', 'satuan', 'unit', 'kemasan', 'satuanutama', 'uomutama', 'satuanbarang'],
+    qty_convert: ['qtyconvert', 'qty_convert', 'qtykonversi', 'qty_konversi', 'qtypcs', 'pcs', 'konversi', 'qtyconv', 'totalpcs', 'jumlahpcs', 'totalqtypcs'],
+    uom_convert: ['uomconvert', 'uom_convert', 'satuankonversi', 'satuan_konversi', 'uompcs', 'satuanpcs', 'satuanterkecil', 'uomconv', 'satuanpcsbarang'],
+    lpn_serial_number: ['lpnserialnumber', 'lpn_serial_number', 'lpn', 'serialnumber', 'serial_number', 'serial', 'lpnserial', 'sn', 'noseri', 'lpnserialno', 'serialno', 'licensplate', 'nomorseri', 'nolpn'],
+    batch: ['batch', 'nobatch', 'no_batch', 'nomorbatch', 'batchno', 'batch_no', 'lot', 'lotno', 'lot_no', 'kodebatch', 'batchnumber'],
+    vendor_batch: ['vendorbatch', 'vendor_batch', 'batchvendor', 'batch_vendor', 'lotvendor', 'vendorlot', 'vendorbatchno', 'nobatchvendor', 'batchsuplier'],
+    sloc: ['sloc', 'storagelocation', 'gudang', 'storageloc', 'storage_location', 'slocid', 'kodesloc'],
+    expired_date: ['expireddate', 'expired_date', 'expdate', 'exp_date', 'expired', 'kadaluwarsa', 'ed', 'tanggalkadaluwarsa', 'tgled', 'tgl_ed', 'exp', 'expirydate', 'bbd', 'tglexpired', 'tanggaled'],
+    destination_code: ['destinationcode', 'destination_code', 'destcode', 'dest_code', 'kodedestinasi', 'kodetujuan', 'tujuancode', 'destination', 'destinasi'],
+    qc_code: ['qccode', 'qc_code', 'statusqc', 'status_qc', 'kondisiqc', 'qc', 'kodeqc', 'qcstatus', 'hasilqc'],
+    user_tally: ['usertally', 'user_tally', 'petugastally', 'tally', 'checker', 'userchecker', 'namatally'],
+    shelf_life: ['shelflife', 'shelf_life', 'masasimpan', 'masa_simpan', 'shelflifebulan', 'masasimpanbulan', 'shelflife_bulan', 'umursimpan'],
+    source: ['source', 'sumber', 'asal', 'sourcelocation', 'source_location', 'sumberbarang', 'asalbarang'],
+    user_input: ['userinput', 'user_input', 'operator', 'pembuat', 'admin', 'user', 'inputby', 'dibuatoleh', 'createdby', 'petugasinput'],
+    tanggal_update: ['tanggalupdate', 'tanggal_update', 'tglupdate', 'tgl_update', 'updateddate', 'updateat', 'lastupdate'],
+    status: ['status', 'statuspenyiapan', 'kondisi', 'status_penyiapan', 'statusbarang'],
+    note: ['note', 'catatan', 'keterangan', 'remark', 'perbedaandata', 'ket', 'keteranganselisih', 'remarks', 'memo', 'catatanpenyiapan'],
+    created_at: ['createdat', 'created_at', 'tglbuat', 'tanggaldibuat', 'createddate', 'tgl_buat'],
+    no: ['no', 'nomor', 'number', 'num', 'nourut']
+  };
+
+  // Helper date parser to ISO YYYY-MM-DD
+  const parseDateToIso = (rawDateStr: string): string => {
+    if (!rawDateStr || rawDateStr.trim() === '' || rawDateStr.trim() === '-' || rawDateStr.trim() === 'null') {
+      return '-';
+    }
+    const val = rawDateStr.trim();
+    // Excel numeric date (e.g. 45678)
+    if (/^\d{5}$/.test(val)) {
+      const excelEpoch = new Date(1899, 11, 30);
+      const dateObj = new Date(excelEpoch.getTime() + Number(val) * 86400000);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toISOString().slice(0, 10);
+      }
+    }
+    // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(val)) {
+      const delimiter = val.includes('/') ? '/' : (val.includes('-') ? '-' : '.');
+      const parts = val.split(delimiter);
+      const d = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      const y = parts[2];
+      return `${y}-${m}-${d}`;
+    }
+    // YYYY/MM/DD or YYYY-MM-DD
+    if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(val)) {
+      const delimiter = val.includes('/') ? '/' : (val.includes('-') ? '-' : '.');
+      const parts = val.split(delimiter);
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return val;
+  };
+
+  // Core Parser for Tabular Text copied from Excel / Google Sheets / CSV / Database Studio
+  const parsePastedText = (
+    rawText: string,
+    forceHasHeader?: boolean,
+    presetOverride?: 'auto' | 'db_full' | 'db_tujuan' | 'export_excel' | 'form_sku'
+  ) => {
+    if (!rawText || !rawText.trim()) {
+      setPastedRows([]);
+      return;
+    }
+
+    const lines = rawText
+      .split(/\r\n|\n|\r/)
+      .map(l => l.trim())
+      .filter(l => l.length > 0);
+
+    if (lines.length === 0) {
+      setPastedRows([]);
+      return;
+    }
+
+    // Determine delimiter (tab, semicolon, or comma)
+    const firstLine = lines[0];
+    let delimiter = '\t';
+    if (firstLine.includes('\t')) {
+      delimiter = '\t';
+    } else if (firstLine.includes(';') && !firstLine.includes('\t')) {
+      delimiter = ';';
+    } else if (firstLine.includes(',') && !firstLine.includes('\t') && !firstLine.includes(';')) {
+      delimiter = ',';
+    }
+
+    // Split rows into cells
+    const splitRow = (rowStr: string): string[] => {
+      if (delimiter === '\t' || delimiter === ';') {
+        return rowStr.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, ''));
+      }
+      const result: string[] = [];
+      let insideQuote = false;
+      let currentCell = '';
+      for (let i = 0; i < rowStr.length; i++) {
+        const char = rowStr[i];
+        if (char === '"' || char === "'") {
+          insideQuote = !insideQuote;
+        } else if (char === ',' && !insideQuote) {
+          result.push(currentCell.trim().replace(/^["']|["']$/g, ''));
+          currentCell = '';
+        } else {
+          currentCell += char;
+        }
+      }
+      result.push(currentCell.trim().replace(/^["']|["']$/g, ''));
+      return result;
+    };
+
+    const parsedMatrix = lines.map(l => splitRow(l));
+    if (parsedMatrix.length === 0) return;
+
+    // Check if line 0 looks like a header
+    const firstRowNorm = parsedMatrix[0].map(c => normalizeKey(c));
+    let detectedHeaderMatches = 0;
+
+    // Count how many header synonyms are found in first row
+    firstRowNorm.forEach(cellNorm => {
+      for (const fieldKey of Object.keys(fieldSynonyms)) {
+        const synonyms = fieldSynonyms[fieldKey as keyof typeof fieldSynonyms] || [];
+        if (synonyms.some(s => s === cellNorm || (cellNorm.length >= 4 && (cellNorm.includes(s) || s.includes(cellNorm))))) {
+          detectedHeaderMatches++;
+          break;
+        }
+      }
+    });
+
+    const detectedHasHeader = forceHasHeader !== undefined ? forceHasHeader : (detectedHeaderMatches >= 2);
+    setPasteHasHeader(detectedHasHeader);
+
+    // Identify Column Index Mapping from headers
+    const columnMap: { [key: string]: number } = {};
+
+    if (detectedHasHeader) {
+      // 1. Exact match first across all headers
+      firstRowNorm.forEach((cellNorm, idx) => {
+        for (const fieldKey of Object.keys(fieldSynonyms)) {
+          if (columnMap[fieldKey] === undefined) {
+            const synonyms = fieldSynonyms[fieldKey as keyof typeof fieldSynonyms] || [];
+            if (synonyms.includes(cellNorm)) {
+              columnMap[fieldKey] = idx;
+              break;
+            }
+          }
+        }
+      });
+
+      // 2. Safe partial match for remaining unmapped columns
+      firstRowNorm.forEach((cellNorm, idx) => {
+        if (!Object.values(columnMap).includes(idx) && cellNorm.length >= 3) {
+          for (const fieldKey of Object.keys(fieldSynonyms)) {
+            if (columnMap[fieldKey] === undefined) {
+              const synonyms = fieldSynonyms[fieldKey as keyof typeof fieldSynonyms] || [];
+              // Prevent batch and tujuan cross-matching
+              if (fieldKey === 'tujuan' && (cellNorm.includes('batch') || cellNorm.includes('lot') || cellNorm.includes('destcode'))) continue;
+              if (fieldKey === 'batch' && (cellNorm.includes('tujuan') || cellNorm.includes('dest'))) continue;
+              if (fieldKey === 'destination_code' && cellNorm === 'tujuan') continue;
+
+              if (synonyms.some(s => cellNorm === s || (cellNorm.length >= 4 && s.includes(cellNorm)) || (s.length >= 4 && cellNorm.includes(s)))) {
+                columnMap[fieldKey] = idx;
+                break;
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const dataRows = detectedHasHeader ? parsedMatrix.slice(1) : parsedMatrix;
+    const nowIso = new Date().toISOString();
+    const activePreset = presetOverride || pasteFormatPreset;
+
+    const parsedResults: PenyiapanItem[] = dataRows
+      .filter(row => row.some(cell => cell && cell.trim().length > 0))
+      .map((row, rowIdx) => {
+        let id_penyiapan = '';
+        let item_code = '';
+        let item_name = '';
+        let category = 'Finished Good';
+        let location = '';
+        let location_type = 'Rack';
+        let first_qty = 0;
+        let last_qty = 0;
+        let uom = 'CTN';
+        let qty_convert = 0;
+        let uom_convert = 'PCS';
+        let lpn_serial_number = '-';
+        let batch = '-';
+        let vendor_batch = '-';
+        let sloc = 'SL02';
+        let expired_date = '-';
+        let destination_code = 'DST-02';
+        let qc_code = 'QC-PASS';
+        let user_tally = 'Tally Penyiapan';
+        let shelf_life = '24 Bulan';
+        let source = 'Stok Gudang';
+        let user_input = currentUser?.nama || 'User';
+        let tanggal_update = nowIso;
+        let status = pasteDefaultStatus || ''; // Default kosong jika belum di-check statusnya
+        let note = '';
+        let tujuan = pasteDefaultTujuan || '';
+
+        const getCol = (idx: number | undefined) => (idx !== undefined && row[idx] !== undefined ? String(row[idx]).trim() : '');
+
+        if (detectedHasHeader && Object.keys(columnMap).length >= 2) {
+          // Mapped directly by detected header names
+          if (columnMap['id_penyiapan'] !== undefined) id_penyiapan = getCol(columnMap['id_penyiapan']);
+          if (columnMap['item_code'] !== undefined) item_code = getCol(columnMap['item_code']);
+          if (columnMap['item_name'] !== undefined) item_name = getCol(columnMap['item_name']);
+          if (columnMap['category'] !== undefined) category = getCol(columnMap['category']) || 'Finished Good';
+          if (columnMap['location'] !== undefined) location = getCol(columnMap['location']);
+          if (columnMap['location_type'] !== undefined) location_type = getCol(columnMap['location_type']) || 'Rack';
+          if (columnMap['first_qty'] !== undefined) first_qty = Number(getCol(columnMap['first_qty']).replace(/[^0-9.-]/g, '')) || 0;
+          if (columnMap['last_qty'] !== undefined) last_qty = Number(getCol(columnMap['last_qty']).replace(/[^0-9.-]/g, '')) || 0;
+          if (columnMap['uom'] !== undefined) uom = getCol(columnMap['uom']) || 'CTN';
+          if (columnMap['qty_convert'] !== undefined) qty_convert = Number(getCol(columnMap['qty_convert']).replace(/[^0-9.-]/g, '')) || 0;
+          if (columnMap['uom_convert'] !== undefined) uom_convert = getCol(columnMap['uom_convert']) || 'PCS';
+          if (columnMap['lpn_serial_number'] !== undefined) lpn_serial_number = getCol(columnMap['lpn_serial_number']) || '-';
+          if (columnMap['batch'] !== undefined) batch = getCol(columnMap['batch']) || '-';
+          if (columnMap['vendor_batch'] !== undefined) vendor_batch = getCol(columnMap['vendor_batch']) || '-';
+          if (columnMap['sloc'] !== undefined) sloc = getCol(columnMap['sloc']) || 'SL02';
+          if (columnMap['expired_date'] !== undefined) expired_date = parseDateToIso(getCol(columnMap['expired_date']));
+          if (columnMap['destination_code'] !== undefined) destination_code = getCol(columnMap['destination_code']) || 'DST-02';
+          if (columnMap['qc_code'] !== undefined) qc_code = getCol(columnMap['qc_code']) || 'QC-PASS';
+          if (columnMap['user_tally'] !== undefined) user_tally = getCol(columnMap['user_tally']) || 'Tally Penyiapan';
+          if (columnMap['shelf_life'] !== undefined) shelf_life = getCol(columnMap['shelf_life']) || '24 Bulan';
+          if (columnMap['source'] !== undefined) source = getCol(columnMap['source']) || 'Stok Gudang';
+          if (columnMap['status'] !== undefined && getCol(columnMap['status'])) status = getCol(columnMap['status']);
+          if (columnMap['note'] !== undefined) note = getCol(columnMap['note']);
+          if (columnMap['tujuan'] !== undefined) tujuan = getCol(columnMap['tujuan']);
+          if (columnMap['user_input'] !== undefined) user_input = getCol(columnMap['user_input']) || currentUser?.nama || 'User';
+          if (columnMap['tanggal_update'] !== undefined) tanggal_update = getCol(columnMap['tanggal_update']) || nowIso;
+        } else {
+          // Positional Mapping according to Preset / Data Shape
+          // Check if first cell is row number (1, 2, 3...)
+          const rawCell0 = (row[0] || '').trim();
+          const rawCell1 = (row[1] || '').trim();
+          const isFirstColRowNumber = /^\d{1,4}$/.test(rawCell0) && (
+            /^\d{5,}$/.test(rawCell1) || 
+            rawCell1.toUpperCase().startsWith('SKU') || 
+            rawCell1.toUpperCase().startsWith('PEN-') || 
+            rawCell1.length >= 6
+          );
+
+          const r = isFirstColRowNumber ? row.slice(1) : row;
+          const colCount = r.length;
+          
+          let determinedMode: 'db_full' | 'db_tujuan' | 'export_excel' | 'form_sku' = 'db_full';
+          if (activePreset !== 'auto') {
+            determinedMode = activePreset;
+          } else {
+            // Intelligent shape detector
+            const c0 = (r[0] || '').trim();
+            const c1 = (r[1] || '').trim();
+            if (colCount >= 18) {
+              if (c0.toUpperCase().startsWith('PEN-')) {
+                determinedMode = 'export_excel';
+              } else {
+                determinedMode = 'db_full';
+              }
+            } else if (colCount >= 10 && colCount <= 17) {
+              determinedMode = 'form_sku';
+            } else {
+              determinedMode = 'db_full';
+            }
+          }
+
+          if (determinedMode === 'db_full') {
+            // Urutan Persis Sesuai Tabel Database data_penyiapan (20-25 Kolom):
+            // [0] Item Code (Kolom 1)
+            // [1] Item Name (Kolom 2)
+            // [2] Category (Kolom 3)
+            // [3] Location (Kolom 4 - Lokasi sesuai upload user)
+            // [4] Location Type
+            // [5] First Qty
+            // [6] Last Qty
+            // [7] Uom
+            // [8] Qty Convert
+            // [9] Uom Convert
+            // [10] LPN/Serial Number
+            // [11] Batch
+            // [12] Vendor Batch
+            // [13] SLOC
+            // [14] Expired Date
+            // [15] Destination Code
+            // [16] QC Code
+            // [17] User Tally
+            // [18] Shelf Life
+            // [19] Source
+            // [20] Status (Kosong jika belum di-check)
+            // [21] Note / Catatan
+            // [22] Tujuan
+            // [23] User Input
+            // [24] Tanggal Update
+            // [25] ID Penyiapan
+            const cell0 = (r[0] || '').trim();
+            const startsWithId = cell0.toUpperCase().startsWith('PEN-');
+
+            if (startsWithId) {
+              // Format jika diawali ID Penyiapan
+              id_penyiapan = r[0] || '';
+              item_code = r[1] || '';
+              item_name = r[2] || '';
+              category = r[3] || 'Finished Good';
+              location = r[4] || '';
+              location_type = r[5] || 'Rack';
+              first_qty = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              last_qty = Number(String(r[7] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              uom = r[8] || 'CTN';
+              qty_convert = Number(String(r[9] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              uom_convert = r[10] || 'PCS';
+              lpn_serial_number = r[11] || '-';
+              batch = r[12] || '-';
+              vendor_batch = r[13] || '-';
+              sloc = r[14] || 'SL02';
+              expired_date = parseDateToIso(r[15] || '-');
+              destination_code = r[16] || 'DST-02';
+              qc_code = r[17] || 'QC-PASS';
+              user_tally = r[18] || 'Tally Penyiapan';
+              shelf_life = r[19] || '24 Bulan';
+              source = r[20] || 'Stok Gudang';
+              status = r[21] || pasteDefaultStatus || '';
+              note = r[22] || '';
+              tujuan = r[23] || pasteDefaultTujuan || '';
+              user_input = r[24] || currentUser?.nama || 'User';
+              tanggal_update = r[25] || nowIso;
+            } else {
+              // Format Standar Database Sesuai Upload Excel: Mulai dari Item Code (Kolom 1), Item Name (2), Category (3), Location (Kolom 4)...
+              item_code = r[0] || '';
+              item_name = r[1] || '';
+              category = r[2] || 'Finished Good';
+              location = r[3] || '';
+              location_type = r[4] || 'Rack';
+              first_qty = Number(String(r[5] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              last_qty = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              uom = r[7] || 'CTN';
+              qty_convert = Number(String(r[8] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              uom_convert = r[9] || 'PCS';
+              lpn_serial_number = r[10] || '-';
+              batch = r[11] || '-';
+              vendor_batch = r[12] || '-';
+              sloc = r[13] || 'SL02';
+              expired_date = parseDateToIso(r[14] || '-');
+              destination_code = r[15] || 'DST-02';
+              qc_code = r[16] || 'QC-PASS';
+              user_tally = r[17] || 'Tally Penyiapan';
+              shelf_life = r[18] || '24 Bulan';
+              source = r[19] || 'Stok Gudang';
+              status = r[20] || pasteDefaultStatus || '';
+              note = r[21] || '';
+              tujuan = r[22] || pasteDefaultTujuan || '';
+              user_input = r[23] || currentUser?.nama || 'User';
+              tanggal_update = r[24] || nowIso;
+              id_penyiapan = r[25] || '';
+            }
+          } else if (determinedMode === 'export_excel') {
+            // Format Export Laporan Excel
+            id_penyiapan = r[0] || '';
+            item_code = r[1] || '';
+            item_name = r[2] || '';
+            category = r[3] || 'Finished Good';
+            location = r[4] || '';
+            location_type = r[5] || 'Rack';
+            first_qty = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            last_qty = Number(String(r[7] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            uom = r[8] || 'CTN';
+            qty_convert = Number(String(r[9] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            uom_convert = r[10] || 'PCS';
+            lpn_serial_number = r[11] || '-';
+            batch = r[12] || '-';
+            vendor_batch = r[13] || '-';
+            sloc = r[14] || 'SL02';
+            expired_date = parseDateToIso(r[15] || '-');
+            destination_code = r[16] || 'DST-02';
+            qc_code = r[17] || 'QC-PASS';
+            user_tally = r[18] || 'Tally Penyiapan';
+            shelf_life = r[19] || '24 Bulan';
+            source = r[20] || 'Stok Gudang';
+            status = r[21] || pasteDefaultStatus || '';
+            note = r[22] || '';
+            tujuan = r[23] || pasteDefaultTujuan || '';
+            user_input = r[24] || currentUser?.nama || 'User';
+          } else {
+            // Format Form Ringkas (Kolom ke-4 adalah Location sesuai data upload user)
+            // [0] Item Code, [1] Item Name, [2] Category, [3] Location (Kolom ke-4), [4] Last Qty,
+            // [5] Uom, [6] Qty Convert, [7] Batch, [8] Expired Date, [9] LPN/Serial, [10] Status, [11] Note, [12] Tujuan
+            const cell0 = (r[0] || '').trim();
+            const cell1 = (r[1] || '').trim();
+            const cell2 = (r[2] || '').trim();
+
+            if (cell0 && (/^\d{5,}$/.test(cell0) || cell0.toUpperCase().startsWith('SKU') || cell0.length >= 6)) {
+              item_code = cell0;
+              item_name = cell1 || '';
+              category = cell2 || 'Finished Good';
+              location = r[3] || '';
+              last_qty = Number(String(r[4] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              first_qty = last_qty;
+              uom = r[5] || 'CTN';
+              qty_convert = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              batch = r[7] || '-';
+              expired_date = parseDateToIso(r[8] || '-');
+              lpn_serial_number = r[9] || '-';
+              status = r[10] || pasteDefaultStatus || '';
+              note = r[11] || '';
+              tujuan = r[12] || pasteDefaultTujuan || '';
+            } else {
+              item_code = cell0 || cell1 || '';
+              item_name = cell1 || cell2 || '';
+              category = cell2 || 'Finished Good';
+              location = r[3] || '';
+              last_qty = Number(String(r[4] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              first_qty = last_qty;
+              uom = r[5] || 'CTN';
+              qty_convert = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
+              batch = r[7] || '-';
+              expired_date = parseDateToIso(r[8] || '-');
+              lpn_serial_number = r[9] || '-';
+              status = r[10] || pasteDefaultStatus || '';
+              note = r[11] || '';
+              tujuan = r[12] || pasteDefaultTujuan || '';
+            }
+          }
+        }
+
+        // Apply defaults if empty
+        if (!location || location.trim() === '-' || location.trim() === '') {
+          location = pasteDefaultLocation ? pasteDefaultLocation.trim() : '-';
+        }
+        
+        // Priority for Tujuan: If Set Massal Tujuan is specified, strictly use it.
+        // Also ensure Tujuan does not accidentally copy the Batch number.
+        if (pasteDefaultTujuan && pasteDefaultTujuan.trim()) {
+          tujuan = pasteDefaultTujuan.trim();
+        } else if (!tujuan || tujuan === '-' || (batch && batch !== '-' && tujuan.trim() === batch.trim())) {
+          tujuan = pasteDefaultTujuan ? pasteDefaultTujuan.trim() : '';
+        }
+
+        if (!status) {
+          status = pasteDefaultStatus || '';
+        }
+        if (first_qty === 0 && last_qty > 0) {
+          first_qty = last_qty;
+        }
+        if (last_qty === 0 && first_qty > 0) {
+          last_qty = first_qty;
+        }
+
+        // Auto-match with Master Barang if code or name missing
+        if (item_code && !item_name && barangList.length > 0) {
+          const match = barangList.find(b => b.item_code.trim().toLowerCase() === item_code.trim().toLowerCase());
+          if (match) {
+            item_name = match.item_name;
+            if (!uom || uom === 'CTN') uom = match.uom || 'CTN';
+            if (match.category) category = match.category;
+          }
+        } else if (!item_code && item_name && barangList.length > 0) {
+          const match = barangList.find(b => b.item_name.trim().toLowerCase() === item_name.trim().toLowerCase());
+          if (match) {
+            item_code = match.item_code;
+            if (!uom || uom === 'CTN') uom = match.uom || 'CTN';
+            if (match.category) category = match.category;
+          }
+        }
+
+        // Fallback for code/name
+        if (!item_code && item_name) {
+          item_code = 'SKU-' + Math.floor(100000 + Math.random() * 900000);
+        }
+        if (!item_name && item_code) {
+          item_name = `Barang ${item_code}`;
+        }
+
+        // Auto calculate Qty Convert if not provided or 0
+        if (qty_convert <= 0 && last_qty > 0) {
+          qty_convert = last_qty;
+        }
+
+        // Auto calculate Expired Date if missing or provided as batch
+        let normalizedEd = expired_date;
+        if ((!normalizedEd || normalizedEd === '-' || normalizedEd === 'null') && batch && batch !== '-' && item_code && item_name) {
+          const autoCalc = getEdIsoDateString(item_code, item_name, batch);
+          if (autoCalc && autoCalc.isoDate) {
+            normalizedEd = autoCalc.isoDate;
+            shelf_life = autoCalc.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${autoCalc.result.lamaEdTahun * 12} Bulan`;
+          }
+        }
+
+        const tempId = id_penyiapan && id_penyiapan.startsWith('PEN-') ? id_penyiapan : `PEN-PASTE-${rowIdx + 1}`;
+
+        return {
+          id_penyiapan: tempId,
+          item_code: item_code.trim(),
+          item_name: item_name.trim(),
+          category: category.trim() || 'Finished Good',
+          location: location.trim(),
+          location_type: location_type.trim() || 'Rack',
+          first_qty: Number(first_qty) || 0,
+          last_qty: Number(last_qty) || 0,
+          uom: uom.trim() || 'CTN',
+          qty_convert: Number(qty_convert) || Number(last_qty) || 0,
+          uom_convert: uom_convert.trim() || 'PCS',
+          lpn_serial_number: lpn_serial_number.trim() || '-',
+          batch: batch.trim() || '-',
+          vendor_batch: vendor_batch.trim() || '-',
+          sloc: sloc.trim() || 'SL02',
+          expired_date: normalizedEd && normalizedEd !== '-' ? normalizedEd : '-',
+          destination_code: destination_code.trim() || 'DST-02',
+          qc_code: qc_code.trim() || 'QC-PASS',
+          user_tally: user_tally.trim() || currentUser?.nama || 'Tally Penyiapan',
+          shelf_life: shelf_life.trim() || '24 Bulan',
+          source: source.trim() || 'Stok Gudang',
+          tujuan: tujuan.trim(),
+          user_input: user_input.trim() || currentUser?.nama || 'User',
+          status: status ? status.trim() : '',
+          note: note.trim(),
+          tanggal_update: tanggal_update || nowIso,
+          created_at: nowIso
+        };
+      });
+
+    setPastedRows(parsedResults);
+  };
+
+  const handleUpdatePastedRow = (index: number, field: keyof PenyiapanItem, value: any) => {
+    setPastedRows(prev => {
+      const next = [...prev];
+      if (!next[index]) return prev;
+      let processedVal = value;
+      if (field === 'last_qty' || field === 'first_qty' || field === 'qty_convert') {
+        processedVal = Number(value) || 0;
+      }
+      next[index] = { ...next[index], [field]: processedVal };
+      return next;
+    });
+  };
+
+  const handleDeletePastedRow = (index: number) => {
+    setPastedRows(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleApplyBatchSettingsToPasted = (tujuanVal: string, statusVal: string, locationVal: string) => {
+    setPastedRows(prev自动 => prev自动.map(row => ({
+      ...row,
+      tujuan: (tujuanVal !== undefined ? tujuanVal.trim() : (pasteDefaultTujuan || '')),
+      status: statusVal !== undefined && statusVal !== '' ? statusVal : row.status,
+      location: (locationVal && locationVal.trim()) ? locationVal.trim() : row.location
+    })));
+    showToast('Pengaturan Diterapkan', `Tujuan "${(tujuanVal || pasteDefaultTujuan || '-').trim()}", Status, dan Lokasi berhasil diterapkan ke semua baris di atas.`, 'info');
+  };
+
+  // Commit Pasted Rows to Supabase & Local State (Strictly Appended to the end without overwriting)
+  const handleCommitPastedRows = async () => {
+    if (pastedRows.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data hasil copy-paste untuk disimpan.', 'warning');
+      return;
+    }
+
+    const validRows = pastedRows.filter(r => r.item_code || r.item_name);
+    if (validRows.length === 0) {
+      showToast('Data Belum Lengkap', 'Setiap baris harus memiliki minimal Kode Barang atau Nama Barang.', 'warning');
+      return;
+    }
+
+    // Recalculate unique sequential IDs starting after current penyiapanList to guarantee strictly appending after the last row
+    const existingIds拼 = new Set(penyiapanList.map(p => (p.id_penyiapan || '').trim().toLowerCase()));
+    const nowIso = new Date().toISOString();
+    const dateStrPrefix = nowIso.slice(0, 10).replace(/-/g, '');
+
+    let maxSeq = 0;
+    const prefixRegex = new RegExp(`^PEN-${dateStrPrefix}-(\\d+)$`, 'i');
+    for (const item of penyiapanList) {
+      const match = (item.id_penyiapan || '').match(prefixRegex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+    if (maxSeq === 0 && penyiapanList.length > 0) {
+      maxSeq = penyiapanList.length;
+    }
+
+    let runningSeq = maxSeq;
+
+    const finalUploadRows: PenyiapanItem[] = validRows.map(row => {
+      runningSeq++;
+      let finalId = `PEN-${dateStrPrefix}-${String(runningSeq).padStart(5, '0')}`;
+      while (existingIds拼.has(finalId.toLowerCase())) {
+        runningSeq++;
+        finalId = `PEN-${dateStrPrefix}-${String(runningSeq).padStart(5, '0')}`;
+      }
+      existingIds拼.add(finalId.toLowerCase());
+
+      // Ensure Tujuan priority: Take Set Massal Tujuan if set, otherwise row's tujuan sanitized from batch
+      let finalTujuan = row.tujuan ? row.tujuan.trim() : '';
+      if (pasteDefaultTujuan && pasteDefaultTujuan.trim()) {
+        finalTujuan = pasteDefaultTujuan.trim();
+      } else if (!finalTujuan || finalTujuan === '-' || (row.batch && row.batch !== '-' && finalTujuan === row.batch.trim())) {
+        finalTujuan = pasteDefaultTujuan ? pasteDefaultTujuan.trim() : '';
+      }
+
+      return {
+        ...row,
+        id_penyiapan: finalId,
+        tujuan: finalTujuan,
+        user_input: currentUser?.nama || row.user_input || 'User',
+        created_at: nowIso
+      };
+    });
+
+    setIsSavingPastedRows(true);
+    setPasteSaveProgress({
+      current: 0,
+      total: finalUploadRows.length,
+      percentage: 0,
+      statusText: 'Mempersiapkan data penyiapan...'
+    });
+
+    try {
+      // 1. Strictly append to local list (Lanjut dari baris akhir, tidak tertimpa)
+      const finalMerged = [...penyiapanList, ...finalUploadRows];
+      setPenyiapanList(finalMerged);
+
+      // 2. Persist to Supabase with chunk size 500 & live progress indicator
+      if (isSupabaseConfigured) {
+        setPasteSaveProgress(prev => ({
+          ...prev,
+          statusText: `Menyimpan ${finalUploadRows.length.toLocaleString('id-ID')} baris data ke Database Supabase...`
+        }));
+
+        const { successCount, error } = await safeBatchUpsertPenyiapan(
+          finalUploadRows,
+          500,
+          (processed, total) => {
+            const pct = Math.round((processed / total) * 100);
+            setPasteSaveProgress({
+              current: processed,
+              total,
+              percentage: pct,
+              statusText: `Menyimpan ${processed.toLocaleString('id-ID')} dari ${total.toLocaleString('id-ID')} baris (${pct}%)...`
+            });
+          }
+        );
+
+        if (error && successCount === 0) {
+          showToast('Peringatan Database', `Tersimpan di memori lokal, namun gagal sync ke cloud: ${error.message}`, 'warning');
+        } else {
+          setPasteSaveProgress({
+            current: finalUploadRows.length,
+            total: finalUploadRows.length,
+            percentage: 100,
+            statusText: 'Data berhasil disimpan ke baris akhir!'
+          });
+          showToast('Data Ditambahkan!', `${finalUploadRows.length} data penyiapan dari copy-paste Excel berhasil ditambahkan ke baris terakhir!`, 'success');
+          await fetchPenyiapanData(true);
+        }
+      } else {
+        showToast('Tersimpan Lokal', `${finalUploadRows.length} data penyiapan berhasil ditambahkan ke baris terakhir!`, 'success');
+      }
+
+      if (pasteDefaultTujuan.trim()) {
+        setTujuanFilter(pasteDefaultTujuan.trim());
+        setCurrentPage(1);
+      }
+
+      setTimeout(() => {
+        setShowPasteModal(false);
+        setPastedRawText('');
+        setPastedRows([]);
+        setIsSavingPastedRows(false);
+        setPasteSaveProgress({ current: 0, total: 0, percentage: 0, statusText: '' });
+      }, 400);
+    } catch (err: any) {
+      console.error('Error committing pasted rows:', err);
+      showToast('Gagal Menyimpan', err?.message || 'Terjadi kesalahan saat menyimpan data.', 'danger');
+      setIsSavingPastedRows(false);
     }
   };
 
@@ -3048,11 +3842,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         
         {/* Left Side: CRUD & Import Actions */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Tambah Penyiapan Manual */}
+          {/* Tambah Data (Langsung Copy-Paste dari Excel / Multi SKU) */}
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-            title="Tambah Data Penyiapan Manual"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            title="Tambah Data Penyiapan (Langsung Paste dari Excel / Spreadsheet)"
           >
             <Plus size={14} />
             <span>Tambah Data</span>
@@ -3312,164 +4106,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           </div>
         </div>
 
-        {/* Quick Action Strip for Status "Ada", Bulk Selection & Quick Sorting */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-extrabold uppercase text-slate-500 flex items-center gap-1">
-              <Zap size={11} className="text-amber-500" />
-              Aksi Cepat:
-            </span>
-
-            {/* Quick Filter Status Ada Button */}
-            <button
-              type="button"
-              onClick={() => {
-                if (statusFilter === 'Ada') {
-                  setStatusFilter('ALL');
-                } else {
-                  setStatusFilter('Ada');
-                }
-                setCurrentPage(1);
-              }}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                statusFilter === 'Ada'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-              }`}
-              title="Filter tabel hanya untuk data dengan status Ada"
-            >
-              <Check size={12} />
-              <span>{statusFilter === 'Ada' ? 'Filter Aktif: Status "Ada"' : 'Filter Status "Ada"'}</span>
-              <span className={`px-1.5 py-0.2 rounded text-[10px] ${statusFilter === 'Ada' ? 'bg-emerald-800 text-white' : 'bg-emerald-200/80 text-emerald-900 font-bold'}`}>
-                {adaCount}
-              </span>
-            </button>
-
-            {/* Select All "Ada" Items Button */}
-            <button
-              type="button"
-              onClick={handleSelectAllAda}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-900 border border-blue-200 text-xs font-bold transition-all cursor-pointer"
-              title="Pilih dan centang semua item dengan status 'Ada' untuk transfer massal"
-            >
-              <CheckSquare size={12} className="text-blue-700" />
-              <span>Pilih Semua "Ada"</span>
-              <span className="px-1.5 py-0.2 rounded bg-blue-200/80 text-blue-950 font-extrabold text-[10px]">
-                {adaCount}
-              </span>
-            </button>
-
-            {/* If items are selected, show clear button */}
-            {selectedIds.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearSelection}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer"
-                title="Batalkan semua pilihan centang"
-              >
-                <X size={12} />
-                <span>Batal Pilih ({selectedIds.length})</span>
-              </button>
-            )}
-
-            <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-
-            {/* Quick Sort Kombinasi: Lokasi lalu Nama Barang */}
-            <button
-              type="button"
-              onClick={() => handleSort('location_then_name')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                sortField === 'location_then_name'
-                  ? 'bg-purple-700 text-white shadow-2xs'
-                  : 'bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200'
-              }`}
-              title="Urutkan data berdasarkan Lokasi lalu Nama Barang (A-Z / Z-A)"
-            >
-              <Layers size={12} />
-              <span>Sort: Lokasi & Nama Barang</span>
-              {sortField === 'location_then_name' ? (
-                <span className="px-1.5 py-0.2 rounded bg-purple-900 text-white text-[10px] font-black flex items-center gap-0.5">
-                  {sortOrder === 'asc' ? <>A-Z <ArrowUp size={10} /></> : <>Z-A <ArrowDown size={10} /></>}
-                </span>
-              ) : (
-                <ArrowUpDown size={11} className="text-purple-400" />
-              )}
-            </button>
-
-            {/* Quick Sort By Location (Urutkan Lokasi A-Z / Z-A) */}
-            <button
-              type="button"
-              onClick={() => handleSort('location')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                sortField === 'location'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
-              }`}
-              title="Urutkan data berdasarkan Lokasi Rak / Bin (A-Z / Z-A)"
-            >
-              <MapPin size={12} />
-              <span>Sort: Lokasi</span>
-              {sortField === 'location' ? (
-                <span className="px-1.5 py-0.2 rounded bg-indigo-800 text-white text-[10px] font-black flex items-center gap-0.5">
-                  {sortOrder === 'asc' ? <>A-Z <ArrowUp size={10} /></> : <>Z-A <ArrowDown size={10} /></>}
-                </span>
-              ) : (
-                <ArrowUpDown size={11} className="text-indigo-400" />
-              )}
-            </button>
-
-            {/* Quick Sort By Item Name (Urutkan Nama Barang A-Z / Z-A) */}
-            <button
-              type="button"
-              onClick={() => handleSort('item_name')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                sortField === 'item_name'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200'
-              }`}
-              title="Urutkan data berdasarkan Nama Barang (A-Z / Z-A)"
-            >
-              <Package size={12} />
-              <span>Sort: Nama Barang</span>
-              {sortField === 'item_name' ? (
-                <span className="px-1.5 py-0.2 rounded bg-blue-800 text-white text-[10px] font-black flex items-center gap-0.5">
-                  {sortOrder === 'asc' ? <>A-Z <ArrowUp size={10} /></> : <>Z-A <ArrowDown size={10} /></>}
-                </span>
-              ) : (
-                <ArrowUpDown size={11} className="text-blue-400" />
-              )}
-            </button>
-
-            {/* Reset Sort Button (Urutan Asli Tanpa Sort Otomatis) */}
-            {sortField !== null && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSortField(null);
-                  setSortOrder('asc');
-                }}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all cursor-pointer"
-                title="Kembalikan ke urutan asli data (tanpa sort otomatis)"
-              >
-                <RotateCcw size={11} />
-                <span className="hidden sm:inline">Urutan Asli</span>
-              </button>
-            )}
-          </div>
-
-          {/* Quick Bulk Transfer Trigger when items selected */}
-          {selectedIds.length > 0 && (
-            <button
-              type="button"
-              onClick={handleOpenBulkTransferModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-blue-900 to-indigo-900 hover:from-blue-800 hover:to-indigo-800 text-white text-xs font-black shadow-xs cursor-pointer animate-pulse"
-            >
-              <Share2 size={13} />
-              <span>Pindah Massal ({selectedIds.length} Item)</span>
-            </button>
-          )}
-        </div>
-
         {/* Active Filter & Sorting Badges */}
         {(hasActiveFilters || sortField !== null) && (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
@@ -3615,105 +4251,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           </div>
         )}
       </div>
-
-      {/* ========================================================================= */}
-      {/* SUMMARY LAST QTY DARI ITEM NAME / FILTER YANG AKTIF (TEMA RINGAN) */}
-      {/* ========================================================================= */}
-      {filteredItemSummary && (itemNameFilter.trim() || searchQuery.trim() || hasActiveFilters) && (
-        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-2 animate-fade-in">
-          {/* Header Info */}
-          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-900 flex items-center justify-center shrink-0">
-                <Package size={14} />
-              </div>
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-tight text-blue-900 block leading-tight">
-                  Summary Last Qty Filter {filteredItemSummary.filterLabel ? `• "${filteredItemSummary.filterLabel}"` : ''}
-                </span>
-                <div className="font-extrabold text-slate-900 text-xs leading-tight flex items-center gap-1 mt-0.5">
-                  {filteredItemSummary.distinctItemCount === 1 ? (
-                    <span>
-                      {filteredItemSummary.groupedItems[0]?.item_name}{' '}
-                      {filteredItemSummary.groupedItems[0]?.item_code && filteredItemSummary.groupedItems[0]?.item_code !== '-' && (
-                        <span className="text-slate-500 text-[11px] font-mono font-normal">
-                          ({filteredItemSummary.groupedItems[0]?.item_code})
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span>
-                      {filteredItemSummary.distinctItemCount} Nama Barang ({filteredItemSummary.totalRows} Baris Terfilter)
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-              {/* Quick Select All Filtered */}
-              <button
-                type="button"
-                onClick={() => {
-                  const allIds = filteredPenyiapan.map(i => i.id_penyiapan);
-                  setSelectedIds(allIds);
-                }}
-                className="px-2 py-1 rounded-lg bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                title="Pilih dan centang semua baris hasil filter ini"
-              >
-                <CheckCheck size={12} />
-                <span>Pilih Semua ({filteredPenyiapan.length})</span>
-              </button>
-
-              {/* Reset Item Filter Button */}
-              {itemNameFilter && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setItemNameFilter('');
-                    setCurrentPage(1);
-                  }}
-                  className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
-                  title="Hapus filter nama barang"
-                >
-                  <X size={12} />
-                  <span>Hapus Filter</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Breakdown per Item Name if there are 2 to 8 distinct items */}
-          {filteredItemSummary.distinctItemCount > 1 && filteredItemSummary.distinctItemCount <= 8 && (
-            <div className="pt-1.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-[10px] font-bold text-slate-500">Rincian Last Qty:</span>
-              {filteredItemSummary.groupedItems.map((grp, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setItemNameFilter(grp.item_name);
-                    setCurrentPage(1);
-                  }}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 hover:bg-slate-100 text-slate-800 text-[11px] font-semibold border border-slate-200 transition-colors cursor-pointer"
-                  title={`Klik untuk fokus filter pada "${grp.item_name}"`}
-                >
-                  <span className="font-bold text-blue-900">{grp.item_name}:</span>
-                  <span className="font-extrabold text-amber-800 font-mono">
-                    {grp.last_qty.toLocaleString('id-ID')} {grp.uom}
-                  </span>
-                  <span className="text-[9px] text-emerald-700 font-mono">
-                    ({grp.qty_convert.toLocaleString('id-ID')} {grp.uom_convert})
-                  </span>
-                  <span className="text-[9px] text-slate-400">
-                    • {grp.rowCount} baris
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* BULK ACTION & KPI SUMMARY CARDS KETIKA PILIH BARIS */}
@@ -4327,6 +4864,29 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               </button>
             </div>
 
+            {/* Quick Switch to Copy-Paste Excel Mode (Role User & Admin) */}
+            {!isEditMode && (
+              <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-indigo-900 text-xs">
+                  <ClipboardPaste size={15} className="text-indigo-600 shrink-0" />
+                  <span className="font-medium">
+                    Ingin input banyak SKU sekaligus dari Excel? Gunakan fitur <strong>Copy-Paste dari Excel</strong>.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFormModal(false);
+                    handleOpenPasteModal();
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shrink-0 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                >
+                  <ClipboardPaste size={12} />
+                  <span>Buka Mode Copy-Paste Multi SKU</span>
+                </button>
+              </div>
+            )}
+
             {/* Modal Form Body */}
             <form onSubmit={handleSaveForm} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               
@@ -4738,15 +5298,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Status:</label>
                     <select
-                      value={formData.status || 'Ada'}
+                      value={formData.status || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
                       className={`px-3 py-1 rounded-lg text-xs font-bold border cursor-pointer outline-none ${
                         (formData.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
                         (formData.status || '').toLowerCase() === 'beda' ? 'bg-blue-100 text-blue-900 border-blue-400 font-extrabold' :
                         (formData.status || '').toLowerCase() === 'tidak' ? 'bg-rose-100 text-rose-800 border-rose-300' :
-                        'bg-white text-slate-800 border-slate-300'
+                        'bg-slate-100 text-slate-700 border-slate-300'
                       }`}
                     >
+                      <option value="">- Belum Ada Status (Kosong) -</option>
                       <option value="Ada">Ada</option>
                       <option value="Beda">Beda</option>
                       <option value="Tidak">Tidak</option>
@@ -4872,24 +5433,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
             <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               {/* Step 1: Isi Tujuan Upload Penyiapan */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50/80 border border-blue-200/90 shadow-2xs space-y-2.5">
+              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 rounded-full bg-blue-900 text-white font-black text-[11px] flex items-center justify-center">
                       1
                     </span>
                     <label className="text-xs font-black text-blue-950 uppercase tracking-tight">
-                      Tentukan Tujuan Penyiapan (Tujuan Upload)
+                      Tentukan Tujuan Penyiapan
                     </label>
                   </div>
-                  <span className="text-[10px] font-bold text-blue-800 bg-white/90 border border-blue-200 px-2 py-0.5 rounded-full">
-                    Grup & Filter Tujuan
-                  </span>
                 </div>
-
-                <p className="text-[11px] text-blue-900/80 m-0 leading-relaxed">
-                  Isi tujuan penyiapan untuk data yang akan diunggah (misal: <strong>SPK Reguler</strong>, <strong>Pesanan Cabang Surabaya</strong>, <strong>Order Toko</strong>, dll). Nilai ini akan disematkan ke setiap baris data sehingga Anda dapat memfilter dan mengelolanya per tujuan secara terpisah.
-                </p>
 
                 <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                   <input
@@ -4906,7 +5460,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         })));
                       }
                     }}
-                    placeholder="Ketik tujuan penyiapan, misal: SPK Reguler, Pesanan Cabang, Transfer Gudang..."
+                    placeholder="Ketik tujuan penyiapan..."
                     className="flex-1 px-3.5 py-2 rounded-xl border border-blue-300 bg-white font-bold text-xs text-blue-950 focus:ring-2 focus:ring-blue-600 outline-none shadow-xs"
                   />
                   <datalist id="excel-upload-tujuan-datalist">
@@ -4924,7 +5478,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
                 {/* Quick preset chips */}
                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  <span className="text-[10px] font-bold text-slate-500">Pilihan Cepat:</span>
+                  <span className="text-[10px] font-bold text-slate-500">Pilihan:</span>
                   {['SPK Reguler', 'Pesanan Cabang', 'Order Toko', 'Transfer Depo', 'Buffer Picking'].map(preset => (
                     <button
                       key={preset}
@@ -4957,7 +5511,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     2
                   </span>
                   <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
-                    Pilih / Tarik File Excel (.xlsx / .xls / .csv)
+                    Pilih File Excel (.xlsx / .xls / .csv)
                   </span>
                 </div>
 
@@ -4978,10 +5532,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   </div>
                   <div>
                     <span className="font-black text-slate-800 text-xs sm:text-sm block">
-                      {excelFileName ? excelFileName : 'Klik atau Tarik File Excel (.xlsx / .xls / .csv) ke Sini'}
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      Maksimal 50,000 baris data per upload
+                      {excelFileName ? excelFileName : 'Klik atau Tarik File Excel ke Sini'}
                     </span>
                   </div>
                 </div>
@@ -4995,9 +5546,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                       <span className="w-5 h-5 rounded-full bg-indigo-700 text-white font-black text-[11px] flex items-center justify-center">
                         3
                       </span>
-                      <span>Pratinjau Data ({parsedExcelRows.length} Baris Valid)</span>
+                      <span>Pratinjau ({parsedExcelRows.length} Baris)</span>
                     </div>
-                    <span className="text-emerald-700 font-mono text-[11px]">Siap disimpan ke Database Supabase</span>
                   </div>
 
                   <div className="max-h-60 overflow-x-auto overflow-y-auto border border-slate-200 rounded-xl">
@@ -5058,7 +5608,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </div>
               )}
 
-              {/* Upload Progress Bar Indicator (Enterprise Grade) */}
+              {/* Upload Progress Bar Indicator */}
               {uploadProgress.isUploading && (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 shadow-sm space-y-2.5 animate-fade-in">
                   <div className="flex items-center justify-between font-bold text-xs">
@@ -5081,50 +5631,37 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
                   <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium pt-0.5">
                     <span>Proses: {uploadProgress.current.toLocaleString('id-ID')} dari {uploadProgress.total.toLocaleString('id-ID')} baris</span>
-                    <span className="text-emerald-700 font-semibold">Menggunakan High-Speed Batch Stream</span>
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   disabled={uploadProgress.isUploading}
-                  onClick={downloadExcelTemplate}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 cursor-pointer disabled:opacity-40"
+                  onClick={() => setShowExcelModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer disabled:opacity-40"
                 >
-                  <FileSpreadsheet size={14} className="text-emerald-700" />
-                  <span>Download Template Excel</span>
+                  Batal
                 </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={uploadProgress.isUploading}
-                    onClick={() => setShowExcelModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer disabled:opacity-40"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    disabled={parsedExcelRows.length === 0 || isProcessingExcel || uploadProgress.isUploading}
-                    onClick={handleCommitExcelImport}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-black shadow-md cursor-pointer disabled:opacity-50"
-                  >
-                    {isProcessingExcel || uploadProgress.isUploading ? (
-                      <RefreshCw size={14} className="animate-spin" />
-                    ) : (
-                      <Check size={14} />
-                    )}
-                    <span>
-                      {uploadProgress.isUploading
-                        ? `Mengunggah (${uploadProgress.percentage}%)...`
-                        : `Simpan ${parsedExcelRows.length.toLocaleString('id-ID')} Data Penyiapan`}
-                    </span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  disabled={parsedExcelRows.length === 0 || isProcessingExcel || uploadProgress.isUploading}
+                  onClick={handleCommitExcelImport}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-black shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isProcessingExcel || uploadProgress.isUploading ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  <span>
+                    {uploadProgress.isUploading
+                      ? `Mengunggah (${uploadProgress.percentage}%)...`
+                      : `Simpan ${parsedExcelRows.length.toLocaleString('id-ID')} Data`}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -5264,7 +5801,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     (selectedItem.status || '').toLowerCase() === 'tidak' ? 'bg-rose-100 text-rose-800' :
                     'bg-slate-200 text-slate-700'
                   }`}>
-                    {selectedItem.status || 'Ada'}
+                    {selectedItem.status || 'Belum Ada Status'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-700 font-medium m-0">
@@ -5773,8 +6310,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                           <td className="p-2 font-medium text-blue-900 max-w-[150px] truncate">{item.tujuan || '-'}</td>
                           <td className="p-2 text-slate-600 max-w-[150px] truncate">{item.note || '-'}</td>
                           <td className="p-2">
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                              {item.status || 'Ada'}
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              (item.status || '').toLowerCase() === 'ada' ? 'bg-emerald-100 text-emerald-800' :
+                              (item.status || '').toLowerCase() === 'beda' ? 'bg-blue-100 text-blue-800' :
+                              (item.status || '').toLowerCase() === 'tidak' ? 'bg-amber-100 text-amber-800' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>
+                              {item.status || '-'}
                             </span>
                           </td>
                           <td className="p-2 text-slate-600">{item.location || '-'}</td>
@@ -6159,6 +6701,754 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* MODAL: COPY-PASTE DARI EXCEL & DATABASE (ROLE USER & ADMIN) */}
+      {/* Kolom Sesuai Database data_penyiapan & Ditambahkan Setelah Baris Terakhir */}
+      {/* ========================================================================= */}
+      {showPasteModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-blue-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white shadow-inner">
+                  <ClipboardPaste size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black uppercase tracking-tight m-0">
+                      Tambah Data Penyiapan (Paste dari Excel)
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-indigo-200 m-0 font-medium">
+                    Tempel data dari Excel / Spreadsheet. Data akan otomatis ditambahkan setelah baris terakhir.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasteModal(false);
+                    setShowFormModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                  title="Beralih ke form input manual 1 SKU"
+                >
+                  <Plus size={12} />
+                  <span>Input Form Manual</span>
+                </button>
+
+                <button
+                  onClick={() => setShowPasteModal(false)}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                  title="Tutup Modal"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs flex-1">
+              
+              {/* Format Presets & Action Toolbar */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-indigo-600" />
+                      <span>Format:</span>
+                    </span>
+
+                    {/* Format Selector */}
+                    <div className="flex flex-wrap items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasteFormatPreset('auto');
+                          if (pastedRawText) parsePastedText(pastedRawText, pasteHasHeader, 'auto');
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          pasteFormatPreset === 'auto'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        title="Deteksi otomatis"
+                      >
+                        ⚡ Auto-Detect
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasteFormatPreset('db_full');
+                          if (pastedRawText) parsePastedText(pastedRawText, pasteHasHeader, 'db_full');
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          pasteFormatPreset === 'db_full'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        title="Format Tabel Database"
+                      >
+                        📦 Tabel Database (23 Kolom)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasteFormatPreset('form_sku');
+                          if (pastedRawText) parsePastedText(pastedRawText, pasteHasHeader, 'form_sku');
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                          pasteFormatPreset === 'form_sku'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        title="Format Ringkas 13 Kolom"
+                      >
+                        📋 Form Ringkas (13 Kolom)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Actions & Templates */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPasteTemplateHeader('db_full')}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 text-slate-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Salin deretan header database"
+                    >
+                      <Copy size={12} className="text-indigo-600" />
+                      <span>Salin Header DB</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleLoadSamplePasteData}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-800 font-bold rounded-lg text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="Isi contoh data"
+                    >
+                      <Zap size={12} className="text-indigo-600" />
+                      <span>Muat Contoh Data</span>
+                    </button>
+
+                    {pastedRawText && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPastedRawText('');
+                          setPastedRows([]);
+                        }}
+                        className="px-2 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Kosongkan teks dan data preview"
+                      >
+                        <Trash2 size={11} />
+                        <span>Bersihkan</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Paste Textarea */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <span>Area Tempel / Paste Teks dari Excel:</span>
+                  </label>
+
+                  <div className="flex items-center gap-3">
+                    <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pasteHasHeader}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setPasteHasHeader(val);
+                          if (pastedRawText) {
+                            parsePastedText(pastedRawText, val);
+                          }
+                        }}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Baris Pertama Memuat Header</span>
+                    </label>
+                  </div>
+                </div>
+
+                <textarea
+                  rows={5}
+                  value={pastedRawText}
+                  onChange={(e) => {
+                    const txt = e.target.value;
+                    setPastedRawText(txt);
+                    parsePastedText(txt, pasteHasHeader);
+                  }}
+                  placeholder={`Item Code\tItem Name\tCategory\tLocation\tLast Qty\tUom\tBatch\tExpired Date\tTujuan\n21104508\tCAP KAKI TIGA AIR MINERAL 330ML\tFinished Good\tWH-B-01\t100\tCTN\t0456\t2027-02-14\tSPK Reguler`}
+                  className="w-full p-3 rounded-xl border border-slate-300 font-mono text-[11px] leading-relaxed bg-white text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 placeholder:text-slate-400 resize-y shadow-inner"
+                />
+              </div>
+
+              {/* Batch Settings Bar (Apply default Tujuan, Status, Lokasi to all parsed rows) */}
+              <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-indigo-950 uppercase">Set Massal:</span>
+                  </div>
+
+                  {/* Batch Tujuan */}
+                  <div className="flex items-center gap-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Tujuan:</label>
+                    <input
+                      type="text"
+                      list="paste-modal-tujuan-list"
+                      value={pasteDefaultTujuan}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPasteDefaultTujuan(val);
+                        if (pastedRows.length > 0) {
+                          setPastedRows(prev => prev.map(r => ({
+                            ...r,
+                            tujuan: val
+                          })));
+                        }
+                      }}
+                      placeholder="Contoh: SPK Reguler..."
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 text-xs w-36 sm:w-44"
+                    />
+                    <datalist id="paste-modal-tujuan-list">
+                      {uniqueTujuanList.map(t => (
+                        <option key={t} value={t} />
+                      ))}
+                      <option value="SPK Reguler" />
+                      <option value="Pesanan Cabang" />
+                      <option value="Order Toko" />
+                      <option value="Transfer Depo" />
+                      <option value="Buffer Picking" />
+                    </datalist>
+                  </div>
+
+                  {/* Batch Status */}
+                  <div className="flex items-center gap-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Status:</label>
+                    <select
+                      value={pasteDefaultStatus}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPasteDefaultStatus(val);
+                        if (pastedRows.length > 0) {
+                          setPastedRows(prev => prev.map(r => ({
+                            ...r,
+                            status: val
+                          })));
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
+                    >
+                      <option value="">- Kosong (Belum Dicek) -</option>
+                      <option value="Ada">Ada</option>
+                      <option value="Beda">Beda</option>
+                      <option value="Tidak">Tidak</option>
+                    </select>
+                  </div>
+
+                  {/* Batch Location */}
+                  <div className="flex items-center gap-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Lokasi:</label>
+                    <input
+                      type="text"
+                      value={pasteDefaultLocation}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPasteDefaultLocation(val);
+                        if (val.trim() && pastedRows.length > 0) {
+                          setPastedRows(prev => prev.map(r => ({
+                            ...r,
+                            location: val.trim()
+                          })));
+                        }
+                      }}
+                      placeholder="WH-B-01"
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs w-28"
+                    />
+                  </div>
+                </div>
+
+                {pastedRows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyBatchSettingsToPasted(pasteDefaultTujuan, pasteDefaultStatus, pasteDefaultLocation)}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
+                  >
+                    <Check size={12} />
+                    <span>Terapkan ke {pastedRows.length} Baris di Bawah</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Parsed Rows Preview Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800 text-xs">
+                      Preview Data Hasil Copy-Paste ({pastedRows.length} Baris Terdeteksi):
+                    </span>
+                    {pastedRows.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
+                        Siap Disimpan
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* View Switcher */}
+                    {pastedRows.length > 0 && (
+                      <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewColumnView('all_db')}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                            previewColumnView === 'all_db'
+                              ? 'bg-white text-indigo-900 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          🌟 Semua Kolom DB ({Object.keys(pastedRows[0] || {}).length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewColumnView('compact')}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                            previewColumnView === 'compact'
+                              ? 'bg-white text-indigo-900 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          📋 Kolom Ringkas
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Summary Metrics */}
+                    {pastedRows.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[11px] font-bold border border-slate-200">
+                          Total SKU: <span className="text-indigo-700">{new Set(pastedRows.map(r => r.item_code)).size}</span>
+                        </div>
+                        <div className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-mono text-[11px] font-bold border border-emerald-200">
+                          Total Qty CTN: <span className="text-emerald-700">{pastedRows.reduce((a, b) => a + (Number(b.last_qty) || 0), 0).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-mono text-[11px] font-bold border border-blue-200">
+                          Total Qty PCS: <span className="text-blue-700">{pastedRows.reduce((a, b) => a + (Number(b.qty_convert) || 0), 0).toLocaleString('id-ID')}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Table View */}
+                {pastedRows.length === 0 ? (
+                  <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-center bg-slate-50/50">
+                    <ClipboardPaste size={36} className="text-slate-300 mb-2" />
+                    <p className="font-bold text-slate-600 text-xs m-0">
+                      Belum ada data yang dimasukkan
+                    </p>
+                    <p className="text-[11px] text-slate-400 max-w-md mt-1">
+                      Salin data dari Excel lalu paste pada kotak di atas.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[360px] overflow-x-auto overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+                      <thead className="bg-slate-100 sticky top-0 z-10 border-b border-slate-200 text-[10px] uppercase font-black text-slate-600 tracking-wider">
+                        <tr>
+                          <th className="p-2 text-center w-10">No</th>
+                          <th className="p-2 min-w-[110px]">Item Code</th>
+                          <th className="p-2 min-w-[200px]">Item Name</th>
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[110px]">Category</th>
+                          )}
+                          <th className="p-2 min-w-[90px]">Location (Lokasi)</th>
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[90px]">Location Type</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 text-right min-w-[70px]">First Qty</th>
+                          )}
+                          <th className="p-2 text-right min-w-[70px]">Last Qty</th>
+                          <th className="p-2 text-center min-w-[55px]">UOM</th>
+                          <th className="p-2 text-right min-w-[80px]">Qty Convert</th>
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 text-center min-w-[65px]">UOM Conv</th>
+                          )}
+                          <th className="p-2 min-w-[100px]">LPN / Serial</th>
+                          <th className="p-2 min-w-[85px]">Batch</th>
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[85px]">Vendor Batch</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[65px]">SLOC</th>
+                          )}
+                          <th className="p-2 min-w-[100px]">Expired Date</th>
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[80px]">Dest Code</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[80px]">QC Code</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[90px]">User Tally</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[85px]">Shelf Life</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[90px]">Source</th>
+                          )}
+                          <th className="p-2 text-center min-w-[85px]">Status</th>
+                          <th className="p-2 min-w-[130px]">Note</th>
+                          <th className="p-2 min-w-[120px]">Tujuan</th>
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[90px]">User Input</th>
+                          )}
+                          {previewColumnView === 'all_db' && (
+                            <th className="p-2 min-w-[130px]">ID Penyiapan</th>
+                          )}
+                          <th className="p-2 text-center w-10 sticky right-0 bg-slate-100">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white font-medium">
+                        {pastedRows.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-2 text-center font-mono text-[10px] text-slate-400">
+                              {idx + 1}
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.item_code}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'item_code', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-200 font-mono font-bold text-indigo-950 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.item_name}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'item_name', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-200 font-semibold text-slate-800 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.category || ''}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'category', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-700 text-[11px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.location}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'location', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-200 font-bold text-slate-800 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.location_type || 'Rack'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'location_type', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-700 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5 text-right">
+                                <input
+                                  type="number"
+                                  value={row.first_qty}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'first_qty', Number(e.target.value))}
+                                  className="w-full p-1 rounded border border-slate-200 font-mono text-slate-700 text-[11px] text-right bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            <td className="p-1.5 text-right">
+                              <input
+                                type="number"
+                                value={row.last_qty}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'last_qty', Number(e.target.value))}
+                                className="w-full p-1 rounded border border-slate-200 font-mono font-black text-emerald-800 text-[11px] text-right bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            <td className="p-1.5 text-center">
+                              <input
+                                type="text"
+                                value={row.uom}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'uom', e.target.value)}
+                                className="w-14 p-1 rounded border border-slate-200 font-mono font-bold text-slate-700 text-[11px] text-center bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            <td className="p-1.5 text-right">
+                              <input
+                                type="number"
+                                value={row.qty_convert}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'qty_convert', Number(e.target.value))}
+                                className="w-full p-1 rounded border border-slate-200 font-mono font-black text-blue-900 text-[11px] text-right bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5 text-center">
+                                <input
+                                  type="text"
+                                  value={row.uom_convert || 'PCS'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'uom_convert', e.target.value)}
+                                  className="w-14 p-1 rounded border border-slate-200 font-mono text-slate-700 text-[10px] text-center bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.lpn_serial_number}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'lpn_serial_number', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-200 font-mono text-slate-700 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.batch}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'batch', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-200 font-mono font-bold text-amber-900 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.vendor_batch || '-'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'vendor_batch', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 font-mono text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.sloc || 'SL02'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'sloc', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 font-mono text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.expired_date}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'expired_date', e.target.value)}
+                                className="w-full p-1 rounded border border-slate-200 font-mono text-slate-800 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.destination_code || 'DST-02'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'destination_code', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.qc_code || 'QC-PASS'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'qc_code', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.user_tally || ''}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'user_tally', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.shelf_life || '24 Bulan'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'shelf_life', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.source || 'Stok Gudang'}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'source', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            <td className="p-1.5 text-center">
+                              <select
+                                value={row.status || ''}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'status', e.target.value)}
+                                className={`p-1 rounded text-[10px] font-extrabold border cursor-pointer ${
+                                  (row.status || '').toLowerCase() === 'ada' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                                  (row.status || '').toLowerCase() === 'beda' ? 'bg-blue-50 text-blue-900 border-blue-300' :
+                                  (row.status || '').toLowerCase() === 'tidak' ? 'bg-rose-50 text-rose-800 border-rose-300' :
+                                  'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}
+                              >
+                                <option value="">- Kosong -</option>
+                                <option value="Ada">Ada</option>
+                                <option value="Beda">Beda</option>
+                                <option value="Tidak">Tidak</option>
+                              </select>
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.note || ''}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'note', e.target.value)}
+                                placeholder="Catatan..."
+                                className="w-full p-1 rounded border border-slate-200 text-slate-700 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.tujuan || ''}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'tujuan', e.target.value)}
+                                placeholder="Tujuan..."
+                                className="w-full p-1 rounded border border-slate-200 font-bold text-slate-800 text-[11px] bg-slate-50 focus:bg-white"
+                              />
+                            </td>
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.user_input || ''}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'user_input', e.target.value)}
+                                  className="w-full p-1 rounded border border-slate-200 text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            {previewColumnView === 'all_db' && (
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={row.id_penyiapan || ''}
+                                  onChange={(e) => handleUpdatePastedRow(idx, 'id_penyiapan', e.target.value)}
+                                  placeholder="Auto ID"
+                                  className="w-full p-1 rounded border border-slate-200 font-mono text-slate-600 text-[10px] bg-slate-50 focus:bg-white"
+                                />
+                              </td>
+                            )}
+                            <td className="p-1.5 text-center sticky right-0 bg-white shadow-l">
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePastedRow(idx)}
+                                className="p-1 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Hapus baris ini dari daftar"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress Bar while saving */}
+              {isSavingPastedRows && (
+                <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between text-xs font-bold text-indigo-950">
+                    <span className="flex items-center gap-2">
+                      <RefreshCw size={14} className="animate-spin text-indigo-600" />
+                      <span>{pasteSaveProgress.statusText}</span>
+                    </span>
+                    <span>{pasteSaveProgress.percentage}%</span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-indigo-200 overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-600 transition-all duration-300"
+                      style={{ width: `${pasteSaveProgress.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSavingPastedRows}
+                  onClick={() => setShowPasteModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold transition-all cursor-pointer text-xs shadow-2xs disabled:opacity-50"
+                >
+                  Batal / Tutup
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {pastedRows.length > 0 && (
+                  <span className="text-xs font-bold text-slate-600">
+                    <strong className="text-indigo-800">{pastedRows.length}</strong> data siap ditambahkan
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isSavingPastedRows || pastedRows.length === 0}
+                  onClick={handleCommitPastedRows}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 active:bg-indigo-900 disabled:opacity-50 text-white font-black shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 text-xs"
+                >
+                  {isSavingPastedRows ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} />
+                      <span>Simpan {pastedRows.length} Data</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       , document.body)}
