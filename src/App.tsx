@@ -5,7 +5,6 @@ import { Hero } from './components/Hero';
 import { ToolsGridMenu, ToolId, TOOLS_LIST } from './components/ToolsNavigation';
 import { PlaceholderTool } from './components/PlaceholderTool';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
-import { BroadcastBar } from './components/broadcast/BroadcastBar';
 import { FloatingRobotBroadcast } from './components/broadcast/FloatingRobotBroadcast';
 import { NotificationPermissionBanner } from './components/broadcast/NotificationPermissionBanner';
 import { useBroadcast } from './hooks/useBroadcast';
@@ -16,7 +15,8 @@ import {
   BookOpen, 
   Layers, 
   LayoutGrid,
-  ShieldCheck
+  ShieldCheck,
+  Mail
 } from 'lucide-react';
 
 // Logistics Modules - Direct imports to ensure synchronous hook dispatcher lifecycle
@@ -88,6 +88,45 @@ export default function App() {
           {/* VIEW 1: HALAMAN UTAMA (HOME / DASHBOARD MENU) */}
           {currentView === 'home' && (
             <div className="space-y-2.5 sm:space-y-3">
+              {/* Top Header Bar for Home View */}
+              <header className="bg-white p-2 sm:p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2 sticky top-1 sm:top-2 z-30">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-xs shadow-2xs shrink-0">
+                    LC
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-xs sm:text-sm font-bold text-slate-800 m-0 uppercase tracking-tight truncate">
+                      Logistik Cikembar
+                    </h1>
+                    <p className="text-[10px] text-slate-500 font-medium hidden sm:block truncate">
+                      Portal Operasional & Manajemen Gudang
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Siaran Publik Envelope Button in Header */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBroadcastModal(true)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                      broadcastMessages.length > 0
+                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 ring-1 ring-rose-200'
+                        : 'bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-900 border-slate-200/80 hover:border-blue-200'
+                    }`}
+                    title="Buka Siaran Publik & Intercom Logistik"
+                  >
+                    <Mail size={13} className={broadcastMessages.length > 0 ? "text-rose-600 animate-pulse" : "text-rose-600"} />
+                    <span className="font-bold">Siaran Publik</span>
+                    {broadcastMessages.length > 0 && (
+                      <span className="bg-rose-600 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full leading-none shadow-2xs">
+                        {broadcastMessages.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </header>
+
               <NotificationPermissionBanner 
                 permission={notificationPermission}
                 onRequestPermission={requestNotificationPermission}
@@ -95,17 +134,6 @@ export default function App() {
               />
 
               <Hero />
-
-              <BroadcastBar
-                onOpenBroadcastModal={() => setShowBroadcastModal(true)}
-                latestBroadcast={latestBroadcast}
-                messageCount={broadcastMessages.length}
-                soundEnabled={soundEnabled}
-                onToggleSound={toggleSound}
-                notificationPermission={notificationPermission}
-                onRequestNotificationPermission={requestNotificationPermission}
-                isNotificationSupported={isNotificationSupported}
-              />
 
               <main className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-xs">
                 <ToolsGridMenu onOpenTool={handleOpenTool} />
@@ -138,6 +166,26 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Siaran Publik Envelope Button in Header */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBroadcastModal(true)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                      broadcastMessages.length > 0
+                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-900 border-slate-200/80 hover:border-blue-200'
+                    }`}
+                    title="Buka Siaran Publik"
+                  >
+                    <Mail size={13} className={broadcastMessages.length > 0 ? "text-rose-600 animate-pulse" : "text-rose-600"} />
+                    <span className="hidden sm:inline font-bold">Siaran Publik</span>
+                    {broadcastMessages.length > 0 && (
+                      <span className="bg-rose-600 text-white text-[9px] font-extrabold px-1.5 py-0.2 rounded-full leading-none">
+                        {broadcastMessages.length}
+                      </span>
+                    )}
+                  </button>
+
                   <span className="hidden md:inline-flex bg-slate-50 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-lg border border-slate-200/80 items-center gap-1">
                     <Layers size={10} /> {currentTool.category}
                   </span>
