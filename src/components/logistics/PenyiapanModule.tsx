@@ -219,8 +219,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [slocFilter, setSlocFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
-  // Sort State: null = TANPA SORT OTOMATIS (sesuai urutan asli data / upload)
-  const [sortField, setSortField] = useState<keyof PenyiapanItem | 'location_then_name' | null>(null);
+  // Sort State: Default sort ascending berdasarkan kolom location
+  const [sortField, setSortField] = useState<keyof PenyiapanItem | 'location_then_name' | null>('location');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Pagination & Display
@@ -1424,7 +1424,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     setSlocFilter('ALL');
     setStatusFilter('ALL');
     setTujuanFilter('ALL');
-    setSortField(null);
+    setSortField('location');
     setSortOrder('asc');
     setCurrentPage(1);
   };
