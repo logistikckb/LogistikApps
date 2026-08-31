@@ -145,6 +145,7 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
   const activeChannelRef = useRef<any>(null);
   const sharedActiveChannelRef = useRef<any>(null);
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
+  const sentMessageFingerprintsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     initAudioUnlock();
@@ -180,6 +181,14 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
 
     // If sent by this same exact tab, skip sound/popup to avoid self-echo, but sync state
     if (fromSessionId === SESSION_CLIENT_ID) return;
+
+    // Check recent sent fingerprints (within last 12s) to prevent self-echo if DB generated new ID
+    const msgText = item.message || item.content || '';
+    const fp = `${item.sender_name || ''}:::${msgText}`;
+    const sentTime = sentMessageFingerprintsRef.current.get(fp);
+    if (sentTime && Date.now() - sentTime < 12000) {
+      return;
+    }
 
     // Trigger on-screen floating envelope animation, vibration, audio, and OS notification
     setIncomingBroadcast(item);
@@ -378,6 +387,20 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
             fetchMessages();
           }
         })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+          const raw = payload.new;
+          if (!raw) return;
+          const newItem = normalizeBroadcast(raw);
+          setMessages(prev => (prev.some(m => m.id === newItem.id) ? prev : [newItem, ...prev]));
+          handleIncomingAlert(newItem);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+          if (payload.old && payload.old.id) {
+            setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
+          } else {
+            fetchMessages();
+          }
+        })
         .subscribe();
     }
 
@@ -425,6 +448,20 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
           handleIncomingAlert(newItem);
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcasts' }, (payload: any) => {
+          if (payload.old && payload.old.id) {
+            setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
+          } else {
+            fetchMessages();
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+          const raw = payload.new;
+          if (!raw) return;
+          const newItem = normalizeBroadcast(raw);
+          setMessages(prev => (prev.some(m => m.id === newItem.id) ? prev : [newItem, ...prev]));
+          handleIncomingAlert(newItem);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
           if (payload.old && payload.old.id) {
             setMessages(prev => prev.filter(m => m.id !== String(payload.old.id)));
           } else {
@@ -554,6 +591,7 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     };
 
     processedMessageIdsRef.current.add(tempId);
+    sentMessageFingerprintsRef.current.set(`${cleanSender}:::${cleanMessage}`, Date.now());
 
     // 1. Optimistic local update
     setMessages(prev => [broadcastItem, ...prev.filter(m => m.id !== tempId)]);

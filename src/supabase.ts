@@ -69,8 +69,13 @@ function getResolvedKey(): string {
 function getResolvedSharedBroadcastUrl(): string {
   const envUrl = 
     (import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_URL as string) || 
+    (import.meta.env.VITE_SHARED_BROADCAST_URL as string) || 
     (import.meta.env.VITE_SHARED_SUPABASE_URL as string) || 
+    (import.meta.env.SHARED_BROADCAST_SUPABASE_URL as string) || 
+    (import.meta.env.SHARED_SUPABASE_URL as string) || 
     (import.meta.env.SUPABASE_BROADCAST_URL as string) || 
+    (import.meta.env.VITE_APP2_SUPABASE_URL as string) || 
+    (import.meta.env.APP2_SUPABASE_URL as string) || 
     '';
   
   if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL')) {
@@ -94,8 +99,13 @@ function getResolvedSharedBroadcastUrl(): string {
 function getResolvedSharedBroadcastKey(): string {
   const envKey = 
     (import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_ANON_KEY as string) || 
+    (import.meta.env.VITE_SHARED_BROADCAST_ANON_KEY as string) || 
     (import.meta.env.VITE_SHARED_SUPABASE_ANON_KEY as string) || 
+    (import.meta.env.SHARED_BROADCAST_SUPABASE_ANON_KEY as string) || 
+    (import.meta.env.SHARED_SUPABASE_ANON_KEY as string) || 
     (import.meta.env.SUPABASE_BROADCAST_ANON_KEY as string) || 
+    (import.meta.env.VITE_APP2_SUPABASE_ANON_KEY as string) || 
+    (import.meta.env.APP2_SUPABASE_ANON_KEY as string) || 
     '';
 
   if (envKey && !envKey.includes('YOUR_SUPABASE_ANON_KEY')) {
@@ -149,9 +159,7 @@ export const isSharedBroadcastConfigured = Boolean(
   resolvedSharedUrl &&
   resolvedSharedKey &&
   resolvedSharedUrl.startsWith('https://') &&
-  !resolvedSharedUrl.includes('placeholder') &&
-  // Only consider active if it is different from primary database OR explicitly configured
-  (resolvedSharedUrl !== resolvedUrl || Boolean(localStorage.getItem('ckb_shared_broadcast_supabase_url')))
+  !resolvedSharedUrl.includes('placeholder')
 );
 
 export const sharedBroadcastUrl = isSharedBroadcastConfigured ? resolvedSharedUrl : '';

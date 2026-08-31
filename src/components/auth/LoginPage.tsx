@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { usePwa } from '../../context/PwaContext';
 import { 
   LogIn, 
   CheckCircle2, 
@@ -10,15 +11,20 @@ import {
   RefreshCw, 
   ShieldAlert, 
   X,
-  User
+  User,
+  Download,
+  Smartphone,
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
 
 interface LoginPageProps {
   onOpenBroadcast?: () => void;
 }
 
-export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps) {
+export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
   const { login, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
+  const { isStandalone, canInstall, promptInstall, openInstallGuide } = usePwa();
 
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
@@ -118,6 +124,63 @@ export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps)
         {/* Form Login Container */}
         <div className="bg-white p-5 sm:p-6 border border-slate-200/90 shadow-sm rounded-2xl">
           
+          {/* PWA Install Promotion Banner / Button before Login */}
+          {!isStandalone ? (
+            <div 
+              id="login-pwa-install-banner"
+              className="mb-4 p-3 bg-gradient-to-r from-blue-50/90 via-sky-50/70 to-indigo-50/90 border border-blue-200/90 rounded-2xl flex items-center justify-between gap-2.5 shadow-2xs text-left"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Smartphone size={16} className="text-cyan-300" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-900 tracking-tight">
+                      Install Aplikasi (PWA)
+                    </span>
+                    <span className="px-1.5 py-0.2 bg-blue-200/80 text-blue-900 text-[9px] font-black rounded-md">
+                      App
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 m-0 truncate">
+                    Pasang di HP / Laptop untuk akses cepat
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  id="login-quick-install-btn"
+                  onClick={promptInstall}
+                  className="px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
+                  title="Pasang aplikasi CKBLogistic ke layar utama"
+                >
+                  <Download size={13} className="text-cyan-300 animate-bounce" />
+                  <span>Install</span>
+                </button>
+                <button
+                  type="button"
+                  id="login-open-guide-btn"
+                  onClick={openInstallGuide}
+                  className="p-1.5 text-slate-500 hover:text-slate-800 bg-white/90 hover:bg-white rounded-xl border border-slate-200 text-xs transition-colors cursor-pointer"
+                  title="Petunjuk instalasi iOS / Android / Komputer"
+                >
+                  <HelpCircle size={14} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div 
+              id="login-pwa-standalone-badge"
+              className="mb-4 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800 font-semibold shadow-2xs"
+            >
+              <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+              <span>Aplikasi CKBLogistic Terpasang (Mode PWA)</span>
+            </div>
+          )}
+
           {/* Alert Feedback */}
           {errorMsg && (
             <div className="mb-4 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
@@ -232,6 +295,21 @@ export function LoginPage({ onOpenBroadcast: _onOpenBroadcast }: LoginPageProps)
             <span className="text-[10px] text-slate-400">Cikembar Logistic</span>
           </div>
         </div>
+
+        {/* Pre-login PWA Install Quick Help */}
+        {!isStandalone && (
+          <div className="text-center pt-0.5">
+            <button
+              type="button"
+              id="login-install-help-btn"
+              onClick={openInstallGuide}
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer hover:underline"
+            >
+              <Smartphone size={13} className="text-blue-700" />
+              <span>Panduan Pasang Aplikasi di Android, iOS Safari & Komputer</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

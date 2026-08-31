@@ -3,7 +3,7 @@ import { Download, Smartphone, CheckCircle } from 'lucide-react';
 import { usePwa } from '../../context/PwaContext';
 
 interface InstallPwaButtonProps {
-  variant?: 'header' | 'sidebar' | 'banner' | 'pill';
+  variant?: 'header' | 'sidebar' | 'banner' | 'pill' | 'login' | 'full';
   className?: string;
   showInstalledStatus?: boolean;
 }
@@ -31,6 +31,21 @@ export function InstallPwaButton({
 
   // If not standalone, show install button
   if (!canInstall) return null;
+
+  if (variant === 'login') {
+    return (
+      <button
+        type="button"
+        id="login-install-pwa-btn"
+        onClick={promptInstall}
+        className={`w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer active:scale-95 ${className}`}
+        title="Install Aplikasi CKBLogistic ke Layar Utama (PWA)"
+      >
+        <Download size={14} className="text-cyan-300 animate-bounce" />
+        <span>Install Aplikasi (PWA)</span>
+      </button>
+    );
+  }
 
   if (variant === 'header') {
     return (
