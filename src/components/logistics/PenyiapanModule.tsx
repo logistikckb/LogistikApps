@@ -688,9 +688,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         id_penyiapan: String(rest.id_penyiapan || '').trim(),
         item_code: String(rest.item_code || '').trim(),
         item_name: String(rest.item_name || '').trim(),
-        category: String(rest.category || 'Finished Good').trim(),
-        location: String(rest.location || '-').trim(),
-        location_type: String(rest.location_type || '-').trim(),
+        category: rest.category !== undefined && rest.category !== null ? String(rest.category).trim() : '',
+        location: rest.location !== undefined && rest.location !== null ? String(rest.location).trim() : '',
+        location_type: rest.location_type !== undefined && rest.location_type !== null ? String(rest.location_type).trim() : '',
         first_qty: Number(rest.first_qty) || 0,
         last_qty: Number(rest.last_qty) || 0,
         uom: String(rest.uom || 'CTN').trim(),
@@ -1485,7 +1485,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         ...prev,
         item_code: nextItemCode,
         item_name: nextItemName,
-        category: b.category || prev.category || 'Finished Good',
+        category: b.category || prev.category || '',
         uom: b.uom || prev.uom || 'CTN',
         expired_date: autoEd,
         ed: autoEd,
@@ -1530,9 +1530,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       id_penyiapan: idPenyiapan,
       item_code: finalItemCode,
       item_name: finalItemName,
-      category: formData.category?.trim() || 'Finished Good',
-      location: formData.location?.trim() || '-',
-      location_type: formData.location_type?.trim() || '-',
+      category: formData.category?.trim() || '',
+      location: formData.location?.trim() || '',
+      location_type: formData.location_type?.trim() || '',
       first_qty: Number(formData.first_qty) || 0,
       last_qty: Number(formData.last_qty) || 0,
       uom: formData.uom?.trim() || 'CTN',
@@ -2254,54 +2254,29 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const downloadExcelTemplate = () => {
     const templateData = [
       {
-        'Item Code': '21104508',
-        'Item Name': 'KINO CANDY MINT 150G',
-        'Category': 'Finished Good',
-        'Location': 'WH-B-01',
-        'Location Type': 'Floor',
-        'First Qty': 100,
-        'Last Qty': 100,
-        'Uom': 'CTN',
-        'Qty Convert': 100,
-        'Uom Convert': 'PCS',
-        'LPN/Serial Number': 'LPN-2026-0081',
-        'Batch': '0456',
-        'Vendor Batch': 'VB-9912',
-        'SLOC': 'SL02',
-        'Expired Date': '2027-02-14',
-        'Destination Code': 'DST-02',
-        'QC Code': 'QC-PASS',
-        'User Tally': 'Budi Santoso',
-        'Shelf Life': '24 Bulan',
-        'Source': 'Stok Gudang',
+        'Item Code': '',
+        'Item Name': '',
+        'Category': '',
+        'Location': '',
+        'Location Type': '',
+        'First Qty': '',
+        'Last Qty': '',
+        'Uom': '',
+        'Qty Convert': '',
+        'Uom Convert': '',
+        'LPN/Serial Number': '',
+        'Batch': '',
+        'Vendor Batch': '',
+        'SLOC': '',
+        'Expired Date': '',
+        'Destination Code': '',
+        'QC Code': '',
+        'User Tally': '',
+        'Shelf Life': '',
+        'Source': '',
         'Status': '',
         'Note': '',
-        'Tujuan': 'SPK Reguler'
-      },
-      {
-        'Item Code': '21104509',
-        'Item Name': 'CAP KAKI TIGA GUAVA 320ML',
-        'Category': 'Finished Good',
-        'Location': 'WH-B-02',
-        'Location Type': 'Rack',
-        'First Qty': 50,
-        'Last Qty': 50,
-        'Uom': 'CTN',
-        'Qty Convert': 50,
-        'Uom Convert': 'PCS',
-        'LPN/Serial Number': 'LPN-2026-0082',
-        'Batch': '1126',
-        'Vendor Batch': 'VB-9913',
-        'SLOC': 'SL02',
-        'Expired Date': '2027-04-22',
-        'Destination Code': 'DST-02',
-        'QC Code': 'QC-PASS',
-        'User Tally': 'Ahmad Fauzi',
-        'Shelf Life': '24 Bulan',
-        'Source': 'Stok Gudang',
-        'Status': '',
-        'Note': '',
-        'Tujuan': 'Pesanan Cabang'
+        'Tujuan': ''
       }
     ];
 
@@ -2319,7 +2294,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       { wch: 14 }, // Uom Convert
       { wch: 22 }, // LPN/Serial Number
       { wch: 14 }, // Batch
-      { wch: 16 }, // Vendor Batch
+      { wch: 14 }, // Vendor Batch
       { wch: 12 }, // SLOC
       { wch: 16 }, // Expired Date
       { wch: 18 }, // Destination Code
@@ -2327,15 +2302,15 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       { wch: 18 }, // User Tally
       { wch: 14 }, // Shelf Life
       { wch: 16 }, // Source
-      { wch: 14 }, // Status
-      { wch: 20 }, // Note
+      { wch: 12 }, // Status
+      { wch: 24 }, // Note
       { wch: 20 }  // Tujuan
     ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template_Penyiapan');
-    XLSX.writeFile(wb, 'Template_Upload_Penyiapan_data_penyiapan.xlsx');
-    showToast('Template Terunduh', 'Template Excel Penyiapan sesuai kolom format berhasil diunduh.', 'info');
+    XLSX.writeFile(wb, 'Template_Upload_Penyiapan.xlsx');
+    showToast('Template Terunduh', 'Template Excel kosong berhasil diunduh.', 'info');
   };
 
   // Export Filtered / All Penyiapan Data to Excel
@@ -2823,88 +2798,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     showToast('Format Kolom Disalin', `Format kolom ${formatType === 'db_full' ? 'Tabel Database (23 kolom)' : 'Form Ringkas (13 kolom)'} berhasil disalin ke clipboard! Silakan paste di baris 1 Excel Anda.`, 'success');
   };
 
-  // Download Excel Template for Copy-Paste (Sesuai Kolom Database data_penyiapan)
-  const handleDownloadPasteExcelTemplate = () => {
-    const sampleRows = [
-      {
-        'Item Code': '21104508',
-        'Item Name': 'CAP KAKI TIGA AIR MINERAL 330ML',
-        'Category': 'Finished Good',
-        'Location': 'WH-B-01',
-        'Location Type': 'Rack',
-        'First Qty': 100,
-        'Last Qty': 100,
-        'Uom': 'CTN',
-        'Qty Convert': 2400,
-        'Uom Convert': 'PCS',
-        'LPN/Serial Number': 'LPN-2026-0081',
-        'Batch': '0456',
-        'Vendor Batch': '-',
-        'SLOC': 'SL02',
-        'Expired Date': '2027-02-14',
-        'Destination Code': 'DST-02',
-        'QC Code': 'QC-PASS',
-        'User Tally': 'Tally Penyiapan',
-        'Shelf Life': '24 Bulan',
-        'Source': 'Stok Gudang',
-        'Status': '',
-        'Note': 'Siap picking',
-        'Tujuan': 'SPK Reguler'
-      },
-      {
-        'Item Code': '21104509',
-        'Item Name': 'CAP KAKI TIGA GUAVA 320ML',
-        'Category': 'Finished Good',
-        'Location': 'WH-B-02',
-        'Location Type': 'Floor',
-        'First Qty': 50,
-        'Last Qty': 50,
-        'Uom': 'CTN',
-        'Qty Convert': 1200,
-        'Uom Convert': 'PCS',
-        'LPN/Serial Number': 'LPN-2026-0082',
-        'Batch': '1126',
-        'Vendor Batch': '-',
-        'SLOC': 'SL02',
-        'Expired Date': '2027-04-22',
-        'Destination Code': 'DST-02',
-        'QC Code': 'QC-PASS',
-        'User Tally': 'Tally Penyiapan',
-        'Shelf Life': '24 Bulan',
-        'Source': 'Stok Gudang',
-        'Status': '',
-        'Note': 'Sesuai SPK',
-        'Tujuan': 'Pesanan Cabang'
-      }
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(sampleRows);
-    ws['!cols'] = [
-      { wch: 16 }, { wch: 35 }, { wch: 18 }, { wch: 14 }, { wch: 15 },
-      { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
-      { wch: 20 }, { wch: 14 }, { wch: 15 }, { wch: 12 }, { wch: 16 },
-      { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 16 },
-      { wch: 12 }, { wch: 22 }, { wch: 20 }
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template_data_penyiapan');
-    XLSX.writeFile(wb, 'Template_Database_data_penyiapan.xlsx');
-    showToast('Template Terunduh', 'Template Excel Format Database data_penyiapan berhasil diunduh.', 'info');
-  };
-
-  // Load Sample Data into Paste Textarea (Database data_penyiapan structure)
-  const handleLoadSamplePasteData = () => {
-    const sampleText = `Item Code\tItem Name\tCategory\tLocation\tLocation Type\tFirst Qty\tLast Qty\tUom\tQty Convert\tUom Convert\tLPN/Serial Number\tBatch\tVendor Batch\tSLOC\tExpired Date\tDestination Code\tQC Code\tUser Tally\tShelf Life\tSource\tStatus\tNote\tTujuan
-21104508\tCAP KAKI TIGA AIR MINERAL 330ML\tFinished Good\tWH-B-01\tRack\t100\t100\tCTN\t2400\tPCS\tLPN-2026-0081\t0456\t-\tSL02\t2027-02-14\tDST-02\tQC-PASS\tTally 2\t24 Bulan\tStok Gudang\t\tSiap picking\tSPK Reguler
-21104509\tCAP KAKI TIGA GUAVA 320ML\tFinished Good\tWH-B-02\tFloor\t50\t50\tCTN\t1200\tPCS\tLPN-2026-0082\t1126\t-\tSL02\t2027-04-22\tDST-02\tQC-PASS\tTally 2\t24 Bulan\tStok Gudang\t\tSesuai SPK\tPesanan Cabang
-21104510\tLARUTAN PENYEGAR LECI 320ML\tFinished Good\tWH-B-03\tRack\t75\t75\tCTN\t1800\tPCS\t-\t0826\t-\tSL02\t2027-03-15\tDST-02\tQC-PASS\tTally 2\t24 Bulan\tStok Gudang\t\tPenyiapan Depo\tSPK Reguler`;
-    setPasteDefaultTujuan('SPK Reguler');
-    setPastedRawText(sampleText);
-    parsePastedText(sampleText, true, 'auto');
-    showToast('Contoh Dimuat', 'Data contoh sesuai format kolom database data_penyiapan berhasil dimasukkan ke form.', 'info');
-  };
-
   // Helper normalizer
   const normalizeKey = (key: string) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -3099,9 +2992,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         let id_penyiapan = '';
         let item_code = '';
         let item_name = '';
-        let category = 'Finished Good';
+        let category = '';
         let location = '';
-        let location_type = 'Rack';
+        let location_type = '';
         let first_qty = 0;
         let last_qty = 0;
         let uom = 'CTN';
@@ -3130,9 +3023,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           if (columnMap['id_penyiapan'] !== undefined) id_penyiapan = getCol(columnMap['id_penyiapan']);
           if (columnMap['item_code'] !== undefined) item_code = getCol(columnMap['item_code']);
           if (columnMap['item_name'] !== undefined) item_name = getCol(columnMap['item_name']);
-          if (columnMap['category'] !== undefined) category = getCol(columnMap['category']) || 'Finished Good';
+          if (columnMap['category'] !== undefined) category = getCol(columnMap['category']);
           if (columnMap['location'] !== undefined) location = getCol(columnMap['location']);
-          if (columnMap['location_type'] !== undefined) location_type = getCol(columnMap['location_type']) || 'Rack';
+          if (columnMap['location_type'] !== undefined) location_type = getCol(columnMap['location_type']);
           if (columnMap['first_qty'] !== undefined) first_qty = Number(getCol(columnMap['first_qty']).replace(/[^0-9.-]/g, '')) || 0;
           if (columnMap['last_qty'] !== undefined) last_qty = Number(getCol(columnMap['last_qty']).replace(/[^0-9.-]/g, '')) || 0;
           if (columnMap['uom'] !== undefined) uom = getCol(columnMap['uom']) || 'CTN';
@@ -3224,9 +3117,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               id_penyiapan = r[0] || '';
               item_code = r[1] || '';
               item_name = r[2] || '';
-              category = r[3] || 'Finished Good';
+              category = r[3] || '';
               location = r[4] || '';
-              location_type = r[5] || 'Rack';
+              location_type = r[5] || '';
               first_qty = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
               last_qty = Number(String(r[7] || '0').replace(/[^0-9.-]/g, '')) || 0;
               uom = r[8] || 'CTN';
@@ -3251,9 +3144,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               // Format Standar Database Sesuai Upload Excel: Mulai dari Item Code (Kolom 1), Item Name (2), Category (3), Location (Kolom 4)...
               item_code = r[0] || '';
               item_name = r[1] || '';
-              category = r[2] || 'Finished Good';
+              category = r[2] || '';
               location = r[3] || '';
-              location_type = r[4] || 'Rack';
+              location_type = r[4] || '';
               first_qty = Number(String(r[5] || '0').replace(/[^0-9.-]/g, '')) || 0;
               last_qty = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
               uom = r[7] || 'CTN';
@@ -3281,9 +3174,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             id_penyiapan = r[0] || '';
             item_code = r[1] || '';
             item_name = r[2] || '';
-            category = r[3] || 'Finished Good';
+            category = r[3] || '';
             location = r[4] || '';
-            location_type = r[5] || 'Rack';
+            location_type = r[5] || '';
             first_qty = Number(String(r[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
             last_qty = Number(String(r[7] || '0').replace(/[^0-9.-]/g, '')) || 0;
             uom = r[8] || 'CTN';
@@ -3314,7 +3207,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             if (cell0 && (/^\d{5,}$/.test(cell0) || cell0.toUpperCase().startsWith('SKU') || cell0.length >= 6)) {
               item_code = cell0;
               item_name = cell1 || '';
-              category = cell2 || 'Finished Good';
+              category = cell2 || '';
               location = r[3] || '';
               last_qty = Number(String(r[4] || '0').replace(/[^0-9.-]/g, '')) || 0;
               first_qty = last_qty;
@@ -3329,7 +3222,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             } else {
               item_code = cell0 || cell1 || '';
               item_name = cell1 || cell2 || '';
-              category = cell2 || 'Finished Good';
+              category = cell2 || '';
               location = r[3] || '';
               last_qty = Number(String(r[4] || '0').replace(/[^0-9.-]/g, '')) || 0;
               first_qty = last_qty;
@@ -3414,9 +3307,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           id_penyiapan: tempId,
           item_code: item_code.trim(),
           item_name: item_name.trim(),
-          category: category.trim() || 'Finished Good',
+          category: category ? category.trim() : '',
           location: location.trim(),
-          location_type: location_type.trim() || 'Rack',
+          location_type: location_type ? location_type.trim() : '',
           first_qty: Number(first_qty) || 0,
           last_qty: Number(last_qty) || 0,
           uom: uom.trim() || 'CTN',
@@ -5700,7 +5593,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-black text-blue-900">{selectedItem.item_code}</span>
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-[10px]">
-                    {selectedItem.category || 'Finished Good'}
+                    {selectedItem.category || '-'}
                   </span>
                 </div>
                 <h4 className="text-sm font-black text-slate-800 m-0">{selectedItem.item_name}</h4>
@@ -6831,16 +6724,6 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                       <span>Salin Header DB</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={handleLoadSamplePasteData}
-                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 text-indigo-800 font-bold rounded-lg text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                      title="Isi contoh data"
-                    >
-                      <Zap size={12} className="text-indigo-600" />
-                      <span>Muat Contoh Data</span>
-                    </button>
-
                     {pastedRawText && (
                       <button
                         type="button"
@@ -6893,7 +6776,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                     setPastedRawText(txt);
                     parsePastedText(txt, pasteHasHeader);
                   }}
-                  placeholder={`Item Code\tItem Name\tCategory\tLocation\tLast Qty\tUom\tBatch\tExpired Date\tTujuan\n21104508\tCAP KAKI TIGA AIR MINERAL 330ML\tFinished Good\tWH-B-01\t100\tCTN\t0456\t2027-02-14\tSPK Reguler`}
+                  placeholder="Tempel / Paste data baris dari Excel di sini..."
                   className="w-full p-3 rounded-xl border border-slate-300 font-mono text-[11px] leading-relaxed bg-white text-slate-800 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 placeholder:text-slate-400 resize-y shadow-inner"
                 />
               </div>
@@ -7170,7 +7053,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                               <td className="p-1.5">
                                 <input
                                   type="text"
-                                  value={row.location_type || 'Rack'}
+                                  value={row.location_type || ''}
                                   onChange={(e) => handleUpdatePastedRow(idx, 'location_type', e.target.value)}
                                   className="w-full p-1 rounded border border-slate-200 text-slate-700 text-[10px] bg-slate-50 focus:bg-white"
                                 />
