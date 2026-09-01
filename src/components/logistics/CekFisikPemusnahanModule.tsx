@@ -187,7 +187,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [slocFilter, setSlocFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
-  const [locationFilter, setLocationFilter] = useState<string>('');
+  const [locationFilter, setLocationFilter] = useState<string>('ALL');
   const [itemNameFilter, setItemNameFilter] = useState<string>('');
   const [sortField, setSortField] = useState<keyof CekFisikPemusnahanItem>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -441,6 +441,18 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     return ['Cek', 'Ada', 'Beda', 'Tidak'];
   }, []);
 
+  const uniqueLocations = useMemo(() => {
+    const set = new Set<string>();
+    cekFisikList.forEach(item => {
+      if (item.location && item.location.trim() !== '' && item.location !== '-') {
+        set.add(item.location.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [cekFisikList]);
+
+  const isLocationFiltered = locationFilter !== 'ALL' && locationFilter.trim() !== '';
+
   const uniqueTujuanList = useMemo(() => {
     const set = new Set<string>();
     cekFisikList.forEach(item => { if (item.tujuan && item.tujuan !== '-') set.add(item.tujuan.trim()); });
@@ -495,12 +507,14 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         if (normSt.toLowerCase() !== statusFilter.toLowerCase()) return false;
       }
       if (tujuanFilter !== 'ALL' && (item.tujuan || '').toLowerCase() !== tujuanFilter.toLowerCase()) return false;
-      if (locationFilter && !(item.location || '').toLowerCase().includes(locationFilter.toLowerCase())) return false;
+      if (locationFilter !== 'ALL' && locationFilter.trim() !== '') {
+        if ((item.location || '').trim().toLowerCase() !== locationFilter.trim().toLowerCase()) return false;
+      }
       if (itemNameFilter && !(item.item_name || '').toLowerCase().includes(itemNameFilter.toLowerCase()) && !(item.item_code || '').toLowerCase().includes(itemNameFilter.toLowerCase())) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const str = `${item.id_cek_fisik} ${item.item_code} ${item.item_name} ${item.batch} ${item.lpn_serial_number} ${item.status} ${item.tujuan} ${item.note}`.toLowerCase();
+        const str = `${item.id_cek_fisik} ${item.item_code} ${item.item_name} ${item.location || ''} ${item.batch} ${item.lpn_serial_number} ${item.status} ${item.tujuan} ${item.note}`.toLowerCase();
         if (!str.includes(q)) return false;
       }
       return true;
@@ -688,7 +702,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         console.error('Error updating status inline:', e);
       }
     }
-    showToast('Status Diperbarui', `Status item diubah menjadi "${newStatus}"`, 'success');
   };
 
   // Bulk Status Update
@@ -2016,8 +2029,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   return (
     <div className="space-y-3 text-slate-800">
 
-      {/* ACTION TOOLBAR BUTTONS */}
-      <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+      {/* ACTION TOOLBAR BUTTONS (Desktop Only) */}
+      <div className="hidden lg:flex p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex-wrap items-center justify-between gap-2">
         
         {/* Left Side: CRUD & Actions */}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -2090,7 +2103,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           {/* Download Template Excel */}
           <button
             onClick={downloadExcelTemplate}
-            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
             title="Download Template Format Excel Sesuai Kolom Database"
           >
             <FileSpreadsheet size={13} className="text-emerald-700" />
@@ -2162,6 +2175,22 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             )}
           </div>
 
+          {/* Quick Filter: Location */}
+          <select
+            value={locationFilter}
+            onChange={(e) => { setLocationFilter(e.target.value); setCurrentPage(1); }}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none focus:ring-1.5 focus:ring-rose-500 ${
+              isLocationFiltered
+                ? 'border-rose-300 bg-rose-50/80 text-rose-800'
+                : 'border-slate-200 bg-slate-50 text-slate-700'
+            }`}
+          >
+            <option value="ALL">Semua Location ({uniqueLocations.length})</option>
+            {uniqueLocations.map(loc => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
+
           {/* Quick Filter: Status */}
           <select
             value={statusFilter}
@@ -2186,7 +2215,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             ))}
           </select>
 
-          {/* Selection Actions */}
+          {/* Selection Actions & Mobile Controls */}
           <div className="flex items-center gap-1">
             <button
               onClick={handleSelectAllFiltered}
@@ -2202,6 +2231,27 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 Batal ({selectedIds.length})
               </button>
             )}
+            {selectedIds.length > 0 && isSuperAdmin && (
+              <button
+                onClick={handleBulkDelete}
+                className="inline-flex lg:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition-all cursor-pointer"
+                title="Hapus Data Terpilih"
+              >
+                <Trash2 size={13} />
+                <span>Hapus ({selectedIds.length})</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setIsRefreshing(true);
+                fetchCekFisikData();
+              }}
+              disabled={isLoading || isRefreshing}
+              className="lg:hidden p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 transition-all cursor-pointer disabled:opacity-50"
+              title="Muat Ulang Data"
+            >
+              <RefreshCw size={13} className={isLoading || isRefreshing ? 'animate-spin text-rose-600' : ''} />
+            </button>
           </div>
         </div>
       </div>
@@ -2221,10 +2271,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                   />
                 </th>
                 <th className="p-2.5 whitespace-nowrap">STATUS</th>
-                <th className="p-2.5 whitespace-nowrap">LOCATION</th>
+                {!isLocationFiltered && (
+                  <th className="p-2.5 whitespace-nowrap">LOCATION</th>
+                )}
                 <th className="p-2.5 whitespace-nowrap">ITEM NAME</th>
                 <th className="p-2.5 whitespace-nowrap text-right">LAST QTY</th>
-                <th className="p-2.5 whitespace-nowrap">UOM</th>
                 <th className="p-2.5 whitespace-nowrap text-right">QTY CONVERT</th>
                 <th className="p-2.5 whitespace-nowrap">BATCH</th>
                 <th className="p-2.5 whitespace-nowrap">EXPIRED DATE</th>
@@ -2236,16 +2287,16 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             <tbody className="divide-y divide-slate-100 font-medium">
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-slate-400">
+                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-8 text-center text-slate-400">
                     <RefreshCw size={24} className="animate-spin mx-auto text-rose-600 mb-2" />
                     Memuat data cek fisik...
                   </td>
                 </tr>
               ) : paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-slate-400">
+                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-8 text-center text-slate-400">
                     <Boxes size={32} className="mx-auto text-slate-300 mb-2" />
-                    Belum ada data cek fisik. Klik "Tambah Cek Fisik" atau "Upload Excel".
+                    Belum ada data cek fisik.
                   </td>
                 </tr>
               ) : (
@@ -2291,9 +2342,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       </td>
 
                       {/* 2. LOCATION */}
-                      <td className="p-2.5 text-slate-700 whitespace-nowrap font-medium">
-                        {item.location || 'WH-REJECT-01'}
-                      </td>
+                      {!isLocationFiltered && (
+                        <td className="p-2.5 text-slate-700 whitespace-nowrap font-medium">
+                          {item.location || 'WH-REJECT-01'}
+                        </td>
+                      )}
 
                       {/* 3. ITEM NAME */}
                       <td className="p-2.5 text-slate-900 font-semibold max-w-xs truncate" title={item.item_name}>
@@ -2306,32 +2359,27 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                         {item.last_qty ?? 0}
                       </td>
 
-                      {/* 5. UOM */}
-                      <td className="p-2.5 text-slate-600 whitespace-nowrap">
-                        {item.uom || 'CTN'}
-                      </td>
-
-                      {/* 6. QTY CONVERT */}
+                      {/* 5. QTY CONVERT */}
                       <td className="p-2.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
                         {item.qty_convert ?? 0} <span className="text-[10px] font-normal text-slate-500">{item.uom_convert || 'PCS'}</span>
                       </td>
 
-                      {/* 7. BATCH */}
+                      {/* 6. BATCH */}
                       <td className="p-2.5 font-mono text-slate-700 whitespace-nowrap">
                         {item.batch || '-'}
                       </td>
 
-                      {/* 8. EXPIRED DATE */}
+                      {/* 7. EXPIRED DATE */}
                       <td className="p-2.5 font-mono text-slate-600 whitespace-nowrap">
                         {item.expired_date || '-'}
                       </td>
 
-                      {/* 9. NOTE */}
+                      {/* 8. NOTE */}
                       <td className="p-2.5 text-slate-600 max-w-xs truncate" title={item.note || '-'}>
                         {item.note || '-'}
                       </td>
 
-                      {/* 10. TUJUAN */}
+                      {/* 9. TUJUAN */}
                       <td className="p-2.5 text-slate-600 whitespace-nowrap">
                         {item.tujuan || 'Check Fisik Pemusnahan'}
                       </td>

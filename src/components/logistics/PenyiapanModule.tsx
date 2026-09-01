@@ -3729,9 +3729,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     <div className="space-y-2 sm:space-y-2.5 animate-fade-in text-slate-800">
       
       {/* ========================================================================= */}
-      {/* ACTION TOOLBAR BUTTONS */}
+      {/* ACTION TOOLBAR BUTTONS - Only shown on Desktop (hidden on Mobile & Tablet) */}
       {/* ========================================================================= */}
-      <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-1.5">
+      <div className="hidden lg:flex p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex-wrap items-center justify-between gap-1.5">
         
         {/* Left Side: CRUD & Import Actions */}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -4354,7 +4354,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     )}
                   </button>
                 </th>
-                <th className="px-2 py-1.5 text-center w-10">No</th>
                 <th className="px-2 py-1.5 text-center sticky left-0 bg-slate-100 z-10 w-24">Status</th>
                 {!isLocationFiltered && (
                   <th onClick={() => handleSort('location')} className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'location' ? 'bg-indigo-50/80 text-indigo-950 font-black' : ''}`}>
@@ -4390,20 +4389,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <div className="flex items-center justify-end gap-1">
                     <span>Last Qty</span>
                     {sortField === 'last_qty' ? (
-                      sortOrder === 'asc' ? (
-                        <ArrowUp size={12} className="text-slate-900 font-black" />
-                      ) : (
-                        <ArrowDown size={12} className="text-slate-900 font-black" />
-                      )
-                    ) : (
-                      <ArrowUpDown size={11} className="text-slate-400" />
-                    )}
-                  </div>
-                </th>
-                <th onClick={() => handleSort('uom')} className={`px-2.5 py-1.5 text-center cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'uom' ? 'bg-slate-200/80 text-slate-950 font-black' : ''}`}>
-                  <div className="flex items-center justify-center gap-1">
-                    <span>Uom</span>
-                    {sortField === 'uom' ? (
                       sortOrder === 'asc' ? (
                         <ArrowUp size={12} className="text-slate-900 font-black" />
                       ) : (
@@ -4489,7 +4474,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 11 : 12} className="p-6 text-center text-slate-500 font-bold">
+                  <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-blue-900" />
                       <span>Memuat data penyiapan dari database...</span>
@@ -4498,7 +4483,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 11 : 12} className="p-6 text-center text-slate-500">
+                  <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Boxes size={28} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Penyiapan</span>
@@ -4587,11 +4572,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         </button>
                       </td>
 
-                      {/* No */}
-                      <td className="px-2 py-1.5 text-center text-slate-400 font-mono text-[10px]">
-                        {rowNumber}
-                      </td>
-
                       {/* Status Sticky Column */}
                       <td 
                         className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${stickyCellBgClass}`}
@@ -4635,13 +4615,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                       <td className="px-2.5 py-1.5 text-right min-w-[80px]">
                         <span className="font-mono font-black text-emerald-800 bg-emerald-50/70 px-2 py-0.5 rounded border border-emerald-200/60 text-xs inline-block">
                           {Number(item.last_qty || 0).toLocaleString('id-ID')}
-                        </span>
-                      </td>
-
-                      {/* Uom */}
-                      <td className="px-2.5 py-1.5 text-center min-w-[65px]">
-                        <span className="font-bold text-slate-700 text-xs uppercase">
-                          {item.uom || 'CTN'}
                         </span>
                       </td>
 
