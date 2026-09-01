@@ -330,15 +330,15 @@ export default function App() {
           onRequestNotificationPermission={requestNotificationPermission}
           isNotificationSupported={isNotificationSupported}
           isBridgeActive={isBridgeActive}
-          onOpenBridgeSettings={() => {
+          onOpenBridgeSettings={isAdmin ? () => {
             setDbModalTab('bridge');
             setShowDbModal(true);
-          }}
+          } : undefined}
         />
       )}
 
-      {/* Database & Cross-App Broadcast Bridge Configuration Modal */}
-      {showDbModal && (
+      {/* Database & Cross-App Broadcast Bridge Configuration Modal (Khusus Admin) */}
+      {isAdmin && showDbModal && (
         <SupabaseConnectionModal
           isOpen={showDbModal}
           onClose={() => setShowDbModal(false)}

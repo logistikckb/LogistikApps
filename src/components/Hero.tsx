@@ -99,8 +99,8 @@ export function Hero() {
         />
       )}
 
-      {/* Modal Status Server & Jembatan Siaran Antar-Aplikasi */}
-      {showDbModal && (
+      {/* Modal Status Server & Jembatan Siaran Antar-Aplikasi (Khusus Admin) */}
+      {isAdmin && showDbModal && (
         <SupabaseConnectionModal
           isOpen={showDbModal}
           onClose={() => setShowDbModal(false)}
@@ -274,15 +274,17 @@ export function Hero() {
                 <span>Ganti PIN</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowDbModal(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-900 border border-slate-200/80 hover:border-blue-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-                title="Status database server & jembatan siaran antar-aplikasi"
-              >
-                <Database size={12} className="text-blue-700" />
-                <span>Server & Jembatan</span>
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowDbModal(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-900 border border-slate-200/80 hover:border-blue-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                  title="Status database server & jembatan siaran antar-aplikasi"
+                >
+                  <Database size={12} className="text-blue-700" />
+                  <span>Server & Jembatan</span>
+                </button>
+              )}
 
               {isAdmin && (
                 <button

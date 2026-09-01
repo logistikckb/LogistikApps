@@ -275,8 +275,8 @@ export function BroadcastModal({
         <div className="p-4 sm:p-5 overflow-y-auto flex-1 bg-white">
           {activeTab === 'compose' ? (
             <form onSubmit={handleSendBroadcast} className="space-y-3.5">
-              {/* Cross-App Bridge Connection Banner */}
-              {onOpenBridgeSettings && (
+              {/* Cross-App Bridge Connection Banner (Khusus Admin) */}
+              {isAdmin && onOpenBridgeSettings && (
                 <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition-all ${
                   isBridgeActive 
                     ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' 
