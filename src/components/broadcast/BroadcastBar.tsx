@@ -46,7 +46,7 @@ export function BroadcastBar({
             ? 'bg-rose-50 text-rose-700 border border-rose-200' 
             : 'bg-blue-50 text-blue-700 border border-blue-200'
         } px-2.5 py-1 rounded-xl font-bold text-[11px] uppercase tracking-wider shrink-0`}>
-          <Radio size={13} className={hasMessages ? "text-rose-500 animate-pulse" : "text-blue-500 animate-pulse"} />
+          <Radio size={13} className={hasMessages ? "text-rose-600" : "text-blue-600"} />
           <span>SIARAN PUBLIK</span>
           {messageCount > 0 && (
             <span className="bg-white text-slate-800 border border-slate-200 px-1.5 py-0.2 rounded-full text-[9px] font-bold">
@@ -106,7 +106,7 @@ export function BroadcastBar({
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-1 bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
               title="Klik untuk mengaktifkan notifikasi pop-up desktop agar siaran tetap muncul saat Anda membuka tab/aplikasi lain"
             >
-              <BellRing size={13} className="text-amber-700 animate-bounce" />
+              <BellRing size={13} className="text-amber-700" />
               <span className="hidden md:inline text-[10px]">Aktifkan Notif Layar</span>
             </button>
           )

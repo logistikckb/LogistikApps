@@ -195,25 +195,25 @@ export function BroadcastModal({
 
   return typeof document !== "undefined" ? createPortal(
     <div 
-      className="fixed inset-0 z-[800] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[800] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+        className="w-full max-w-md bg-white rounded-xl shadow-xl border border-slate-300 overflow-hidden flex flex-col max-h-[85vh]"
         onClick={e => e.stopPropagation()}
       >
-        {/* Simple Modern Header */}
-        <div className="px-4 py-3 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
+        {/* Header Sederhana & Cepat */}
+        <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 shadow-md shrink-0 border border-amber-300">
+            <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 shadow-xs shrink-0 font-bold">
               <MailOpen size={16} className="text-slate-950" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-white tracking-tight leading-none truncate m-0 flex items-center gap-1.5">
                 <span>Kirim Pesan Siaran</span>
               </h3>
-              <p className="text-[11px] text-amber-200/90 font-medium m-0 mt-0.5 truncate">
-                Disampaikan via Animasi Amplop Siaran ke semua perangkat
+              <p className="text-[11px] text-amber-300 font-medium m-0 mt-0.5 truncate">
+                Disiarkan langsung ke seluruh perangkat aktif
               </p>
             </div>
           </div>
@@ -324,7 +324,7 @@ export function BroadcastModal({
                     {notificationPermission === 'granted' ? (
                       <CheckCircle2 size={16} className="text-blue-600 shrink-0" />
                     ) : (
-                      <BellRing size={16} className="text-amber-600 animate-bounce shrink-0" />
+                      <BellRing size={16} className="text-amber-600 shrink-0" />
                     )}
                     <div className="min-w-0">
                       <p className="font-bold text-[11px] leading-tight m-0">

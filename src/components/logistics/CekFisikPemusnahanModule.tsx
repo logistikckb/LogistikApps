@@ -189,8 +189,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [itemNameFilter, setItemNameFilter] = useState<string>('');
-  const [sortField, setSortField] = useState<keyof CekFisikPemusnahanItem>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortField, setSortField] = useState<keyof CekFisikPemusnahanItem>('location');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Multi-Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -520,14 +520,25 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       }
       return true;
     }).sort((a, b) => {
-      const valA = a[sortField] || '';
-      const valB = b[sortField] || '';
+      const valA = a[sortField] ?? '';
+      const valB = b[sortField] ?? '';
       if (typeof valA === 'number' && typeof valB === 'number') {
         return sortOrder === 'asc' ? valA - valB : valB - valA;
       }
-      return sortOrder === 'asc' ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
+      return sortOrder === 'asc'
+        ? String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' })
+        : String(valB).localeCompare(String(valA), undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [cekFisikList, categoryFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, locationFilter, itemNameFilter, searchQuery, sortField, sortOrder]);
+
+  const handleSortColumn = (field: keyof CekFisikPemusnahanItem) => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
 
   // Pagination
   const paginatedList = useMemo(() => {
@@ -2293,17 +2304,121 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
                   />
                 </th>
-                <th className="p-2.5 whitespace-nowrap">STATUS</th>
+                <th
+                  onClick={() => handleSortColumn('status')}
+                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Status"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>STATUS</span>
+                    {sortField === 'status' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
                 {!isLocationFiltered && (
-                  <th className="p-2.5 whitespace-nowrap">LOCATION</th>
+                  <th
+                    onClick={() => handleSortColumn('location')}
+                    className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                    title="Klik untuk sort Location"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>LOCATION</span>
+                      {sortField === 'location' ? (
+                        sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                      ) : (
+                        <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                      )}
+                    </div>
+                  </th>
                 )}
-                <th className="p-2.5 whitespace-nowrap">ITEM NAME</th>
-                <th className="p-2.5 whitespace-nowrap text-right">LAST QTY</th>
-                <th className="p-2.5 whitespace-nowrap text-right">QTY CONVERT</th>
-                <th className="p-2.5 whitespace-nowrap">BATCH</th>
-                <th className="p-2.5 whitespace-nowrap">EXPIRED DATE</th>
+                <th
+                  onClick={() => handleSortColumn('item_name')}
+                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Item Name"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>ITEM NAME</span>
+                    {sortField === 'item_name' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortColumn('last_qty')}
+                  className="p-2.5 whitespace-nowrap text-right cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Last Qty"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>LAST QTY</span>
+                    {sortField === 'last_qty' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortColumn('qty_convert')}
+                  className="p-2.5 whitespace-nowrap text-right cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Qty Convert"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>QTY CONVERT</span>
+                    {sortField === 'qty_convert' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortColumn('batch')}
+                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Batch"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>BATCH</span>
+                    {sortField === 'batch' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortColumn('expired_date')}
+                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Expired Date"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>EXPIRED DATE</span>
+                    {sortField === 'expired_date' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
                 <th className="p-2.5 whitespace-nowrap">NOTE</th>
-                <th className="p-2.5 whitespace-nowrap">TUJUAN</th>
+                <th
+                  onClick={() => handleSortColumn('tujuan')}
+                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  title="Klik untuk sort Tujuan"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>TUJUAN</span>
+                    {sortField === 'tujuan' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
                 <th className="p-2.5 whitespace-nowrap text-center">AKSI</th>
               </tr>
             </thead>
