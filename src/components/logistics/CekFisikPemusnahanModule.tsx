@@ -256,10 +256,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [pastedRawText, setPastedRawText] = useState('');
   const [pastedRows, setPastedRows] = useState<CekFisikPemusnahanItem[]>([]);
-  const [pasteHasHeader, setPasteHasHeader] = useState(true);
-  const [pasteFormatPreset, setPasteFormatPreset] = useState<'auto' | 'cek_fisik_11' | 'db_full'>('auto');
   const [previewColumnView, setPreviewColumnView] = useState<'all_db' | 'compact'>('all_db');
-  const [pasteDefaultTujuan, setPasteDefaultTujuan] = useState<string>('Check Fisik Pemusnahan');
+  const [pasteDefaultTujuan, setPasteDefaultTujuan] = useState<string>('');
   const [isSavingPastedRows, setIsSavingPastedRows] = useState(false);
   const [pasteSaveProgress, setPasteSaveProgress] = useState<{ current: number; total: number; percentage: number; statusText: string }>({
     current: 0,
@@ -1023,58 +1021,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const handleOpenPasteModal = () => {
     setPastedRawText('');
     setPastedRows([]);
-    setPasteHasHeader(true);
-    setPasteFormatPreset('auto');
+    setPasteDefaultTujuan('');
     setPreviewColumnView('all_db');
     setShowPasteModal(true);
-  };
-
-  const handleCopyPasteTemplateHeader = (formatType: 'cek_fisik_11' | 'db_full' = 'cek_fisik_11') => {
-    if (formatType === 'cek_fisik_11') {
-      const headers = [
-        'STATUS',
-        'LOCATION',
-        'ITEM CODE',
-        'ITEM NAME',
-        'LAST QTY',
-        'UOM',
-        'QTY CONVERT',
-        'BATCH',
-        'EXPIRED DATE',
-        'NOTE',
-        'TUJUAN'
-      ];
-      navigator.clipboard.writeText(headers.join('\t'));
-      showToast('Format 11 Kolom Disalin', 'Header 11 kolom Cek Fisik berhasil disalin ke clipboard! Silakan paste di baris 1 Excel Anda.', 'success');
-    } else {
-      const headers = [
-        'Item Code',
-        'Item Name',
-        'Category',
-        'Location',
-        'Location Type',
-        'First Qty',
-        'Last Qty',
-        'Uom',
-        'Qty Convert',
-        'Uom Convert',
-        'LPN/Serial Number',
-        'Batch',
-        'Vendor Batch',
-        'SLOC',
-        'Expired Date',
-        'Destination Code',
-        'QC Code',
-        'User Tally',
-        'Shelf Life',
-        'Source',
-        'Status',
-        'Note',
-        'Tujuan'
-      ];
-      navigator.clipboard.writeText(headers.join('\t'));
-      showToast('Format 23 Kolom Disalin', 'Header 23 kolom Database berhasil disalin ke clipboard! Silakan paste di baris 1 Excel Anda.', 'success');
-    }
   };
 
   const normalizeKey = (key: string) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1255,8 +1204,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
   const parsePastedText = (
     rawText: string,
-    forceHasHeader?: boolean,
-    presetOverride?: 'auto' | 'cek_fisik_11' | 'db_full'
+    defaultTujuanOverride?: string
   ) => {
     if (!rawText || !rawText.trim()) {
       setPastedRows([]);
@@ -1308,25 +1256,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     const parsedMatrix = lines.map(l => splitRow(l));
     if (parsedMatrix.length === 0) return;
 
-    const firstRow = parsedMatrix[0];
-    const firstRowNorm = firstRow.map(c => normalizeKey(c));
-    let detectedHeaderMatches = 0;
-
-    firstRowNorm.forEach(cellNorm => {
-      if (!cellNorm) return;
-      for (const fieldKey of Object.keys(fieldSynonyms)) {
-        const synonyms = fieldSynonyms[fieldKey as keyof typeof fieldSynonyms] || [];
-        if (synonyms.some(s => s === cellNorm || (cellNorm.length >= 4 && (cellNorm.includes(s) || s.includes(cellNorm))))) {
-          detectedHeaderMatches++;
-          break;
-        }
-      }
-    });
-
-    const detectedHasHeader = forceHasHeader !== undefined ? forceHasHeader : (detectedHeaderMatches >= 2);
-    setPasteHasHeader(detectedHasHeader);
-
-    const effectivePreset = presetOverride || pasteFormatPreset;
     const nowIso = new Date().toISOString();
     const datePrefix = nowIso.slice(0, 10).replace(/-/g, '');
 
@@ -1335,163 +1264,170 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       if (b.item_code) barangMap.set(b.item_code.trim().toLowerCase(), b);
     });
 
-    let resultRows: CekFisikPemusnahanItem[] = [];
+    const activeDefaultTujuan = defaultTujuanOverride !== undefined ? defaultTujuanOverride : pasteDefaultTujuan;
 
-    if (detectedHasHeader) {
-      // Mapping berbasis header
-      const columnMap = resolveHeaderColumnMap(firstRow);
-      const dataRows = parsedMatrix.slice(1);
+    // Semua baris yang dipaste langsung masuk ke tabel dari baris pertama (index 0)
+    const dataRows = parsedMatrix.filter(row => row.some(c => c && c.trim().length > 0));
 
-      resultRows = dataRows.filter(row => row.some(c => c && c.trim().length > 0)).map((cols, rowIdx) => {
-        const getVal = (field: keyof CekFisikPemusnahanItem): string => {
-          const idx = columnMap[field];
-          if (idx !== undefined && idx < cols.length) {
-            return cols[idx]?.trim() || '';
-          }
-          return '';
-        };
+    const resultRows: CekFisikPemusnahanItem[] = dataRows.map((row, rowIdx) => {
+      // Cek apakah kolom pertama adalah nomor urut (No: 1, 2, 3, 12, dll)
+      const rawCell0 = (row[0] || '').trim();
+      const rawCell1 = (row[1] || '').trim();
+      const isFirstColRowNumber = /^\d{1,4}$/.test(rawCell0) && (
+        /^[A-Za-z0-9._/-]{4,}$/.test(rawCell1) ||
+        rawCell1.toUpperCase().startsWith('SKU') ||
+        rawCell1.toUpperCase().startsWith('FG') ||
+        rawCell1.toUpperCase().startsWith('CKF-') ||
+        rawCell1.toUpperCase().startsWith('PEN-') ||
+        rawCell1.length >= 4 ||
+        barangMap.has(rawCell1.toLowerCase())
+      );
 
-        let itemCode = getVal('item_code');
-        let itemName = getVal('item_name');
+      const r = isFirstColRowNumber ? row.slice(1) : row;
+      const colCount = r.length;
 
-        if (!itemCode) {
-          for (let i = 0; i < cols.length; i++) {
-            const val = cols[i]?.trim();
-            if (val && barangMap.has(val.toLowerCase())) {
-              itemCode = val;
-              break;
-            }
-          }
-        }
+      let id_cek_fisik = '';
+      let tujuan = '';
+      let item_code = '';
+      let item_name = '';
+      let category = 'Damaged';
+      let location = 'WH-REJECT-01';
+      let location_type = 'Quarantine';
+      let first_qty = 0;
+      let last_qty = 0;
+      let uom = 'CTN';
+      let qty_convert = 0;
+      let uom_convert = 'PCS';
+      let lpn_serial_number = '-';
+      let batch = '-';
+      let vendor_batch = '-';
+      let sloc = 'SL99';
+      let expired_date = '-';
+      let destination_code = 'INCINERATOR';
+      let qc_code = 'QC-REJECT';
+      let user_tally = currentUser?.nama || 'Tally QC';
+      let shelf_life = 'Expired';
+      let source = 'Retur Customer';
+      let status: 'Cek' | 'Ada' | 'Beda' | 'Tidak' = 'Cek';
+      let note = '';
 
-        const matchedMaster = itemCode ? barangMap.get(itemCode.toLowerCase()) : undefined;
-        if (matchedMaster && !itemName) {
-          itemName = matchedMaster.item_name;
-        }
+      const getCol = (idx: number) => (idx < r.length && r[idx] !== undefined ? String(r[idx]).trim() : '');
 
-        const batchVal = getVal('batch') || '-';
-        let expDateVal = parseDateToIso(getVal('expired_date'));
+      if (colCount >= 16) {
+        // Format Database / Export Gudang (20-25 Kolom)
+        const cell0 = getCol(0);
+        const startsWithId = cell0.toUpperCase().startsWith('CKF-') || cell0.toUpperCase().startsWith('PEN-') || cell0.toUpperCase().startsWith('PMS-');
 
-        if ((!expDateVal || expDateVal === '-') && batchVal !== '-' && (itemCode || itemName)) {
-          const calc = getEdIsoDateString(itemCode, itemName, batchVal);
-          if (calc && calc.isoDate) {
-            expDateVal = calc.isoDate;
-          }
-        }
-
-        const lastQtyNum = cleanNumber(getVal('last_qty'));
-        const firstQtyNum = cleanNumber(getVal('first_qty')) || lastQtyNum;
-        const qtyConvNum = cleanNumber(getVal('qty_convert'));
-
-        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-        const rowId = `CKF-${datePrefix}-${randomSuffix}-${String(rowIdx + 1).padStart(3, '0')}`;
-
-        return {
-          id_cek_fisik: getVal('id_cek_fisik') || rowId,
-          tujuan: getVal('tujuan') || pasteDefaultTujuan || 'Check Fisik Pemusnahan',
-          item_code: itemCode,
-          item_name: itemName || matchedMaster?.item_name || 'Item Tanpa Nama',
-          category: getVal('category') || matchedMaster?.category || 'Damaged',
-          location: getVal('location') || 'WH-REJECT-01',
-          location_type: getVal('location_type') || 'Quarantine',
-          first_qty: firstQtyNum,
-          last_qty: lastQtyNum,
-          uom: getVal('uom') || matchedMaster?.uom || 'CTN',
-          qty_convert: qtyConvNum,
-          uom_convert: getVal('uom_convert') || 'PCS',
-          lpn_serial_number: getVal('lpn_serial_number') || '-',
-          batch: batchVal,
-          vendor_batch: getVal('vendor_batch') || '-',
-          sloc: getVal('sloc') || 'SL99',
-          expired_date: expDateVal,
-          destination_code: getVal('destination_code') || 'INCINERATOR',
-          qc_code: getVal('qc_code') || 'QC-REJECT',
-          user_tally: getVal('user_tally') || currentUser?.nama || 'Tally QC',
-          shelf_life: getVal('shelf_life') || 'Expired',
-          source: getVal('source') || 'Retur Customer',
-          user_input: currentUser?.nama || 'QA Officer',
-          tanggal_update: nowIso,
-          status: normalizeStatus(getVal('status')),
-          note: getVal('note') || '',
-          created_at: nowIso,
-          updated_at: nowIso
-        };
-      });
-    } else {
-      // Positional Mapping (Tanpa Header / Header Tidak Terdeteksi)
-      const dataRows = parsedMatrix.filter(row => row.some(c => c && c.trim().length > 0));
-
-      resultRows = dataRows.map((row, rowIdx) => {
-        // Cek apakah kolom pertama adalah nomor urut (No: 1, 2, 3, 12, dll)
-        const rawCell0 = (row[0] || '').trim();
-        const rawCell1 = (row[1] || '').trim();
-        const isFirstColRowNumber = /^\d{1,4}$/.test(rawCell0) && (
-          /^[A-Za-z0-9._/-]{4,}$/.test(rawCell1) ||
-          rawCell1.toUpperCase().startsWith('SKU') ||
-          rawCell1.toUpperCase().startsWith('FG') ||
-          rawCell1.toUpperCase().startsWith('CKF-') ||
-          rawCell1.toUpperCase().startsWith('PEN-') ||
-          rawCell1.length >= 4 ||
-          barangMap.has(rawCell1.toLowerCase())
-        );
-
-        const r = isFirstColRowNumber ? row.slice(1) : row;
-        const colCount = r.length;
-
-        let id_cek_fisik = '';
-        let tujuan = pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-        let item_code = '';
-        let item_name = '';
-        let category = 'Damaged';
-        let location = 'WH-REJECT-01';
-        let location_type = 'Quarantine';
-        let first_qty = 0;
-        let last_qty = 0;
-        let uom = 'CTN';
-        let qty_convert = 0;
-        let uom_convert = 'PCS';
-        let lpn_serial_number = '-';
-        let batch = '-';
-        let vendor_batch = '-';
-        let sloc = 'SL99';
-        let expired_date = '-';
-        let destination_code = 'INCINERATOR';
-        let qc_code = 'QC-REJECT';
-        let user_tally = currentUser?.nama || 'Tally QC';
-        let shelf_life = 'Expired';
-        let source = 'Retur Customer';
-        let status: 'Cek' | 'Ada' | 'Beda' | 'Tidak' = 'Cek';
-        let note = '';
-
-        const getCol = (idx: number) => (idx < r.length && r[idx] !== undefined ? String(r[idx]).trim() : '');
-
-        // Deteksi Mode Layout Posisi
-        let determinedMode: 'cek_fisik_11' | 'db_full' | 'short_sku' = 'db_full';
-        if (effectivePreset === 'cek_fisik_11') {
-          determinedMode = 'cek_fisik_11';
-        } else if (effectivePreset === 'db_full') {
-          determinedMode = 'db_full';
-        } else {
-          // Auto-detect berdasarkan panjang kolom dan pola isi
-          if (colCount >= 16) {
-            determinedMode = 'db_full';
-          } else if (colCount >= 9 && colCount <= 15) {
-            const c0 = getCol(0).toLowerCase();
-            if (c0 === 'ada' || c0 === 'beda' || c0 === 'tidak' || c0 === 'cek' || c0 === 'good' || c0 === 'reject' || c0 === 'ok') {
-              determinedMode = 'cek_fisik_11';
-            } else if (getCol(1).toUpperCase().includes('CKB') || getCol(1).toUpperCase().includes('WH') || getCol(1).toUpperCase().includes('RAK')) {
-              determinedMode = 'cek_fisik_11';
-            } else {
-              determinedMode = 'db_full';
-            }
+        if (startsWithId) {
+          id_cek_fisik = getCol(0);
+          if (['ada', 'beda', 'tidak', 'cek', 'good', 'reject'].includes(getCol(1).toLowerCase())) {
+            status = normalizeStatus(getCol(1));
+            item_code = getCol(2);
+            item_name = getCol(3);
+            category = getCol(4) || 'Damaged';
+            location = getCol(5) || 'WH-REJECT-01';
+            location_type = getCol(6) || 'Quarantine';
+            first_qty = cleanNumber(getCol(7));
+            last_qty = cleanNumber(getCol(8)) || first_qty;
+            uom = getCol(9) || 'CTN';
+            qty_convert = cleanNumber(getCol(10));
+            uom_convert = getCol(11) || 'PCS';
+            lpn_serial_number = getCol(12) || '-';
+            batch = getCol(13) || '-';
+            vendor_batch = getCol(14) || '-';
+            sloc = getCol(15) || 'SL99';
+            expired_date = parseDateToIso(getCol(16));
+            destination_code = getCol(17) || 'INCINERATOR';
+            qc_code = getCol(18) || 'QC-REJECT';
+            user_tally = getCol(19) || currentUser?.nama || 'Tally QC';
+            shelf_life = getCol(20) || 'Expired';
+            source = getCol(21) || 'Retur Customer';
+            note = getCol(22);
+            tujuan = getCol(23);
           } else {
-            determinedMode = 'short_sku';
+            item_code = getCol(1);
+            item_name = getCol(2);
+            category = getCol(3) || 'Damaged';
+            location = getCol(4) || 'WH-REJECT-01';
+            location_type = getCol(5) || 'Quarantine';
+            first_qty = cleanNumber(getCol(6));
+            last_qty = cleanNumber(getCol(7)) || first_qty;
+            uom = getCol(8) || 'CTN';
+            qty_convert = cleanNumber(getCol(9));
+            uom_convert = getCol(10) || 'PCS';
+            lpn_serial_number = getCol(11) || '-';
+            batch = getCol(12) || '-';
+            vendor_batch = getCol(13) || '-';
+            sloc = getCol(14) || 'SL99';
+            expired_date = parseDateToIso(getCol(15));
+            destination_code = getCol(16) || 'INCINERATOR';
+            qc_code = getCol(17) || 'QC-REJECT';
+            user_tally = getCol(18) || currentUser?.nama || 'Tally QC';
+            shelf_life = getCol(19) || 'Expired';
+            source = getCol(20) || 'Retur Customer';
+            status = normalizeStatus(getCol(21));
+            note = getCol(22);
+            tujuan = getCol(23);
+          }
+        } else {
+          // Layout Standar Tabel Database Gudang
+          item_code = getCol(0);
+          item_name = getCol(1);
+          category = getCol(2) || 'Damaged';
+          location = getCol(3) || 'WH-REJECT-01';
+
+          const cell4IsNum = /^[0-9.,-]+$/.test(getCol(4)) && getCol(4).length > 0;
+
+          if (cell4IsNum) {
+            first_qty = cleanNumber(getCol(4));
+            last_qty = cleanNumber(getCol(5)) || first_qty;
+            uom = getCol(6) || 'CTN';
+            qty_convert = cleanNumber(getCol(7));
+            uom_convert = getCol(8) || 'PCS';
+            lpn_serial_number = getCol(9) || '-';
+            batch = getCol(10) || '-';
+            vendor_batch = getCol(11) || '-';
+            sloc = getCol(12) || 'SL99';
+            expired_date = parseDateToIso(getCol(13));
+            destination_code = getCol(14) || 'INCINERATOR';
+            qc_code = getCol(15) || 'QC-REJECT';
+            source = getCol(16) || 'Retur Customer';
+            status = normalizeStatus(getCol(17));
+            user_tally = getCol(18) || currentUser?.nama || 'Tally QC';
+            shelf_life = getCol(19) || 'Expired';
+            note = getCol(21) || getCol(20);
+            tujuan = getCol(22);
+          } else {
+            location_type = getCol(4) || 'Quarantine';
+            first_qty = cleanNumber(getCol(5));
+            last_qty = cleanNumber(getCol(6)) || first_qty;
+            uom = getCol(7) || 'CTN';
+            qty_convert = cleanNumber(getCol(8));
+            uom_convert = getCol(9) || 'PCS';
+            lpn_serial_number = getCol(10) || '-';
+            batch = getCol(11) || '-';
+            vendor_batch = getCol(12) || '-';
+            sloc = getCol(13) || 'SL99';
+            expired_date = parseDateToIso(getCol(14));
+            destination_code = getCol(15) || 'INCINERATOR';
+            qc_code = getCol(16) || 'QC-REJECT';
+            user_tally = getCol(17) || currentUser?.nama || 'Tally QC';
+            shelf_life = getCol(18) || 'Expired';
+            source = getCol(19) || 'Retur Customer';
+            status = normalizeStatus(getCol(20));
+            note = getCol(21);
+            tujuan = getCol(22);
           }
         }
+      } else if (colCount >= 8 && colCount <= 15) {
+        // Format 11 Kolom Form Cek Fisik:
+        // [0] STATUS | [1] LOCATION | [2] ITEM CODE | [3] ITEM NAME | [4] LAST QTY | [5] UOM | [6] QTY CONVERT | [7] BATCH | [8] EXPIRED DATE | [9] NOTE | [10] TUJUAN
+        const c0 = getCol(0).toLowerCase();
+        const c1 = getCol(1).toUpperCase();
+        const isStatusFirst = ['ada', 'beda', 'tidak', 'cek', 'good', 'reject', 'ok', 'pass'].includes(c0) ||
+          c1.includes('WH') || c1.includes('RAK') || c1.includes('BIN') || c1.includes('CKB') || c1.includes('SL');
 
-        if (determinedMode === 'cek_fisik_11') {
-          // Format 11 Kolom Form Cek Fisik:
-          // [0] STATUS | [1] LOCATION | [2] ITEM CODE | [3] ITEM NAME | [4] LAST QTY | [5] UOM | [6] QTY CONVERT | [7] BATCH | [8] EXPIRED DATE | [9] NOTE | [10] TUJUAN
+        if (isStatusFirst) {
           status = normalizeStatus(getCol(0));
           location = getCol(1) || 'WH-REJECT-01';
           item_code = getCol(2);
@@ -1503,208 +1439,108 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           batch = getCol(7) || '-';
           expired_date = parseDateToIso(getCol(8));
           note = getCol(9);
-          tujuan = getCol(10) || pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-        } else if (determinedMode === 'db_full') {
-          // Format Database / Export Gudang (20-25 Kolom)
-          const cell0 = getCol(0);
-          const startsWithId = cell0.toUpperCase().startsWith('CKF-') || cell0.toUpperCase().startsWith('PEN-') || cell0.toUpperCase().startsWith('PMS-');
-
-          if (startsWithId) {
-            // [0] ID Cek Fisik | [1] Status / Item Code...
-            id_cek_fisik = getCol(0);
-            if (['ada', 'beda', 'tidak', 'cek', 'good', 'reject'].includes(getCol(1).toLowerCase())) {
-              status = normalizeStatus(getCol(1));
-              item_code = getCol(2);
-              item_name = getCol(3);
-              category = getCol(4) || 'Damaged';
-              location = getCol(5) || 'WH-REJECT-01';
-              location_type = getCol(6) || 'Quarantine';
-              first_qty = cleanNumber(getCol(7));
-              last_qty = cleanNumber(getCol(8)) || first_qty;
-              uom = getCol(9) || 'CTN';
-              qty_convert = cleanNumber(getCol(10));
-              uom_convert = getCol(11) || 'PCS';
-              lpn_serial_number = getCol(12) || '-';
-              batch = getCol(13) || '-';
-              vendor_batch = getCol(14) || '-';
-              sloc = getCol(15) || 'SL99';
-              expired_date = parseDateToIso(getCol(16));
-              destination_code = getCol(17) || 'INCINERATOR';
-              qc_code = getCol(18) || 'QC-REJECT';
-              user_tally = getCol(19) || currentUser?.nama || 'Tally QC';
-              shelf_life = getCol(20) || 'Expired';
-              source = getCol(21) || 'Retur Customer';
-              note = getCol(22);
-              tujuan = getCol(23) || pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-            } else {
-              item_code = getCol(1);
-              item_name = getCol(2);
-              category = getCol(3) || 'Damaged';
-              location = getCol(4) || 'WH-REJECT-01';
-              location_type = getCol(5) || 'Quarantine';
-              first_qty = cleanNumber(getCol(6));
-              last_qty = cleanNumber(getCol(7)) || first_qty;
-              uom = getCol(8) || 'CTN';
-              qty_convert = cleanNumber(getCol(9));
-              uom_convert = getCol(10) || 'PCS';
-              lpn_serial_number = getCol(11) || '-';
-              batch = getCol(12) || '-';
-              vendor_batch = getCol(13) || '-';
-              sloc = getCol(14) || 'SL99';
-              expired_date = parseDateToIso(getCol(15));
-              destination_code = getCol(16) || 'INCINERATOR';
-              qc_code = getCol(17) || 'QC-REJECT';
-              user_tally = getCol(18) || currentUser?.nama || 'Tally QC';
-              shelf_life = getCol(19) || 'Expired';
-              source = getCol(20) || 'Retur Customer';
-              status = normalizeStatus(getCol(21));
-              note = getCol(22);
-              tujuan = getCol(23) || pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-            }
-          } else {
-            // Layout Standar Tabel Database Gudang:
-            // [0] Item Code | [1] Item Name | [2] Category | [3] Location ...
-            item_code = getCol(0);
-            item_name = getCol(1);
-            category = getCol(2) || 'Damaged';
-            location = getCol(3) || 'WH-REJECT-01';
-
-            // Cek apakah cell ke-4 adalah Angka (First Qty / PO Qty) atau Text (Location Type)
-            const cell4IsNum = /^[0-9.,-]+$/.test(getCol(4)) && getCol(4).length > 0;
-
-            if (cell4IsNum) {
-              // Layout: Item Code | Item Name | Category | Location | First Qty (4) | Last Qty (5) | UOM (6) | Qty Convert (7) | UOM Convert (8) | LPN (9) | Batch (10) | Vendor Batch (11) | SLOC (12) | Exp Date (13) | Dest Code (14) | QC Code (15) | Source (16) | Status (17) | User Tally (18) | Shelf Life (19)
-              first_qty = cleanNumber(getCol(4));
-              last_qty = cleanNumber(getCol(5)) || first_qty;
-              uom = getCol(6) || 'CTN';
-              qty_convert = cleanNumber(getCol(7));
-              uom_convert = getCol(8) || 'PCS';
-              lpn_serial_number = getCol(9) || '-';
-              batch = getCol(10) || '-';
-              vendor_batch = getCol(11) || '-';
-              sloc = getCol(12) || 'SL99';
-              expired_date = parseDateToIso(getCol(13));
-              destination_code = getCol(14) || 'INCINERATOR';
-              qc_code = getCol(15) || 'QC-REJECT';
-              source = getCol(16) || 'Retur Customer';
-              status = normalizeStatus(getCol(17));
-              user_tally = getCol(18) || currentUser?.nama || 'Tally QC';
-              shelf_life = getCol(19) || 'Expired';
-              note = getCol(21) || getCol(20);
-              tujuan = getCol(22) || pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-            } else {
-              // Layout: Item Code | Item Name | Category | Location | Location Type (4) | First Qty (5) | Last Qty (6) | UOM (7) | Qty Convert (8) | UOM Convert (9) | LPN (10) | Batch (11) | Vendor Batch (12) | SLOC (13) | Exp Date (14) | Dest Code (15) | QC Code (16) | User Tally (17) | Shelf Life (18) | Source (19) | Status (20) | Note (21) | Tujuan (22)
-              location_type = getCol(4) || 'Quarantine';
-              first_qty = cleanNumber(getCol(5));
-              last_qty = cleanNumber(getCol(6)) || first_qty;
-              uom = getCol(7) || 'CTN';
-              qty_convert = cleanNumber(getCol(8));
-              uom_convert = getCol(9) || 'PCS';
-              lpn_serial_number = getCol(10) || '-';
-              batch = getCol(11) || '-';
-              vendor_batch = getCol(12) || '-';
-              sloc = getCol(13) || 'SL99';
-              expired_date = parseDateToIso(getCol(14));
-              destination_code = getCol(15) || 'INCINERATOR';
-              qc_code = getCol(16) || 'QC-REJECT';
-              user_tally = getCol(17) || currentUser?.nama || 'Tally QC';
-              shelf_life = getCol(18) || 'Expired';
-              source = getCol(19) || 'Retur Customer';
-              status = normalizeStatus(getCol(20));
-              note = getCol(21);
-              tujuan = getCol(22) || pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-            }
-          }
+          tujuan = getCol(10);
         } else {
-          // Short SKU list (1-5 kolom)
           item_code = getCol(0);
-          if (colCount >= 2) {
-            if (/^[0-9.,-]+$/.test(getCol(1))) {
-              last_qty = cleanNumber(getCol(1));
-              first_qty = last_qty;
-            } else {
-              item_name = getCol(1);
-            }
-          }
-          if (colCount >= 3) {
-            if (/^[0-9.,-]+$/.test(getCol(2))) {
-              last_qty = cleanNumber(getCol(2));
-              first_qty = last_qty;
-            } else {
-              batch = getCol(2);
-            }
-          }
-          if (colCount >= 4) {
-            batch = getCol(3) || batch;
-          }
-          if (colCount >= 5) {
-            expired_date = parseDateToIso(getCol(4));
+          item_name = getCol(1);
+          location = getCol(2) || 'WH-REJECT-01';
+          last_qty = cleanNumber(getCol(3));
+          first_qty = last_qty;
+          uom = getCol(4) || 'CTN';
+          qty_convert = cleanNumber(getCol(5));
+          batch = getCol(6) || '-';
+          expired_date = parseDateToIso(getCol(7));
+          status = normalizeStatus(getCol(8));
+          note = getCol(9);
+          tujuan = getCol(10);
+        }
+      } else {
+        // Short SKU format (1-7 kolom)
+        item_code = getCol(0);
+        if (colCount >= 2) {
+          if (/^[0-9.,-]+$/.test(getCol(1))) {
+            last_qty = cleanNumber(getCol(1));
+            first_qty = last_qty;
+          } else {
+            item_name = getCol(1);
           }
         }
-
-        // Smart Heuristic Scanning Fallbacks
-        // 1. Tanggal Kadaluwarsa jika masih '-' atau kosong: scan seluruh sel pada baris
-        if (!expired_date || expired_date === '-') {
-          for (let i = 0; i < r.length; i++) {
-            const cellVal = getCol(i);
-            if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(cellVal) || /^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(cellVal) || /^\d{5}$/.test(cellVal)) {
-              expired_date = parseDateToIso(cellVal);
-              break;
-            }
+        if (colCount >= 3) {
+          if (/^[0-9.,-]+$/.test(getCol(2))) {
+            last_qty = cleanNumber(getCol(2));
+            first_qty = last_qty;
+          } else {
+            batch = getCol(2);
           }
         }
-
-        // 2. Lookup Master Barang jika item_code ada
-        const matchedMaster = item_code ? barangMap.get(item_code.toLowerCase()) : undefined;
-        if (matchedMaster) {
-          if (!item_name || item_name === 'Item Tanpa Nama') item_name = matchedMaster.item_name;
-          if (category === 'Damaged' && matchedMaster.category) category = matchedMaster.category;
-          if (uom === 'CTN' && matchedMaster.uom) uom = matchedMaster.uom;
+        if (colCount >= 4) {
+          batch = getCol(3) || batch;
         }
+        if (colCount >= 5) {
+          expired_date = parseDateToIso(getCol(4));
+        }
+      }
 
-        // 3. Auto-hitung expired_date dari batch jika batch ada dan expired_date masih '-'
-        if ((!expired_date || expired_date === '-') && batch !== '-' && (item_code || item_name)) {
-          const calc = getEdIsoDateString(item_code, item_name, batch);
-          if (calc && calc.isoDate) {
-            expired_date = calc.isoDate;
+      // Smart Heuristic Scanning Fallbacks
+      if (!expired_date || expired_date === '-') {
+        for (let i = 0; i < r.length; i++) {
+          const cellVal = getCol(i);
+          if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(cellVal) || /^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(cellVal) || /^\d{5}$/.test(cellVal)) {
+            expired_date = parseDateToIso(cellVal);
+            break;
           }
         }
+      }
 
-        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-        const rowId = id_cek_fisik || `CKF-${datePrefix}-${randomSuffix}-${String(rowIdx + 1).padStart(3, '0')}`;
+      // Lookup Master Barang
+      const matchedMaster = item_code ? barangMap.get(item_code.toLowerCase()) : undefined;
+      if (matchedMaster) {
+        if (!item_name || item_name === 'Item Tanpa Nama') item_name = matchedMaster.item_name;
+        if (category === 'Damaged' && matchedMaster.category) category = matchedMaster.category;
+        if (uom === 'CTN' && matchedMaster.uom) uom = matchedMaster.uom;
+      }
 
-        return {
-          id_cek_fisik: rowId,
-          tujuan: tujuan || pasteDefaultTujuan || 'Check Fisik Pemusnahan',
-          item_code: item_code,
-          item_name: item_name || matchedMaster?.item_name || 'Item Tanpa Nama',
-          category: category || matchedMaster?.category || 'Damaged',
-          location: location || 'WH-REJECT-01',
-          location_type: location_type || 'Quarantine',
-          first_qty: first_qty || last_qty || 0,
-          last_qty: last_qty || 0,
-          uom: uom || matchedMaster?.uom || 'CTN',
-          qty_convert: qty_convert || 0,
-          uom_convert: uom_convert || 'PCS',
-          lpn_serial_number: lpn_serial_number || '-',
-          batch: batch || '-',
-          vendor_batch: vendor_batch || '-',
-          sloc: sloc || 'SL99',
-          expired_date: expired_date || '-',
-          destination_code: destination_code || 'INCINERATOR',
-          qc_code: qc_code || 'QC-REJECT',
-          user_tally: user_tally || currentUser?.nama || 'Tally QC',
-          shelf_life: shelf_life || 'Expired',
-          source: source || 'Retur Customer',
-          user_input: currentUser?.nama || 'QA Officer',
-          tanggal_update: nowIso,
-          status: status || 'Cek',
-          note: note || '',
-          created_at: nowIso,
-          updated_at: nowIso
-        };
-      });
-    }
+      if ((!expired_date || expired_date === '-') && batch !== '-' && (item_code || item_name)) {
+        const calc = getEdIsoDateString(item_code, item_name, batch);
+        if (calc && calc.isoDate) {
+          expired_date = calc.isoDate;
+        }
+      }
+
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const rowId = id_cek_fisik || `CKF-${datePrefix}-${randomSuffix}-${String(rowIdx + 1).padStart(3, '0')}`;
+
+      return {
+        id_cek_fisik: rowId,
+        tujuan: tujuan || activeDefaultTujuan || '',
+        item_code: item_code,
+        item_name: item_name || matchedMaster?.item_name || 'Item Tanpa Nama',
+        category: category || matchedMaster?.category || 'Damaged',
+        location: location || 'WH-REJECT-01',
+        location_type: location_type || 'Quarantine',
+        first_qty: first_qty || last_qty || 0,
+        last_qty: last_qty || 0,
+        uom: uom || matchedMaster?.uom || 'CTN',
+        qty_convert: qty_convert || 0,
+        uom_convert: uom_convert || 'PCS',
+        lpn_serial_number: lpn_serial_number || '-',
+        batch: batch || '-',
+        vendor_batch: vendor_batch || '-',
+        sloc: sloc || 'SL99',
+        expired_date: expired_date || '-',
+        destination_code: destination_code || 'INCINERATOR',
+        qc_code: qc_code || 'QC-REJECT',
+        user_tally: user_tally || currentUser?.nama || 'Tally QC',
+        shelf_life: shelf_life || 'Expired',
+        source: source || 'Retur Customer',
+        user_input: currentUser?.nama || 'QA Officer',
+        tanggal_update: nowIso,
+        status: status || 'Cek',
+        note: note || '',
+        created_at: nowIso,
+        updated_at: nowIso
+      };
+    });
 
     // Filter baris kosong
     const validRows = resultRows.filter(r => r.item_code || r.item_name || r.location || (r.batch && r.batch !== '-'));
@@ -1739,19 +1575,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
   const handleDeletePastedRow = (index: number) => {
     setPastedRows(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleApplyBatchSettingsToPasted = () => {
-    if (pastedRows.length === 0) {
-      showToast('Data Kosong', 'Tidak ada baris yang dipaste untuk diterapkan setting massal', 'warning');
-      return;
-    }
-    const val = pasteDefaultTujuan || 'Check Fisik Pemusnahan';
-    setPastedRows(prev => prev.map(r => ({
-      ...r,
-      tujuan: val
-    })));
-    showToast('Setting Massal Diterapkan', `Tujuan "${val}" diterapkan ke ${pastedRows.length} baris`, 'success');
   };
 
   // Safe Batch Upsert Engine
@@ -1803,6 +1626,17 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       return;
     }
 
+    // Validasi Wajib Isi Tujuan: Pastikan setiap baris memiliki kolom Tujuan
+    const rowsWithoutTujuan = pastedRows.filter(r => !r.tujuan || !r.tujuan.trim());
+    if (rowsWithoutTujuan.length > 0) {
+      showToast(
+        'Tujuan Wajib Diisi!',
+        `Terdapat ${rowsWithoutTujuan.length} baris yang belum memiliki Tujuan. Silakan lengkapi kolom Tujuan terlebih dahulu sebelum menyimpan.`,
+        'error'
+      );
+      return;
+    }
+
     setIsSavingPastedRows(true);
     setPasteSaveProgress({
       current: 0,
@@ -1821,7 +1655,13 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       return {
         ...item,
         id_cek_fisik: item.id_cek_fisik && !item.id_cek_fisik.includes('CKF-') ? generatedId : (item.id_cek_fisik || generatedId),
-        first_qty: Number(item.first_qty) || Number(item.last_qty) || 0,
+        category: '',
+        first_qty: 0,
+        vendor_batch: '',
+        destination_code: '',
+        qc_code: '',
+        user_tally: '',
+        source: '',
         last_qty: Number(item.last_qty) || 0,
         qty_convert: Number(item.qty_convert) || 0,
         user_input: currentUser?.nama || 'QA Officer',
@@ -2296,7 +2136,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-800 text-white font-bold border-b border-slate-700 select-none">
-                <th className="p-2.5 w-10 text-center">
+                <th className="px-2 py-1.5 w-10 text-center">
                   <input
                     type="checkbox"
                     checked={paginatedList.length > 0 && paginatedList.every(i => selectedIds.includes(i.id_cek_fisik))}
@@ -2306,7 +2146,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 </th>
                 <th
                   onClick={() => handleSortColumn('status')}
-                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Status"
                 >
                   <div className="flex items-center gap-1">
@@ -2321,7 +2161,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 {!isLocationFiltered && (
                   <th
                     onClick={() => handleSortColumn('location')}
-                    className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                    className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
                     title="Klik untuk sort Location"
                   >
                     <div className="flex items-center gap-1">
@@ -2336,7 +2176,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 )}
                 <th
                   onClick={() => handleSortColumn('item_name')}
-                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Item Name"
                 >
                   <div className="flex items-center gap-1">
@@ -2350,7 +2190,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 </th>
                 <th
                   onClick={() => handleSortColumn('last_qty')}
-                  className="p-2.5 whitespace-nowrap text-right cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap text-right cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Last Qty"
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -2364,7 +2204,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 </th>
                 <th
                   onClick={() => handleSortColumn('qty_convert')}
-                  className="p-2.5 whitespace-nowrap text-right cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap text-right cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Qty Convert"
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -2378,7 +2218,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 </th>
                 <th
                   onClick={() => handleSortColumn('batch')}
-                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Batch"
                 >
                   <div className="flex items-center gap-1">
@@ -2392,7 +2232,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 </th>
                 <th
                   onClick={() => handleSortColumn('expired_date')}
-                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Expired Date"
                 >
                   <div className="flex items-center gap-1">
@@ -2404,10 +2244,10 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     )}
                   </div>
                 </th>
-                <th className="p-2.5 whitespace-nowrap">NOTE</th>
+                <th className="px-2.5 py-1.5 whitespace-nowrap">NOTE</th>
                 <th
                   onClick={() => handleSortColumn('tujuan')}
-                  className="p-2.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                  className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
                   title="Klik untuk sort Tujuan"
                 >
                   <div className="flex items-center gap-1">
@@ -2419,7 +2259,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     )}
                   </div>
                 </th>
-                <th className="p-2.5 whitespace-nowrap text-center">AKSI</th>
+                <th className="px-2.5 py-1.5 whitespace-nowrap text-center">AKSI</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
@@ -2448,7 +2288,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       className={`hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-rose-50/40' : ''}`}
                     >
                       {/* Checkbox */}
-                      <td className="p-2.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -2458,11 +2298,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       </td>
 
                       {/* 1. STATUS (Dropdown: Cek, Ada, Beda, Tidak) */}
-                      <td className="p-2.5 whitespace-nowrap">
+                      <td className="px-2.5 py-1 whitespace-nowrap">
                         <select
                           value={item.status === 'Ada' ? 'Ada' : item.status === 'Beda' ? 'Beda' : item.status === 'Tidak' ? 'Tidak' : 'Cek'}
                           onChange={(e) => handleUpdateStatusInline(item.id_cek_fisik, e.target.value)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-1.5 focus:ring-rose-500 shadow-2xs ${
+                          className={`px-2 py-0.5 rounded text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-1.5 focus:ring-rose-500 shadow-2xs ${
                             item.status === 'Ada'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                               : item.status === 'Beda'
@@ -2481,49 +2321,48 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
                       {/* 2. LOCATION */}
                       {!isLocationFiltered && (
-                        <td className="p-2.5 text-slate-700 whitespace-nowrap font-medium">
+                        <td className="px-2.5 py-1 text-slate-700 whitespace-nowrap font-medium">
                           {item.location || 'WH-REJECT-01'}
                         </td>
                       )}
 
                       {/* 3. ITEM NAME */}
-                      <td className="p-2.5 text-slate-900 font-semibold max-w-xs truncate" title={item.item_name}>
-                        <div>{item.item_name}</div>
-                        {item.item_code && <div className="text-[10px] font-mono text-slate-400">{item.item_code}</div>}
+                      <td className="px-2.5 py-1 text-slate-900 font-semibold max-w-xs truncate" title={item.item_name}>
+                        {item.item_name}
                       </td>
 
                       {/* 4. LAST QTY */}
-                      <td className="p-2.5 text-right font-mono font-bold text-rose-600 whitespace-nowrap">
+                      <td className="px-2.5 py-1 text-right font-mono font-bold text-rose-600 whitespace-nowrap">
                         {item.last_qty ?? 0}
                       </td>
 
                       {/* 5. QTY CONVERT */}
-                      <td className="p-2.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                      <td className="px-2.5 py-1 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
                         {item.qty_convert ?? 0} <span className="text-[10px] font-normal text-slate-500">{item.uom_convert || 'PCS'}</span>
                       </td>
 
                       {/* 6. BATCH */}
-                      <td className="p-2.5 font-mono text-slate-700 whitespace-nowrap">
+                      <td className="px-2.5 py-1 font-mono text-slate-700 whitespace-nowrap">
                         {item.batch || '-'}
                       </td>
 
                       {/* 7. EXPIRED DATE */}
-                      <td className="p-2.5 font-mono text-slate-600 whitespace-nowrap">
+                      <td className="px-2.5 py-1 font-mono text-slate-600 whitespace-nowrap">
                         {item.expired_date || '-'}
                       </td>
 
                       {/* 8. NOTE */}
-                      <td className="p-2.5 text-slate-600 max-w-xs truncate" title={item.note || '-'}>
+                      <td className="px-2.5 py-1 text-slate-600 max-w-xs truncate" title={item.note || '-'}>
                         {item.note || '-'}
                       </td>
 
                       {/* 9. TUJUAN */}
-                      <td className="p-2.5 text-slate-600 whitespace-nowrap">
+                      <td className="px-2.5 py-1 text-slate-600 whitespace-nowrap">
                         {item.tujuan || 'Check Fisik Pemusnahan'}
                       </td>
 
                       {/* AKSI */}
-                      <td className="p-2.5 text-center whitespace-nowrap">
+                      <td className="px-2 py-1 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => {
@@ -3160,76 +2999,19 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             {/* Modal Content */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
               
-              {/* Presets & Utility Buttons */}
+              {/* Action Toolbar */}
               <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-rose-50/70 border border-rose-200 rounded-xl">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-bold text-rose-900 text-[11px]">Preset Kolom:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPasteFormatPreset('auto');
-                      parsePastedText(pastedRawText, pasteHasHeader, 'auto');
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      pasteFormatPreset === 'auto'
-                        ? 'bg-rose-700 text-white shadow-2xs'
-                        : 'bg-white text-rose-800 hover:bg-rose-100 border border-rose-200'
-                    }`}
-                    title="Deteksi nama kolom secara cerdas otomatis"
-                  >
-                    ⚡ Auto-Detect
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPasteFormatPreset('cek_fisik_11');
-                      parsePastedText(pastedRawText, pasteHasHeader, 'cek_fisik_11');
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      pasteFormatPreset === 'cek_fisik_11'
-                        ? 'bg-rose-700 text-white shadow-2xs'
-                        : 'bg-white text-rose-800 hover:bg-rose-100 border border-rose-200'
-                    }`}
-                    title="Format urutan 11 kolom form Cek Fisik"
-                  >
-                    📋 Form Cek Fisik (11 Kolom)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPasteFormatPreset('db_full');
-                      parsePastedText(pastedRawText, pasteHasHeader, 'db_full');
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      pasteFormatPreset === 'db_full'
-                        ? 'bg-rose-700 text-white shadow-2xs'
-                        : 'bg-white text-rose-800 hover:bg-rose-100 border border-rose-200'
-                    }`}
-                    title="Format lengkap 23 kolom database"
-                  >
-                    📦 Tabel DB (23 Kolom)
-                  </button>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100/80 text-rose-800 font-bold text-xs">
+                    <ClipboardPaste size={14} />
+                    <span>Paste dari Excel / Spreadsheet</span>
+                  </span>
+                  <span className="text-[11px] text-slate-500 hidden sm:inline">
+                    Semua baris yang di-paste langsung masuk ke tabel mulai dari baris pertama.
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyPasteTemplateHeader('cek_fisik_11')}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] transition-all cursor-pointer shadow-2xs"
-                    title="Salin 11 Nama Kolom Form Cek Fisik ke Clipboard"
-                  >
-                    <Copy size={12} />
-                    <span>Salin Header Cek Fisik</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyPasteTemplateHeader('db_full')}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] transition-all cursor-pointer shadow-2xs"
-                    title="Salin 23 Nama Kolom Format Database ke Clipboard"
-                  >
-                    <Copy size={12} />
-                    <span>Salin Header DB</span>
-                  </button>
                   {pastedRawText && (
                     <button
                       type="button"
@@ -3264,18 +3046,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     <span>Paste Data Excel di Kotak Ini:</span>
                     <span className="text-[11px] font-normal text-slate-500">(Tekan Ctrl+V / Cmd+V)</span>
                   </label>
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={pasteHasHeader}
-                      onChange={(e) => {
-                        setPasteHasHeader(e.target.checked);
-                        parsePastedText(pastedRawText, e.target.checked);
-                      }}
-                      className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
-                    />
-                    <span>Baris Pertama Memuat Header Kolom</span>
-                  </label>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    {pastedRows.length > 0 ? `${pastedRows.length} baris terdeteksi` : 'Data akan langsung terbaca otomatis'}
+                  </span>
                 </div>
 
                 <textarea
@@ -3285,19 +3058,23 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     parsePastedText(e.target.value);
                   }}
                   rows={5}
-                  placeholder={`Contoh Paste (Copy dari Excel):\nSTATUS\tLOCATION\tITEM CODE\tITEM NAME\tLAST QTY\tUOM\tQTY CONVERT\tBATCH\tEXPIRED DATE\tNOTE\tTUJUAN\nAda\tWH-REJECT-01\t21104501\tKINO SAMANTHA 50ML\t10\tCTN\t120\tL911346N\t2027-11-20\tRetur rusak\tCheck Fisik Pemusnahan`}
+                  placeholder={`Contoh Paste (Copy dari Excel):\nAda\tWH-REJECT-01\t21104501\tKINO SAMANTHA 50ML\t10\tCTN\t120\tL911346N\t2027-11-20\tRetur rusak\tCheck Fisik Pemusnahan`}
                   className="w-full p-3 font-mono text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-slate-50/50"
                 />
               </div>
 
-              {/* Batch Settings Bar - Hanya Tujuan */}
+              {/* Batch Settings Bar - Hanya Tujuan (Wajib Isi) */}
               <div className="p-3 bg-slate-100/80 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="font-bold text-slate-700 text-xs">Set Massal Untuk Semua Baris:</span>
                   
-                  {/* Default Tujuan */}
+                  {/* Default Tujuan - Wajib Diisi */}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-600 font-medium">Tujuan:</span>
+                    <span className="text-[11px] text-slate-700 font-bold flex items-center gap-1">
+                      <span>Tujuan:</span>
+                      <span className="text-rose-600 font-black text-xs">*</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold">Wajib Diisi</span>
+                    </span>
                     <input
                       type="text"
                       list="paste-cek-fisik-tujuan-list"
@@ -3312,8 +3089,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                           })));
                         }
                       }}
-                      placeholder="Check Fisik Pemusnahan..."
-                      className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1.5 focus:ring-rose-500 font-semibold w-52 sm:w-64"
+                      placeholder="Pilih / ketik Tujuan (Wajib Diisi)..."
+                      className="px-2.5 py-1 text-xs rounded-lg border border-rose-300 focus:border-rose-500 bg-white focus:outline-none focus:ring-1.5 focus:ring-rose-500 font-semibold w-52 sm:w-64"
+                      required
                     />
                     <datalist id="paste-cek-fisik-tujuan-list">
                       <option value="Check Fisik Pemusnahan" />
@@ -3328,13 +3106,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleApplyBatchSettingsToPasted}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                >
-                  Terapkan Tujuan ke {pastedRows.length} Baris
-                </button>
+                <span className="text-[11px] text-slate-500 italic">
+                  *Tujuan otomatis diterapkan ke seluruh baris data di bawah.
+                </span>
               </div>
 
               {/* Preview Table */}
