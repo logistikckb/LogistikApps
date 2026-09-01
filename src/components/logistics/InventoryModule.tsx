@@ -440,16 +440,12 @@ export function InventoryModule({
     const oldStatus = item.status || '';
     if (oldStatus === newStatus) return;
 
+    const targetIds = item.child_ids && item.child_ids.length > 0 ? item.child_ids : [item.id_inventory];
     const nowIso = new Date().toISOString();
-    const updatedItem: InventoryItem = {
-      ...item,
-      status: newStatus,
-      updated_at: nowIso
-    };
 
     // 1. Optimistic Local State Update
     setInventoryList(prev => {
-      const updated = prev.map(p => p.id_inventory === item.id_inventory ? updatedItem : p);
+      const updated = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, status: newStatus, updated_at: nowIso } : p);
       try {
         localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       } catch {}
@@ -462,7 +458,7 @@ export function InventoryModule({
         const { error } = await supabase
           .from('data_inventory')
           .update({ status: newStatus, updated_at: nowIso })
-          .eq('id_inventory', item.id_inventory);
+          .in('id_inventory', targetIds);
 
         if (error) throw error;
         // Silent on success to keep workflow fast and distraction-free
@@ -471,7 +467,7 @@ export function InventoryModule({
         showToast('Gagal Simpan Status', err.message || 'Terjadi kesalahan saat mengupdate status di database.', 'error');
         // Rollback state on error
         setInventoryList(prev => {
-          const reverted = prev.map(p => p.id_inventory === item.id_inventory ? { ...p, status: oldStatus } : p);
+          const reverted = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, status: oldStatus } : p);
           try {
             localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(reverted));
           } catch {}
@@ -489,15 +485,11 @@ export function InventoryModule({
       return;
     }
 
+    const targetIds = item.child_ids && item.child_ids.length > 0 ? item.child_ids : [item.id_inventory];
     const nowIso = new Date().toISOString();
-    const updatedItem: InventoryItem = {
-      ...item,
-      note: newNote,
-      updated_at: nowIso
-    };
 
     setInventoryList(prev => {
-      const updated = prev.map(p => p.id_inventory === item.id_inventory ? updatedItem : p);
+      const updated = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, note: newNote, updated_at: nowIso } : p);
       try {
         localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       } catch {}
@@ -510,7 +502,7 @@ export function InventoryModule({
         const { error } = await supabase
           .from('data_inventory')
           .update({ note: newNote, updated_at: nowIso })
-          .eq('id_inventory', item.id_inventory);
+          .in('id_inventory', targetIds);
 
         if (error) throw error;
         showToast('Catatan Disimpan', `Catatan untuk ${item.item_name} berhasil diperbarui.`, 'success');
@@ -518,7 +510,7 @@ export function InventoryModule({
         console.error('Failed to update inventory note:', err);
         showToast('Gagal Simpan Catatan', err.message || 'Terjadi kesalahan sistem.', 'error');
         setInventoryList(prev => {
-          const reverted = prev.map(p => p.id_inventory === item.id_inventory ? { ...p, note: oldNote } : p);
+          const reverted = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, note: oldNote } : p);
           try {
             localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(reverted));
           } catch {}
@@ -579,15 +571,16 @@ export function InventoryModule({
         'No': idx + 1,
         'Status': item.status || '-',
         'Location': item.location || '-',
-        'Item Name': item.item_name || '-',
-        'Last Qty': item.last_qty ?? 0,
-        'UOM': item.uom || 'CTN',
-        'Qty Convert': item.qty_convert ?? 0,
-        'UOM Convert': item.uom_convert || 'PCS',
-        'Note': item.note || '-',
         'Item Code': item.item_code || '-',
+        'Item Name': item.item_name || '-',
+        'Last Qty (SUMIFS)': item.last_qty ?? 0,
+        'UOM': item.uom || 'CTN',
+        'Qty Convert (SUMIFS)': item.qty_convert ?? 0,
+        'UOM Convert': item.uom_convert || 'PCS',
         'Batch': item.batch || '-',
         'Expired Date': item.expired_date || '-',
+        'Jumlah Batch Tergabung': item.child_count || 1,
+        'Note': item.note || '-',
         'SLOC': item.sloc || 'SL01',
         'ID Inventory': item.id_inventory
       }));
@@ -597,15 +590,16 @@ export function InventoryModule({
         { wch: 6 },  // No
         { wch: 12 }, // Status
         { wch: 16 }, // Location
-        { wch: 36 }, // Item Name
-        { wch: 12 }, // Last Qty
-        { wch: 10 }, // UOM
-        { wch: 14 }, // Qty Convert
-        { wch: 14 }, // UOM Convert
-        { wch: 28 }, // Note
         { wch: 16 }, // Item Code
-        { wch: 16 }, // Batch
+        { wch: 36 }, // Item Name
+        { wch: 18 }, // Last Qty (SUMIFS)
+        { wch: 10 }, // UOM
+        { wch: 20 }, // Qty Convert (SUMIFS)
+        { wch: 14 }, // UOM Convert
+        { wch: 20 }, // Batch
         { wch: 16 }, // Expired Date
+        { wch: 22 }, // Jumlah Batch Tergabung
+        { wch: 28 }, // Note
         { wch: 10 }, // SLOC
         { wch: 22 }  // ID Inventory
       ];
@@ -614,7 +608,7 @@ export function InventoryModule({
       XLSX.utils.book_append_sheet(wb, ws, 'Stock_Opname_Inventory');
       const fileName = `Stock_Opname_Inventory_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      showToast('Ekspor Berhasil', `Laporan Stock Opname berhasil diunduh (${filteredData.length} baris).`, 'success');
+      showToast('Ekspor Berhasil', `Laporan Stock Opname (SUMIFS) berhasil diunduh (${filteredData.length} baris).`, 'success');
       return;
     }
 
@@ -731,9 +725,117 @@ export function InventoryModule({
     }
   };
 
+  // Stock Opname SUMIFS Aggregation: Group by (location + item_code / item_name) and sum QTYs
+  const stockOpnameAggregatedData = useMemo<InventoryItem[]>(() => {
+    const groupMap = new Map<string, {
+      location: string;
+      item_code: string;
+      item_name: string;
+      category?: string;
+      location_type?: string;
+      sloc?: string;
+      uom: string;
+      uom_convert: string;
+      first_qty: number;
+      last_qty: number;
+      qty_convert: number;
+      statuses: string[];
+      notes: string[];
+      batches: string[];
+      expiredDates: string[];
+      child_ids: string[];
+      primaryId: string;
+      tujuan?: string;
+    }>();
+
+    inventoryList.forEach(item => {
+      const loc = (item.location || '').trim();
+      const code = (item.item_code || '').trim();
+      const name = (item.item_name || '').trim();
+      const groupKey = `${loc.toUpperCase()}||${code.toUpperCase() || name.toUpperCase()}`;
+
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, {
+          location: loc || '-',
+          item_code: code || item.item_code,
+          item_name: name || item.item_name,
+          category: item.category,
+          location_type: item.location_type,
+          sloc: item.sloc,
+          uom: item.uom || 'CTN',
+          uom_convert: item.uom_convert || 'PCS',
+          first_qty: 0,
+          last_qty: 0,
+          qty_convert: 0,
+          statuses: [],
+          notes: [],
+          batches: [],
+          expiredDates: [],
+          child_ids: [],
+          primaryId: item.id_inventory,
+          tujuan: item.tujuan
+        });
+      }
+
+      const g = groupMap.get(groupKey)!;
+      g.first_qty += Number(item.first_qty || item.last_qty || 0);
+      g.last_qty += Number(item.last_qty || 0);
+      g.qty_convert += Number(item.qty_convert || item.last_qty || 0);
+      g.child_ids.push(item.id_inventory);
+
+      if (item.status && item.status.trim()) {
+        g.statuses.push(item.status.trim());
+      }
+      if (item.note && item.note.trim() && !g.notes.includes(item.note.trim())) {
+        g.notes.push(item.note.trim());
+      }
+      if (item.batch && item.batch.trim() && !g.batches.includes(item.batch.trim())) {
+        g.batches.push(item.batch.trim());
+      }
+      if (item.expired_date && item.expired_date.trim() && !g.expiredDates.includes(item.expired_date.trim())) {
+        g.expiredDates.push(item.expired_date.trim());
+      }
+    });
+
+    return Array.from(groupMap.values()).map(g => {
+      let resolvedStatus = '';
+      if (g.statuses.length > 0) {
+        const uniqueStatuses = Array.from(new Set(g.statuses));
+        resolvedStatus = uniqueStatuses.length === 1 && g.statuses.length === g.child_ids.length ? uniqueStatuses[0] : g.statuses[0];
+      }
+
+      return {
+        id_inventory: g.primaryId,
+        item_code: g.item_code,
+        item_name: g.item_name,
+        category: g.category,
+        location: g.location,
+        location_type: g.location_type,
+        sloc: g.sloc || 'SL01',
+        first_qty: g.first_qty,
+        last_qty: g.last_qty,
+        qty_convert: g.qty_convert,
+        uom: g.uom,
+        uom_convert: g.uom_convert,
+        status: resolvedStatus,
+        note: g.notes.join('; '),
+        batch: g.batches.join(', '),
+        expired_date: g.expiredDates.join(', '),
+        tujuan: g.tujuan,
+        child_ids: g.child_ids,
+        child_count: g.child_ids.length
+      };
+    });
+  }, [inventoryList]);
+
+  // Base Data depending on Mode (Opname = SUMIFS aggregated, Standard = raw per batch/serial)
+  const baseDataList = useMemo(() => {
+    return viewMode === 'stock_opname' ? stockOpnameAggregatedData : inventoryList;
+  }, [viewMode, stockOpnameAggregatedData, inventoryList]);
+
   // Filter & Search Logic
   const filteredData = useMemo(() => {
-    return inventoryList.filter(item => {
+    return baseDataList.filter(item => {
       // 1. Status Filter
       if (statusFilter !== 'ALL') {
         const s = (item.status || '').toLowerCase().trim();
@@ -774,7 +876,7 @@ export function InventoryModule({
 
       return true;
     });
-  }, [inventoryList, statusFilter, locationFilter, slocFilter, searchQuery]);
+  }, [baseDataList, statusFilter, locationFilter, slocFilter, searchQuery]);
 
   // Sort Logic
   const sortedData = useMemo(() => {
@@ -811,23 +913,40 @@ export function InventoryModule({
     }
   };
 
+  // Selection Check Helpers
+  const isRowSelected = (row: InventoryItem) => {
+    const ids = row.child_ids && row.child_ids.length > 0 ? row.child_ids : [row.id_inventory];
+    return ids.length > 0 && ids.every(id => selectedIds.includes(id));
+  };
+
+  const isSomeRowSelected = (row: InventoryItem) => {
+    const ids = row.child_ids && row.child_ids.length > 0 ? row.child_ids : [row.id_inventory];
+    return ids.some(id => selectedIds.includes(id)) && !isRowSelected(row);
+  };
+
   // Multi-Selection Handlers
-  const isAllFilteredSelected = paginatedData.length > 0 && paginatedData.every(i => selectedIds.includes(i.id_inventory));
-  const isSomeFilteredSelected = paginatedData.some(i => selectedIds.includes(i.id_inventory)) && !isAllFilteredSelected;
+  const isAllFilteredSelected = paginatedData.length > 0 && paginatedData.every(i => isRowSelected(i));
+  const isSomeFilteredSelected = paginatedData.some(i => i.child_ids ? i.child_ids.some(id => selectedIds.includes(id)) : selectedIds.includes(i.id_inventory)) && !isAllFilteredSelected;
 
   const handleToggleSelectAllFiltered = () => {
+    const pageIds = paginatedData.flatMap(i => (i.child_ids && i.child_ids.length > 0 ? i.child_ids : [i.id_inventory]));
     if (isAllFilteredSelected) {
-      const pageIds = paginatedData.map(i => i.id_inventory);
       setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
     } else {
-      const pageIds = paginatedData.map(i => i.id_inventory);
       setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])));
     }
   };
 
-  const handleToggleSelectRow = (id: string, e: React.MouseEvent) => {
+  const handleToggleSelectRow = (row: InventoryItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+    const rowIds = row.child_ids && row.child_ids.length > 0 ? row.child_ids : [row.id_inventory];
+    const isSelected = rowIds.every(id => selectedIds.includes(id));
+
+    if (isSelected) {
+      setSelectedIds(prev => prev.filter(id => !rowIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...rowIds])));
+    }
   };
 
   // Selected Summary Calculation (including SKU per Location breakdown)
@@ -1431,7 +1550,7 @@ export function InventoryModule({
               <Package size={14} className="text-teal-800" />
             )}
             <span>
-              {viewMode === 'stock_opname' ? 'Tabel Stock Opname' : 'Tabel Inventory'} ({filteredData.length} item)
+              {viewMode === 'stock_opname' ? 'Tabel Stock Opname (SUMIFS SKU per Lokasi)' : 'Tabel Inventory'} ({filteredData.length} item)
             </span>
             {selectedIds.length > 0 && (
               <span className="px-2 py-0.5 rounded-md bg-teal-100 text-teal-900 text-[10px] font-extrabold border border-teal-200">
@@ -1655,7 +1774,8 @@ export function InventoryModule({
                 </tr>
               ) : (
                 paginatedData.map((row, idx) => {
-                  const isSelected = selectedIds.includes(row.id_inventory);
+                  const isSelected = isRowSelected(row);
+                  const isPartiallySelected = isSomeRowSelected(row);
                   const rowNumber = pageSize === 'ALL' ? idx + 1 : (currentPage - 1) * pageSize + idx + 1;
                   
                   const statusKey = (row.status || '').toLowerCase().trim();
@@ -1716,10 +1836,12 @@ export function InventoryModule({
                       title="Klik baris untuk melihat detail"
                     >
                       {/* Checkbox */}
-                      <td className="px-2 py-1.5 text-center" onClick={(e) => handleToggleSelectRow(row.id_inventory, e)}>
+                      <td className="px-2 py-1.5 text-center" onClick={(e) => handleToggleSelectRow(row, e)}>
                         <div className="p-1 rounded text-slate-600 hover:text-teal-900 cursor-pointer">
                           {isSelected ? (
                             <CheckSquare size={14} className="text-teal-800" />
+                          ) : isPartiallySelected ? (
+                            <Square size={14} className="text-teal-600 fill-teal-100" />
                           ) : (
                             <Square size={14} className="text-slate-400" />
                           )}
@@ -1763,8 +1885,18 @@ export function InventoryModule({
 
                       {/* Item Name */}
                       <td className={`px-2.5 py-1.5 min-w-[180px] max-w-xs ${isAda ? 'bg-emerald-50/40' : isBeda ? 'bg-blue-50/40' : isTidak ? 'bg-amber-50/40' : ''}`}>
-                        <div className={`text-xs truncate ${itemNameClass}`} title={row.item_name}>
-                          {row.item_name || '-'}
+                        <div className="flex items-center gap-1.5">
+                          <div className={`text-xs truncate ${itemNameClass}`} title={row.item_name}>
+                            {row.item_name || '-'}
+                          </div>
+                          {viewMode === 'stock_opname' && (row.child_count || 1) > 1 && (
+                            <span 
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-teal-100 text-teal-800 border border-teal-200 shrink-0" 
+                              title={`Tergabung dari ${row.child_count} baris/batch di lokasi ini`}
+                            >
+                              {row.child_count} batch
+                            </span>
+                          )}
                         </div>
                       </td>
 

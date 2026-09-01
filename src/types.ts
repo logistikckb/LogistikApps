@@ -334,6 +334,8 @@ export interface InventoryItem {
   note?: string;
   created_at?: string;
   updated_at?: string;
+  child_ids?: string[];
+  child_count?: number;
 }
 
 // Transaksi Repacking / Bundling Produk (Supabase table: public.data_repack)

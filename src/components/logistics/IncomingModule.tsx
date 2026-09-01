@@ -54,6 +54,14 @@ import { IncomingItem, DataBarang, DataDistributor } from '../../types';
 import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
+// Helper function to normalize proses / status to 'open' | 'closedoretur' | 'closepg'
+export const normalizeProsesStatus = (status?: string): 'open' | 'closedoretur' | 'closepg' => {
+  const s = (status || '').trim().toLowerCase();
+  if (s === 'closedoretur' || s === 'close_doretur' || s === 'close do retur' || s === 'closedo' || s === 'retur') return 'closedoretur';
+  if (s === 'closepg' || s === 'close_pg' || s === 'close pg' || s === 'close' || s === 'closed') return 'closepg';
+  return 'open';
+};
+
 export function IncomingModule() {
   const { currentUser, isAdmin } = useAuth();
   const { showToast } = useNotification();
@@ -134,7 +142,7 @@ export function IncomingModule() {
   const [dateFilter, setDateFilter] = useState<string>('ALL');
   const [qcFilter, setQcFilter] = useState<string>('ALL');
   const [jenisFilter, setJenisFilter] = useState<string>('ALL');
-  const [prosesFilter, setProsesFilter] = useState<string>('OPEN'); // Standard default is OPEN (data CLOSE hanya tampil jika dipilih ALL atau CLOSE)
+  const [prosesFilter, setProsesFilter] = useState<string>('open'); // Standard default is open (opsi: open, closedoretur, closepg, ALL)
   const [sortField, setSortField] = useState<keyof IncomingItem>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -936,7 +944,8 @@ export function IncomingModule() {
         if (incomingList.length > 0) {
           const payload = incomingList.map(item => ({
             ...item,
-            tujuan: item.tujuan || item.note || '-',
+            tujuan: item.tujuan || '-',
+            note: item.note || '-',
             updated_at: new Date().toISOString()
           }));
           await safeBatchUpsert('incoming', payload, 'id_incoming', 50);
@@ -1097,7 +1106,7 @@ export function IncomingModule() {
       shelf_life: '-',
       source: '-',
       user_input: currentUser?.nama || '-',
-      status: 'OPEN',
+      status: 'open',
       tujuan: '',
       note: ''
     });
@@ -1112,18 +1121,17 @@ export function IncomingModule() {
     setBarangSearchText(item.item_code ? `${item.item_code} - ${item.item_name}` : '');
     setIsBarangDropdownOpen(false);
     fetchMasterData(); // Refresh master data immediately on open
-    const itemNote = item.note || (item.tujuan && item.tujuan !== '-' ? item.tujuan : '');
     setFormData({
       ...item,
-      status: (item.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN',
-      tujuan: itemNote,
-      note: itemNote
+      status: normalizeProsesStatus(item.status),
+      tujuan: item.tujuan && item.tujuan !== '-' ? item.tujuan : '',
+      note: item.note && item.note !== '-' ? item.note : ''
     });
     setShowFormModal(true);
   };
 
-  // Quick inline update status proses (OPEN <-> CLOSE) directly from table
-  const handleUpdateProsesStatus = async (item: IncomingItem, newStatus: 'OPEN' | 'CLOSE') => {
+  // Quick inline update status proses (open / closedoretur / closepg) directly from table
+  const handleUpdateProsesStatus = async (item: IncomingItem, newStatus: 'open' | 'closedoretur' | 'closepg') => {
     const nowIso = new Date().toISOString();
     const updatedItem: IncomingItem = {
       ...item,
@@ -1137,7 +1145,7 @@ export function IncomingModule() {
     showToast(
       'Status Proses Diperbarui',
       `Status kedatangan ${item.id_incoming} diubah menjadi ${newStatus}`,
-      newStatus === 'CLOSE' ? 'success' : 'info'
+      newStatus === 'open' ? 'info' : 'success'
     );
 
     // 2. Persist to Supabase if connected
@@ -1305,8 +1313,9 @@ export function IncomingModule() {
     const cleanBatch = formData.batch?.trim() || '-';
     const cleanQty = Number(formData.last_qty) || 0;
 
-    const finalStatus = (formData.status || 'OPEN').trim().toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN';
-    const finalNote = formData.note !== undefined ? (formData.note.trim() || '-') : (formData.tujuan?.trim() || '-');
+    const finalStatus = normalizeProsesStatus(formData.status);
+    const finalMatDoc = formData.tujuan?.trim() || '-';
+    const finalNote = formData.note?.trim() || '-';
 
     const recordToSave: IncomingItem = {
       id_incoming: idIncoming,
@@ -1336,7 +1345,7 @@ export function IncomingModule() {
       user_input: currentUser?.nama || formData.user_input?.trim() || '-',
       tanggal_update: nowIso,
       status: finalStatus,
-      tujuan: finalNote,
+      tujuan: finalMatDoc,
       note: finalNote,
       created_at: isEditMode ? selectedItem?.created_at || nowIso : nowIso,
       updated_at: nowIso
@@ -1495,8 +1504,10 @@ export function IncomingModule() {
         'source': '-',
         'user_input': currentUser?.nama || '-',
         'tanggal_update': '2026-08-16',
-        'status': '-',
-        'tujuan': 'Warehouse Utama'
+        'status': 'open',
+        'matdoc': '500012345',
+        'tujuan': '500012345',
+        'note': 'Penerimaan batch 1'
       },
       {
         'id_incoming': 'INC-20260816-002',
@@ -1525,8 +1536,10 @@ export function IncomingModule() {
         'source': '-',
         'user_input': currentUser?.nama || '-',
         'tanggal_update': '2026-08-16',
-        'status': '-',
-        'tujuan': 'Warehouse Utama'
+        'status': 'open',
+        'matdoc': '500067890',
+        'tujuan': '500067890',
+        'note': 'Kondisi baik'
       }
     ];
 
@@ -1559,7 +1572,9 @@ export function IncomingModule() {
       { wch: 16 }, // user_input
       { wch: 16 }, // tanggal_update
       { wch: 14 }, // status
-      { wch: 22 }  // tujuan
+      { wch: 18 }, // matdoc
+      { wch: 18 }, // tujuan
+      { wch: 22 }  // note
     ];
     ws['!cols'] = wscols;
 
@@ -1578,7 +1593,9 @@ export function IncomingModule() {
     const exportRows = filteredIncoming.map((item) => ({
       'id_incoming': item.id_incoming || '-',
       'jenis': item.jenis || '-',
+      'matdoc': item.tujuan || '-',
       'tujuan': item.tujuan || '-',
+      'note': item.note || '-',
       'id_distributor': item.id_distributor || '-',
       'distributor': item.distributor || '-',
       'item_code': item.item_code || '-',
@@ -1612,7 +1629,9 @@ export function IncomingModule() {
     const wscols = [
       { wch: 22 }, // id_incoming
       { wch: 16 }, // jenis
-      { wch: 22 }, // tujuan
+      { wch: 18 }, // matdoc
+      { wch: 18 }, // tujuan
+      { wch: 22 }, // note
       { wch: 16 }, // id_distributor
       { wch: 32 }, // distributor
       { wch: 16 }, // item_code
@@ -1739,6 +1758,7 @@ export function IncomingModule() {
         'User Input',
         'Tanggal Update',
         'Status',
+        'No. Dokumen (MatDoc)',
         'Catatan / Note'
       ];
 
@@ -1769,8 +1789,9 @@ export function IncomingModule() {
         item.source || '-',
         item.user_input || '-',
         item.tanggal_update ? item.tanggal_update.substring(0, 10) : '-',
-        item.status || 'OPEN',
-        item.note !== undefined && item.note !== '' ? item.note : (item.tujuan || '-')
+        normalizeProsesStatus(item.status),
+        item.tujuan || '-',
+        item.note || '-'
       ]);
 
       const payload = {
@@ -1975,8 +1996,9 @@ export function IncomingModule() {
           const source = String(getVal(['source', 'Sumber', 'asal']) || '-').trim();
           const userInput = String(getVal(['user_input', 'userinput', 'User Input']) || currentUser?.nama || '-').trim();
           const tanggalUpdate = String(getVal(['tanggal_update', 'tanggalupdate', 'Tanggal Update']) || new Date().toISOString().slice(0, 10)).trim();
-          const status = String(getVal(['status', 'Status', 'status_transaksi']) || '-').trim();
-          const tujuan = String(getVal(['tujuan', 'Gudang Tujuan', 'destination']) || 'Warehouse Utama').trim();
+          const status = String(getVal(['status', 'Status', 'status_transaksi']) || 'open').trim();
+          const matdoc = String(getVal(['matdoc', 'MatDoc', 'MATDOC', 'no_dokumen', 'nodokumen', 'No Dokumen', 'nomor_dokumen', 'no_matdoc', 'tujuan', 'destination']) || '-').trim();
+          const note = String(getVal(['note', 'Note', 'catatan', 'Catatan', 'keterangan', 'Keterangan']) || '-').trim();
 
           const idGenerated = rawId || `INC-${new Date().toISOString().slice(0,10).replace(/-/g, '')}-${String(idx + 1).padStart(4, '0')}`;
 
@@ -2007,8 +2029,9 @@ export function IncomingModule() {
             source,
             user_input: userInput,
             tanggal_update: tanggalUpdate,
-            status,
-            tujuan,
+            status: normalizeProsesStatus(status),
+            tujuan: matdoc,
+            note: note,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
@@ -2125,14 +2148,10 @@ export function IncomingModule() {
         if (itemJenis !== targetJenis) return false;
       }
 
-      // Status Proses filter (OPEN / CLOSE / ALL - Default: OPEN)
+      // Status Proses filter (open / closedoretur / closepg / ALL - Default: open)
       if (prosesFilter !== 'ALL') {
-        const itemStatus = (item.status || 'OPEN').trim().toUpperCase();
-        if (prosesFilter === 'OPEN') {
-          if (itemStatus === 'CLOSE') return false;
-        } else if (prosesFilter === 'CLOSE') {
-          if (itemStatus !== 'CLOSE') return false;
-        }
+        const itemStatus = normalizeProsesStatus(item.status);
+        if (itemStatus !== prosesFilter) return false;
       }
 
       return true;
@@ -2153,6 +2172,8 @@ export function IncomingModule() {
           (item.id_distributor && item.id_distributor.toLowerCase().includes(q)) ||
           (item.batch && item.batch.toLowerCase().includes(q)) ||
           (item.location && item.location.toLowerCase().includes(q)) ||
+          (item.tujuan && item.tujuan.toLowerCase().includes(q)) ||
+          (item.note && item.note.toLowerCase().includes(q)) ||
           (item.user_tally && item.user_tally.toLowerCase().includes(q)) ||
           (item.lpn_serial_number && item.lpn_serial_number.toLowerCase().includes(q))
         );
@@ -2166,11 +2187,13 @@ export function IncomingModule() {
           threshold: 0.38,
           ignoreLocation: true,
           keys: [
-            { name: 'item_name', weight: 0.4 },
-            { name: 'item_code', weight: 0.25 },
-            { name: 'distributor', weight: 0.15 },
-            { name: 'location', weight: 0.1 },
+            { name: 'item_name', weight: 0.35 },
+            { name: 'item_code', weight: 0.2 },
+            { name: 'tujuan', weight: 0.15 },
+            { name: 'distributor', weight: 0.1 },
+            { name: 'location', weight: 0.05 },
             { name: 'batch', weight: 0.05 },
+            { name: 'note', weight: 0.05 },
             { name: 'user_tally', weight: 0.05 }
           ]
         });
@@ -2431,7 +2454,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             <Filter size={11} /> Filter:
           </div>
 
-          {/* 1. Filter Status Proses (OPEN / CLOSE / ALL - Default OPEN) */}
+          {/* 1. Filter Status Proses (open / closedoretur / closepg / ALL - Default open) */}
           <select
             value={prosesFilter}
             onChange={e => {
@@ -2439,16 +2462,19 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               setCurrentPage(1);
             }}
             className={`text-[10px] font-extrabold px-2 py-1 rounded-lg border outline-none cursor-pointer shadow-2xs transition-all ${
-              prosesFilter === 'OPEN'
+              prosesFilter === 'open'
                 ? 'bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-200'
-                : prosesFilter === 'CLOSE'
+                : prosesFilter === 'closedoretur'
+                ? 'bg-orange-50 text-orange-900 border-orange-300 ring-1 ring-orange-200'
+                : prosesFilter === 'closepg'
                 ? 'bg-emerald-50 text-emerald-900 border-emerald-300 ring-1 ring-emerald-200'
                 : 'bg-white text-slate-700 border-slate-300'
             }`}
-            title="Filter data kedatangan berdasarkan status proses OPEN atau CLOSE"
+            title="Filter data kedatangan berdasarkan status proses (open / closedoretur / closepg)"
           >
-            <option value="OPEN">⚡ Proses: OPEN (Aktif)</option>
-            <option value="CLOSE">✓ Proses: CLOSE (Selesai)</option>
+            <option value="open">⚡ Proses: open</option>
+            <option value="closedoretur">📦 Proses: closedoretur</option>
+            <option value="closepg">✓ Proses: closepg</option>
             <option value="ALL">📋 Proses: Semua</option>
           </select>
 
@@ -2504,13 +2530,13 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
           </select>
 
           {/* Reset Filters */}
-          {(dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL' || prosesFilter !== 'OPEN' || searchQuery) && (
+          {(dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL' || prosesFilter !== 'open' || searchQuery) && (
             <button
               onClick={() => {
                 setDateFilter('ALL');
                 setQcFilter('ALL');
                 setJenisFilter('ALL');
-                setProsesFilter('OPEN');
+                setProsesFilter('open');
                 setSearchQuery('');
                 setCurrentPage(1);
               }}
@@ -2603,10 +2629,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-100/95 text-slate-700 font-black border-b border-slate-200 select-none">
-                  {/* 1. No */}
-                  <th className="py-3 px-3 w-12 text-center bg-slate-100/95">No</th>
-
-                  {/* 2. Jenis */}
+                  {/* 1. Jenis */}
                   <th
                     onClick={() => handleSort('jenis')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2618,7 +2641,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 3. Distributor */}
+                  {/* 2. Distributor */}
                   <th
                     onClick={() => handleSort('distributor')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2630,7 +2653,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 4. Produk */}
+                  {/* 3. Produk */}
                   <th
                     onClick={() => handleSort('item_name')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2642,7 +2665,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 5. Batch */}
+                  {/* 4. Batch */}
                   <th
                     onClick={() => handleSort('batch')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2654,7 +2677,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 6. Expired Date */}
+                  {/* 5. Expired Date */}
                   <th
                     onClick={() => handleSort('expired_date')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2666,7 +2689,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 7. Qty */}
+                  {/* 6. Qty */}
                   <th
                     onClick={() => handleSort('last_qty')}
                     className="py-3 px-3 text-right cursor-pointer hover:text-blue-900"
@@ -2678,7 +2701,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 8. Satuan */}
+                  {/* 7. Satuan */}
                   <th
                     onClick={() => handleSort('uom')}
                     className="py-3 px-3 text-center cursor-pointer hover:text-blue-900"
@@ -2690,7 +2713,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 9. Rak */}
+                  {/* 8. Rak */}
                   <th
                     onClick={() => handleSort('location')}
                     className="py-3 px-3 cursor-pointer hover:text-blue-900"
@@ -2702,7 +2725,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 10. Status QC */}
+                  {/* 9. Status QC */}
                   <th
                     onClick={() => handleSort('qc_code')}
                     className="py-3 px-3 text-center cursor-pointer hover:text-blue-900"
@@ -2714,14 +2737,26 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 11. Note */}
+                  {/* 10. Note */}
                   <th
-                    onClick={() => handleSort('tujuan')}
-                    className="py-3 px-3 cursor-pointer hover:text-blue-900 min-w-[120px]"
-                    title="Urutkan Note / Catatan"
+                    onClick={() => handleSort('note')}
+                    className="py-3 px-3 cursor-pointer hover:text-blue-900 min-w-[140px]"
+                    title="Urutkan Catatan (Note)"
                   >
                     <div className="flex items-center gap-1">
                       <span>Note</span>
+                      <ArrowUpDown size={11} className="opacity-60" />
+                    </div>
+                  </th>
+
+                  {/* 11. matdoc (Kolom tujuan di database) */}
+                  <th
+                    onClick={() => handleSort('tujuan')}
+                    className="py-3 px-3 cursor-pointer hover:text-blue-900 min-w-[120px]"
+                    title="Urutkan Nomor Dokumen (matdoc)"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>matdoc</span>
                       <ArrowUpDown size={11} className="opacity-60" />
                     </div>
                   </th>
@@ -2738,11 +2773,11 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 12. Kolom Status Proses (Sebelum Kolom Aksi) */}
+                  {/* 13. Kolom Status Proses (Sebelum Kolom Aksi) */}
                   <th
                     onClick={() => handleSort('status')}
-                    className="py-3 px-3 text-center cursor-pointer hover:text-blue-900 min-w-[110px]"
-                    title="Urutkan Status Proses (OPEN / CLOSE)"
+                    className="py-3 px-3 text-center cursor-pointer hover:text-blue-900 min-w-[130px]"
+                    title="Urutkan Status Proses (open / closedoretur / closepg)"
                   >
                     <div className="flex items-center justify-center gap-1">
                       <span>Proses</span>
@@ -2750,16 +2785,12 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                     </div>
                   </th>
 
-                  {/* 13. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
+                  {/* 14. Aksi (Paling Belakang, Tanpa Freeze Panes) */}
                   <th className="py-3 px-3 text-center w-24 bg-slate-100/95">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/70">
-                {paginatedData.map((item, index) => {
-                  const rowNum = rowsPerPage === 'ALL' 
-                    ? index + 1 
-                    : (currentPage - 1) * (typeof rowsPerPage === 'number' ? rowsPerPage : 15) + index + 1;
-                    
+                {paginatedData.map((item) => {
                   const qc = (item.qc_code || 'Lulus').toUpperCase();
 
                   let qcBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -2768,8 +2799,9 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   else if (qc === 'PENDING') qcBadgeClass = 'bg-blue-50 text-blue-800 border-blue-200';
                   else if (qc === 'PHE') qcBadgeClass = 'bg-purple-50 text-purple-800 border-purple-300 font-bold';
 
-                  const isClosed = (item.status || '').trim().toUpperCase() === 'CLOSE';
-                  const rowStatus = isClosed ? 'CLOSE' : 'OPEN';
+                  const currentStatus = normalizeProsesStatus(item.status);
+                  const isClosePg = currentStatus === 'closepg';
+                  const isCloseDoRetur = currentStatus === 'closedoretur';
 
                   return (
                     <tr
@@ -2777,27 +2809,26 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                       onClick={() => handleOpenDetailModal(item)}
                       title="Klik baris untuk melihat detail transaksi"
                       className={`cursor-pointer transition-colors ${
-                        isClosed
+                        isClosePg
                           ? 'bg-emerald-50/70 hover:bg-emerald-100/90 border-l-4 border-l-emerald-500'
+                          : isCloseDoRetur
+                          ? 'bg-orange-50/70 hover:bg-orange-100/90 border-l-4 border-l-orange-500'
                           : 'hover:bg-blue-50/70'
                       }`}
                     >
-                      {/* 1. No */}
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-500 font-bold text-[11px] bg-white/95">{rowNum}</td>
-
-                      {/* 2. Jenis Kedatangan */}
+                      {/* 1. Jenis Kedatangan */}
                       <td className="py-2.5 px-3">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                           {item.jenis || 'ADMK'}
                         </span>
                       </td>
 
-                      {/* 3. Nama Distributor */}
+                      {/* 2. Nama Distributor */}
                       <td className="py-2.5 px-3 font-bold text-slate-800 max-w-[220px] truncate" title={item.distributor || '-'}>
                         {item.distributor || '-'}
                       </td>
 
-                      {/* 4. Nama Barang */}
+                      {/* 3. Nama Barang */}
                       <td className="py-2.5 px-3 font-bold text-slate-800 max-w-[280px] truncate" title={item.item_name}>
                         <div className="flex flex-col">
                           <span className="truncate">{item.item_name}</span>
@@ -2807,29 +2838,29 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         </div>
                       </td>
 
-                      {/* 5. No. Batch */}
+                      {/* 4. No. Batch */}
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
                         <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                           {item.batch || '-'}
                         </span>
                       </td>
 
-                      {/* 6. Expired Date */}
+                      {/* 5. Expired Date */}
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
                         {item.expired_date || '-'}
                       </td>
 
-                      {/* 7. Qty Diterima */}
+                      {/* 6. Qty Diterima */}
                       <td className="py-2.5 px-3 text-right font-black text-emerald-800 text-sm">
                         {item.last_qty?.toLocaleString('id-ID') ?? 0}
                       </td>
 
-                      {/* 8. Satuan */}
+                      {/* 7. Satuan */}
                       <td className="py-2.5 px-3 text-center font-bold text-slate-600">
                         {item.uom || 'CTN'}
                       </td>
 
-                      {/* 9. Lokasi Penempatan */}
+                      {/* 8. Lokasi Penempatan */}
                       <td className="py-2.5 px-3 font-bold text-slate-700">
                         <span className="flex items-center gap-1">
                           <MapPin size={11} className="text-blue-600 shrink-0" />
@@ -2837,16 +2868,21 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         </span>
                       </td>
 
-                      {/* 10. Status QC */}
+                      {/* 9. Status QC */}
                       <td className="py-2.5 px-3 text-center">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border ${qcBadgeClass}`}>
                           {qc}
                         </span>
                       </td>
 
-                      {/* 11. Note / Tujuan */}
-                      <td className="py-2.5 px-3 text-slate-700 text-xs font-semibold max-w-[180px] truncate" title={item.note || item.tujuan || '-'}>
-                        {item.note || (item.tujuan && item.tujuan !== '-' ? item.tujuan : '-')}
+                      {/* 10. Note / Catatan */}
+                      <td className="py-2.5 px-3 text-slate-700 text-xs font-semibold max-w-[180px] truncate" title={item.note || '-'}>
+                        {item.note || '-'}
+                      </td>
+
+                      {/* 11. matdoc (Nomor Dokumen dari kolom tujuan DB) */}
+                      <td className="py-2.5 px-3 text-slate-700 text-xs font-mono font-semibold max-w-[180px] truncate" title={item.tujuan || '-'}>
+                        {item.tujuan || '-'}
                       </td>
 
                       {/* 12. Tanggal Input */}
@@ -2854,20 +2890,23 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : (item.tanggal_update || '-')}
                       </td>
 
-                      {/* 12. Kolom Status Proses (Dropdown OPEN / CLOSE) */}
+                      {/* 12. Kolom Status Proses (Dropdown open / closedoretur / closepg) */}
                       <td className="py-2.5 px-3 text-center" onClick={e => e.stopPropagation()}>
                         <select
-                          value={rowStatus}
-                          onChange={e => handleUpdateProsesStatus(item, e.target.value as 'OPEN' | 'CLOSE')}
-                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
-                            isClosed
+                          value={currentStatus}
+                          onChange={e => handleUpdateProsesStatus(item, e.target.value as 'open' | 'closedoretur' | 'closepg')}
+                          className={`text-[10px] font-black lowercase px-2.5 py-1 rounded-xl border outline-none cursor-pointer shadow-2xs transition-all font-mono ${
+                            currentStatus === 'closepg'
                               ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                              : currentStatus === 'closedoretur'
+                              ? 'bg-orange-600 text-white border-orange-700 hover:bg-orange-700'
                               : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                           }`}
-                          title="Klik untuk mengubah status proses (OPEN / CLOSE)"
+                          title="Klik untuk mengubah status proses (open / closedoretur / closepg)"
                         >
-                          <option value="OPEN" className="bg-white text-slate-800 font-bold">OPEN</option>
-                          <option value="CLOSE" className="bg-white text-slate-800 font-bold">CLOSE</option>
+                          <option value="open" className="bg-white text-slate-800 font-bold">open</option>
+                          <option value="closedoretur" className="bg-white text-slate-800 font-bold">closedoretur</option>
+                          <option value="closepg" className="bg-white text-slate-800 font-bold">closepg</option>
                         </select>
                       </td>
 
@@ -3710,42 +3749,59 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 </div>
               </div>
 
-              {/* Row 7: Status Proses (OPEN / CLOSE - Standar: OPEN) */}
+              {/* Row 7: Status Proses (open / closedoretur / closepg - Standar: open) */}
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <label className="block text-slate-800 font-bold text-xs">
                     Status Proses
                   </label>
                   <p className="text-[11px] text-slate-500 m-0">
-                    Standar berstatus OPEN. Ubah ke CLOSE bila penerimaan sudah selesai.
+                    Pilih status proses: open (aktif), closedoretur (close DO retur), atau closepg (close PG).
                   </p>
                 </div>
                 <select
-                  value={(formData.status || 'OPEN').toUpperCase() === 'CLOSE' ? 'CLOSE' : 'OPEN'}
+                  value={normalizeProsesStatus(formData.status)}
                   onChange={e => setFormData({ ...formData, status: e.target.value })}
                   className={`text-xs font-black px-4 py-2 rounded-xl border outline-none cursor-pointer font-mono shadow-2xs transition-all shrink-0 ${
-                    (formData.status || 'OPEN').toUpperCase() === 'CLOSE'
+                    normalizeProsesStatus(formData.status) === 'closepg'
                       ? 'bg-emerald-600 text-white border-emerald-700'
+                      : normalizeProsesStatus(formData.status) === 'closedoretur'
+                      ? 'bg-orange-600 text-white border-orange-700'
                       : 'bg-amber-100 text-amber-900 border-amber-300'
                   }`}
                 >
-                  <option value="OPEN">OPEN (Aktif)</option>
-                  <option value="CLOSE">CLOSE (Selesai)</option>
+                  <option value="open">open</option>
+                  <option value="closedoretur">closedoretur</option>
+                  <option value="closepg">closepg</option>
                 </select>
               </div>
 
-              {/* Row 8: Catatan / Note */}
-              <div className="space-y-1">
-                <label className="block text-slate-800 font-bold text-xs">
-                  Catatan / Note
-                </label>
-                <input
-                  type="text"
-                  value={formData.note !== undefined ? formData.note : (formData.tujuan && formData.tujuan !== '-' ? formData.tujuan : '')}
-                  onChange={e => setFormData({ ...formData, note: e.target.value, tujuan: e.target.value })}
-                  placeholder="Catatan tambahan (opsional)..."
-                  className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
-                />
+              {/* Row 8: No. Dokumen (matdoc) & Catatan / Note */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-slate-800 font-bold text-xs">
+                    No. Dokumen (matdoc)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.tujuan || ''}
+                    onChange={e => setFormData({ ...formData, tujuan: e.target.value })}
+                    placeholder="Contoh: 500012345 / PO-1234..."
+                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-slate-800 font-bold text-xs">
+                    Catatan / Note
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.note || ''}
+                    onChange={e => setFormData({ ...formData, note: e.target.value })}
+                    placeholder="Catatan tambahan (opsional)..."
+                    className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                  />
+                </div>
               </div>
 
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
@@ -3850,18 +3906,24 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   <span className="font-mono text-slate-800">{selectedItem.lpn_serial_number || '-'}</span>
                 </div>
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-slate-400 text-[10px] block">No. Dokumen (matdoc):</span>
+                  <span className="font-mono font-bold text-slate-800">{selectedItem.tujuan || '-'}</span>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="text-slate-400 text-[10px] block">Status Proses:</span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border uppercase font-mono ${
-                    (selectedItem.status || '').trim().toUpperCase() === 'CLOSE'
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border font-mono ${
+                    normalizeProsesStatus(selectedItem.status) === 'closepg'
                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : normalizeProsesStatus(selectedItem.status) === 'closedoretur'
+                      ? 'bg-orange-100 text-orange-800 border-orange-300'
                       : 'bg-amber-100 text-amber-900 border-amber-300'
                   }`}>
-                    {(selectedItem.status || '').trim().toUpperCase() === 'CLOSE' ? 'CLOSE (Selesai)' : 'OPEN (Aktif)'}
+                    {normalizeProsesStatus(selectedItem.status)}
                   </span>
                 </div>
                 <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200 col-span-2 sm:col-span-3">
                   <span className="text-blue-900 font-bold text-[10px] block mb-0.5">Note / Catatan:</span>
-                  <span className="font-semibold text-slate-800 text-xs">{selectedItem.note || (selectedItem.tujuan && selectedItem.tujuan !== '-' ? selectedItem.tujuan : '-')}</span>
+                  <span className="font-semibold text-slate-800 text-xs">{selectedItem.note || '-'}</span>
                 </div>
               </div>
 
