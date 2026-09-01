@@ -187,7 +187,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [slocFilter, setSlocFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
-  const [locationFilter, setLocationFilter] = useState<string>('ALL');
+  const [locationFilter, setLocationFilter] = useState<string>('');
   const [itemNameFilter, setItemNameFilter] = useState<string>('');
   const [sortField, setSortField] = useState<keyof CekFisikPemusnahanItem>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -451,7 +451,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     return Array.from(set).sort();
   }, [cekFisikList]);
 
-  const isLocationFiltered = locationFilter !== 'ALL' && locationFilter.trim() !== '';
+  const isLocationFiltered = Boolean(locationFilter.trim() && locationFilter.trim().toUpperCase() !== 'ALL');
 
   const uniqueTujuanList = useMemo(() => {
     const set = new Set<string>();
@@ -507,8 +507,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         if (normSt.toLowerCase() !== statusFilter.toLowerCase()) return false;
       }
       if (tujuanFilter !== 'ALL' && (item.tujuan || '').toLowerCase() !== tujuanFilter.toLowerCase()) return false;
-      if (locationFilter !== 'ALL' && locationFilter.trim() !== '') {
-        if ((item.location || '').trim().toLowerCase() !== locationFilter.trim().toLowerCase()) return false;
+      if (isLocationFiltered) {
+        const locQ = locationFilter.trim().toLowerCase();
+        if (!(item.location || '').toLowerCase().includes(locQ)) return false;
       }
       if (itemNameFilter && !(item.item_name || '').toLowerCase().includes(itemNameFilter.toLowerCase()) && !(item.item_code || '').toLowerCase().includes(itemNameFilter.toLowerCase())) return false;
 
@@ -2175,21 +2176,43 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             )}
           </div>
 
-          {/* Quick Filter: Location */}
-          <select
-            value={locationFilter}
-            onChange={(e) => { setLocationFilter(e.target.value); setCurrentPage(1); }}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none focus:ring-1.5 focus:ring-rose-500 ${
-              isLocationFiltered
-                ? 'border-rose-300 bg-rose-50/80 text-rose-800'
-                : 'border-slate-200 bg-slate-50 text-slate-700'
-            }`}
-          >
-            <option value="ALL">Semua Location ({uniqueLocations.length})</option>
-            {uniqueLocations.map(loc => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
+          {/* Searchable Location Filter */}
+          <div className="relative min-w-[140px] sm:w-44">
+            <MapPin size={13} className={`absolute left-2.5 top-1/2 -translate-y-1/2 transition-colors ${isLocationFiltered ? 'text-rose-600' : 'text-slate-400'}`} />
+            <input
+              type="text"
+              list="cekfisik-location-suggestions"
+              value={locationFilter}
+              onChange={(e) => {
+                setLocationFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari Lokasi..."
+              className={`w-full pl-7 pr-7 py-1.5 rounded-lg border text-xs font-bold transition-all focus:bg-white focus:outline-none focus:ring-1.5 focus:ring-rose-500 ${
+                isLocationFiltered
+                  ? 'border-rose-300 bg-rose-50 text-rose-900 placeholder:text-rose-400'
+                  : 'border-slate-200 bg-slate-50 text-slate-700 placeholder:text-slate-400'
+              }`}
+            />
+            <datalist id="cekfisik-location-suggestions">
+              {uniqueLocations.map(loc => (
+                <option key={loc} value={loc} />
+              ))}
+            </datalist>
+            {locationFilter && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLocationFilter('');
+                  setCurrentPage(1);
+                }}
+                title="Reset filter lokasi"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 transition-colors p-0.5 rounded cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
 
           {/* Quick Filter: Status */}
           <select
