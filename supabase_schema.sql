@@ -243,7 +243,54 @@ CREATE TRIGGER set_data_penyiapan_updated_at
     EXECUTE FUNCTION public.handle_updated_at();
 
 -- ==============================================================================
--- 7. TABEL DATA_PEMUSNAHAN (Transaksi Pemusnahan / Scrap / Disposal)
+-- 7. TABEL DATA_CEK_FISIK_PEMUSNAHAN (Transaksi Cek Fisik / Penyiapan Pemusnahan)
+-- Penjelasan: Logika & Struktur sama persis 100% dengan data_penyiapan untuk
+-- proses check fisik sebelum dipindahkan secara massal ke data_pemusnahan final
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.data_cek_fisik_pemusnahan (
+    id_cek_fisik VARCHAR(100) PRIMARY KEY NOT NULL,
+    tujuan VARCHAR(255) DEFAULT 'Check Fisik Pemusnahan',
+    item_code VARCHAR(100) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Damaged',
+    location VARCHAR(100) DEFAULT 'WH-REJECT-01',
+    location_type VARCHAR(50) DEFAULT 'Quarantine',
+    first_qty NUMERIC(12,2) DEFAULT 0,
+    last_qty NUMERIC(12,2) DEFAULT 0,
+    uom VARCHAR(50) DEFAULT 'CTN',
+    qty_convert NUMERIC(12,2) DEFAULT 0,
+    uom_convert VARCHAR(50) DEFAULT 'PCS',
+    lpn_serial_number VARCHAR(100),
+    batch VARCHAR(100),
+    vendor_batch VARCHAR(100),
+    sloc VARCHAR(50) DEFAULT 'SL99',
+    expired_date DATE,
+    destination_code VARCHAR(100) DEFAULT 'INCINERATOR',
+    qc_code VARCHAR(50) DEFAULT 'QC-REJECT',
+    user_tally VARCHAR(100) DEFAULT 'Tally QC',
+    shelf_life VARCHAR(50) DEFAULT 'Expired',
+    source VARCHAR(100) DEFAULT 'Retur Customer',
+    user_input VARCHAR(100) DEFAULT 'QA Officer',
+    tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
+    status TEXT DEFAULT 'Siap Check Fisik',
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_cek_fisik_pemusnahan_item_code ON public.data_cek_fisik_pemusnahan(item_code);
+CREATE INDEX IF NOT EXISTS idx_data_cek_fisik_pemusnahan_status ON public.data_cek_fisik_pemusnahan(status);
+CREATE INDEX IF NOT EXISTS idx_data_cek_fisik_pemusnahan_batch ON public.data_cek_fisik_pemusnahan(batch);
+CREATE INDEX IF NOT EXISTS idx_data_cek_fisik_pemusnahan_created_at ON public.data_cek_fisik_pemusnahan(created_at DESC);
+
+DROP TRIGGER IF EXISTS set_data_cek_fisik_pemusnahan_updated_at ON public.data_cek_fisik_pemusnahan;
+CREATE TRIGGER set_data_cek_fisik_pemusnahan_updated_at
+    BEFORE UPDATE ON public.data_cek_fisik_pemusnahan
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+-- ==============================================================================
+-- 8. TABEL DATA_PEMUSNAHAN (Transaksi Pemusnahan / Scrap / Disposal Final)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.data_pemusnahan (
     id_pemusnahan VARCHAR(100) PRIMARY KEY NOT NULL,

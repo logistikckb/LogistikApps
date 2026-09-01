@@ -206,6 +206,39 @@ export interface PenyiapanItem {
   updated_at?: string;
 }
 
+// Transaksi Cek Fisik / Penyiapan Pemusnahan (Supabase table: public.data_cek_fisik_pemusnahan)
+// Struktur logika dan kolom sama persis 100% dengan data_penyiapan untuk staging check fisik pemusnahan
+export interface CekFisikPemusnahanItem {
+  id_cek_fisik: string;
+  tujuan?: string;
+  item_code: string;
+  item_name: string;
+  category?: string;
+  location?: string;
+  location_type?: string;
+  first_qty?: number;
+  last_qty?: number;
+  uom?: string;
+  qty_convert?: number;
+  uom_convert?: string;
+  lpn_serial_number?: string;
+  batch?: string;
+  vendor_batch?: string;
+  sloc?: string;
+  expired_date?: string;
+  destination_code?: string;
+  qc_code?: string;
+  user_tally?: string;
+  shelf_life?: string;
+  source?: string;
+  user_input?: string;
+  tanggal_update?: string;
+  status?: string;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Transaksi Pemusnahan / Disposal Barang (Supabase table: public.data_pemusnahan)
 export interface PemusnahanItem {
   id_pemusnahan: string;
