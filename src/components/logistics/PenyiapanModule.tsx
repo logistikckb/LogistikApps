@@ -984,12 +984,78 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     return Array.from(set).sort();
   }, [penyiapanList]);
 
-  const uniqueStatuses = useMemo(() => {
+  // Helper to check if item status is empty / unassigned
+  const isStatusEmpty = (status?: string | null): boolean => {
+    if (!status) return true;
+    const s = status.trim().toLowerCase();
+    return s === '' || s === '-' || s === 'belum ada status' || s === 'belum dicek' || s === 'kosong';
+  };
+
+  // Status statistics for Penyiapan items (Belum Ada Status, Ada, Beda, Tidak, dll.)
+  const statusStats = useMemo(() => {
+    let belumAda = 0;
+    let ada = 0;
+    let beda = 0;
+    let tidak = 0;
+    const othersMap: Record<string, number> = {};
+
+    penyiapanList.forEach(item => {
+      const raw = (item.status || '').trim();
+      const s = raw.toLowerCase();
+      if (!raw || s === '-' || s === 'belum ada status' || s === 'belum dicek' || s === 'kosong') {
+        belumAda++;
+      } else if (s === 'ada') {
+        ada++;
+      } else if (s === 'beda') {
+        beda++;
+      } else if (s === 'tidak') {
+        tidak++;
+      } else {
+        othersMap[raw] = (othersMap[raw] || 0) + 1;
+      }
+    });
+
+    return {
+      belumAda,
+      ada,
+      beda,
+      tidak,
+      total: penyiapanList.length,
+      others: othersMap
+    };
+  }, [penyiapanList]);
+
+  // Other custom statuses if any (excluding default standard ones)
+  const otherStatuses = useMemo(() => {
     const set = new Set<string>();
     penyiapanList.forEach(item => {
-      if (item.status && item.status !== '-') set.add(item.status.trim());
+      const raw = (item.status || '').trim();
+      const s = raw.toLowerCase();
+      if (
+        raw &&
+        s !== '-' &&
+        s !== 'ada' &&
+        s !== 'beda' &&
+        s !== 'tidak' &&
+        s !== 'belum ada status' &&
+        s !== 'belum dicek' &&
+        s !== 'kosong'
+      ) {
+        set.add(raw);
+      }
     });
-    if (set.size === 0) return ['Ada', 'Beda', 'Tidak'];
+    return Array.from(set).sort();
+  }, [penyiapanList]);
+
+  const uniqueStatuses = useMemo(() => {
+    const set = new Set<string>(['Ada', 'Beda', 'Tidak']);
+    penyiapanList.forEach(item => {
+      const raw = (item.status || '').trim();
+      const s = raw.toLowerCase();
+      if (raw && s !== '-' && s !== 'belum ada status' && s !== 'belum dicek' && s !== 'kosong') {
+        set.add(raw);
+      }
+    });
     return Array.from(set).sort();
   }, [penyiapanList]);
 
@@ -1080,9 +1146,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         return false;
       }
 
-      // Status
-      if (statusFilter !== 'ALL' && (item.status || '').trim().toLowerCase() !== statusFilter.toLowerCase()) {
-        return false;
+      // Status (Mendukung filter: Belum Ada Status / UNCHECKED, Ada, Beda, Tidak, & status lainnya)
+      if (statusFilter !== 'ALL') {
+        const s = (item.status || '').toLowerCase().trim();
+        if (statusFilter === 'BELUM_ADA_STATUS' || statusFilter === 'UNCHECKED') {
+          if (s !== '' && s !== '-' && s !== 'belum ada status' && s !== 'belum dicek' && s !== 'kosong') {
+            return false;
+          }
+        } else if (statusFilter.toLowerCase() !== s) {
+          return false;
+        }
       }
 
       // Tujuan
@@ -1243,9 +1316,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   );
 
   // Quick count of items with status "Ada"
-  const adaCount = useMemo(() => {
-    return penyiapanList.filter(item => (item.status || '').trim().toLowerCase() === 'ada').length;
-  }, [penyiapanList]);
+  const adaCount = statusStats.ada;
 
   // Selected items full data objects
   const selectedItemsData = useMemo(() => {
@@ -3823,6 +3894,133 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       </div>
 
       {/* ========================================================================= */}
+      {/* STATUS FILTER CARDS (Belum Ada Status, Ada, Beda, Tidak, Semua) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {/* Card 1: Semua Status */}
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('ALL');
+            setCurrentPage(1);
+          }}
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter === 'ALL'
+              ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-2xs'
+              : 'bg-white border-slate-200 hover:border-slate-300'
+          }`}
+          title="Tampilkan semua data penyiapan"
+        >
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-tight">
+            <span>Semua Data</span>
+            <Package size={13} className="text-blue-700" />
+          </div>
+          <div className="text-base font-black text-slate-900 font-mono mt-0.5">
+            {statusStats.total.toLocaleString('id-ID')}
+          </div>
+        </button>
+
+        {/* Card 2: Belum Ada Status */}
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter(prev => prev === 'BELUM_ADA_STATUS' ? 'ALL' : 'BELUM_ADA_STATUS');
+            setCurrentPage(1);
+          }}
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer col-span-1 ${
+            statusFilter === 'BELUM_ADA_STATUS'
+              ? 'bg-amber-100/90 border-amber-400 ring-2 ring-amber-500/30 shadow-2xs'
+              : 'bg-white border-slate-200 hover:border-amber-300'
+          }`}
+          title="Klik untuk memfilter data yang belum memiliki status (kosong / belum dicek)"
+        >
+          <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 uppercase tracking-tight">
+            <span>Belum Ada Status</span>
+            <Clock size={13} className="text-amber-700" />
+          </div>
+          <div className="flex items-center justify-between mt-0.5">
+            <span className="text-base font-black text-amber-950 font-mono">
+              {statusStats.belumAda.toLocaleString('id-ID')}
+            </span>
+            {statusStats.belumAda > 0 && (
+              <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-200/80 text-amber-900">
+                Pending
+              </span>
+            )}
+          </div>
+        </button>
+
+        {/* Card 3: Status Ada */}
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter(prev => prev.toLowerCase() === 'ada' ? 'ALL' : 'Ada');
+            setCurrentPage(1);
+          }}
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter.toLowerCase() === 'ada'
+              ? 'bg-emerald-100/90 border-emerald-400 ring-2 ring-emerald-500/30 shadow-2xs'
+              : 'bg-white border-slate-200 hover:border-emerald-300'
+          }`}
+          title="Filter data berstatus 'Ada'"
+        >
+          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900 uppercase tracking-tight">
+            <span>Status "Ada"</span>
+            <CheckCircle2 size={13} className="text-emerald-700" />
+          </div>
+          <div className="text-base font-black text-emerald-950 font-mono mt-0.5">
+            {statusStats.ada.toLocaleString('id-ID')}
+          </div>
+        </button>
+
+        {/* Card 4: Status Beda */}
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter(prev => prev.toLowerCase() === 'beda' ? 'ALL' : 'Beda');
+            setCurrentPage(1);
+          }}
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter.toLowerCase() === 'beda'
+              ? 'bg-blue-100/90 border-blue-400 ring-2 ring-blue-500/30 shadow-2xs'
+              : 'bg-white border-slate-200 hover:border-blue-300'
+          }`}
+          title="Filter data berstatus 'Beda'"
+        >
+          <div className="flex items-center justify-between text-[11px] font-bold text-blue-900 uppercase tracking-tight">
+            <span>Status "Beda"</span>
+            <AlertTriangle size={13} className="text-blue-700" />
+          </div>
+          <div className="text-base font-black text-blue-950 font-mono mt-0.5">
+            {statusStats.beda.toLocaleString('id-ID')}
+          </div>
+        </button>
+
+        {/* Card 5: Status Tidak */}
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter(prev => prev.toLowerCase() === 'tidak' ? 'ALL' : 'Tidak');
+            setCurrentPage(1);
+          }}
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer col-span-2 sm:col-span-1 ${
+            statusFilter.toLowerCase() === 'tidak'
+              ? 'bg-rose-100/90 border-rose-400 ring-2 ring-rose-500/30 shadow-2xs'
+              : 'bg-white border-slate-200 hover:border-rose-300'
+          }`}
+          title="Filter data berstatus 'Tidak'"
+        >
+          <div className="flex items-center justify-between text-[11px] font-bold text-rose-900 uppercase tracking-tight">
+            <span>Status "Tidak"</span>
+            <XCircle size={13} className="text-rose-700" />
+          </div>
+          <div className="text-base font-black text-rose-950 font-mono mt-0.5">
+            {statusStats.tidak.toLocaleString('id-ID')}
+          </div>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
       {/* SEARCH BAR & DYNAMIC FILTERS */}
       {/* ========================================================================= */}
       <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5">
@@ -3950,19 +4148,50 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           {/* Filter Status */}
           <div>
             <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Status Penyiapan</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full p-1.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs font-bold text-slate-700"
-            >
-              <option value="ALL">Semua Status</option>
-              {uniqueStatuses.map(st => (
-                <option key={st} value={st}>{st}</option>
-              ))}
-            </select>
+            <div className="relative flex items-center">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className={`w-full p-1.5 rounded-lg border text-xs font-bold transition-all ${
+                  statusFilter === 'BELUM_ADA_STATUS' || statusFilter === 'UNCHECKED'
+                    ? 'border-amber-400 bg-amber-50 text-amber-900 font-black'
+                    : statusFilter.toLowerCase() === 'ada'
+                    ? 'border-emerald-400 bg-emerald-50 text-emerald-900 font-black'
+                    : statusFilter.toLowerCase() === 'beda'
+                    ? 'border-blue-400 bg-blue-50 text-blue-900 font-black'
+                    : statusFilter.toLowerCase() === 'tidak'
+                    ? 'border-rose-400 bg-rose-50 text-rose-900 font-black'
+                    : statusFilter !== 'ALL'
+                    ? 'border-purple-400 bg-purple-50 text-purple-900 font-black'
+                    : 'border-slate-200 bg-slate-50 focus:bg-white text-slate-700'
+                } pr-6`}
+              >
+                <option value="ALL">Semua Status ({statusStats.total})</option>
+                <option value="BELUM_ADA_STATUS">⏳ Belum Ada Status ({statusStats.belumAda})</option>
+                <option value="Ada">✓ Ada ({statusStats.ada})</option>
+                <option value="Beda">⚡ Beda ({statusStats.beda})</option>
+                <option value="Tidak">✕ Tidak ({statusStats.tidak})</option>
+                {otherStatuses.map(st => (
+                  <option key={st} value={st}>{st} ({statusStats.others[st] || 0})</option>
+                ))}
+              </select>
+              {statusFilter !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 cursor-pointer"
+                  title="Clear Filter Status"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filter Tujuan Penyiapan */}
@@ -4100,15 +4329,31 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             )}
 
             {statusFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 text-[11px] font-bold">
-                <span>Status: {statusFilter}</span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                statusFilter === 'BELUM_ADA_STATUS' || statusFilter === 'UNCHECKED'
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : statusFilter.toLowerCase() === 'ada'
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  : statusFilter.toLowerCase() === 'beda'
+                  ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                  : statusFilter.toLowerCase() === 'tidak'
+                  ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                  : 'bg-purple-100 text-purple-900 border border-purple-300'
+              }`}>
+                <span>
+                  Status:{' '}
+                  {statusFilter === 'BELUM_ADA_STATUS' || statusFilter === 'UNCHECKED'
+                    ? 'Belum Ada Status'
+                    : statusFilter}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
                     setStatusFilter('ALL');
                     setCurrentPage(1);
                   }}
-                  className="hover:text-purple-700 cursor-pointer"
+                  className="hover:opacity-75 cursor-pointer ml-0.5"
+                  title="Hapus filter status"
                 >
                   <X size={12} />
                 </button>

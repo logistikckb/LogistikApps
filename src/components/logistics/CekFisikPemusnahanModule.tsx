@@ -3197,14 +3197,14 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {pastedRows.map((row, idx) => (
                           <tr key={idx} className="hover:bg-rose-50/40 transition-colors">
-                            <td className="p-2 text-center font-bold text-slate-500">{idx + 1}</td>
+                            <td className="px-2 py-1 text-center font-bold text-slate-500">{idx + 1}</td>
                             
                             {/* Status */}
-                            <td className="p-1.5">
+                            <td className="p-1">
                               <select
                                 value={row.status === 'Ada' ? 'Ada' : row.status === 'Beda' ? 'Beda' : row.status === 'Tidak' ? 'Tidak' : 'Cek'}
                                 onChange={(e) => handleUpdatePastedRow(idx, 'status', e.target.value)}
-                                className={`w-full px-2 py-1 rounded border text-xs font-bold transition-all cursor-pointer ${
+                                className={`w-full px-2 py-0.5 rounded border text-xs font-bold transition-all cursor-pointer ${
                                   row.status === 'Ada'
                                     ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                     : row.status === 'Beda'
@@ -3603,8 +3603,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {parsedExcelRows.slice(0, 15).map((row, idx) => (
                           <tr key={idx} className="hover:bg-slate-50">
-                            <td className="p-2 text-center text-slate-400 font-bold">{idx + 1}</td>
-                            <td className="p-2">
+                            <td className="px-2 py-1 text-center text-slate-400 font-bold">{idx + 1}</td>
+                            <td className="px-2 py-1">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                 row.status === 'Ada'
                                   ? 'bg-emerald-100 text-emerald-800'
@@ -3617,16 +3617,16 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                                 {row.status === 'Ada' ? 'Ada' : row.status === 'Beda' ? 'Beda' : row.status === 'Tidak' ? 'Tidak' : 'Cek'}
                               </span>
                             </td>
-                            <td className="p-2">{row.location}</td>
-                            <td className="p-2 font-mono font-bold">{row.item_code}</td>
-                            <td className="p-2 font-medium">{row.item_name}</td>
-                            <td className="p-2 text-right font-mono font-bold text-rose-600">{row.last_qty}</td>
-                            <td className="p-2 text-center">{row.uom}</td>
-                            <td className="p-2 text-right font-mono">{row.qty_convert}</td>
-                            <td className="p-2 font-mono">{row.batch}</td>
-                            <td className="p-2 font-mono">{row.expired_date}</td>
-                            <td className="p-2 text-slate-500">{row.note || '-'}</td>
-                            <td className="p-2 font-semibold">{row.tujuan}</td>
+                            <td className="px-2 py-1">{row.location}</td>
+                            <td className="px-2 py-1 font-mono font-bold">{row.item_code}</td>
+                            <td className="px-2 py-1 font-medium">{row.item_name}</td>
+                            <td className="px-2 py-1 text-right font-mono font-bold text-rose-600">{row.last_qty}</td>
+                            <td className="px-2 py-1 text-center">{row.uom}</td>
+                            <td className="px-2 py-1 text-right font-mono">{row.qty_convert}</td>
+                            <td className="px-2 py-1 font-mono">{row.batch}</td>
+                            <td className="px-2 py-1 font-mono">{row.expired_date}</td>
+                            <td className="px-2 py-1 text-slate-500">{row.note || '-'}</td>
+                            <td className="px-2 py-1 font-semibold">{row.tujuan}</td>
                           </tr>
                         ))}
                       </tbody>
