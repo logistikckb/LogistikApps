@@ -673,12 +673,23 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                     </div>
                     <div className="relative">
                       <input
-                        type={showFormPin ? 'text' : 'password'}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="one-time-code"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-form-type="other"
                         maxLength={8}
                         value={formPin}
                         onChange={(e) => setFormPin(e.target.value)}
                         placeholder={editingUserId ? 'Kosongkan jika tidak ubah PIN' : 'Ketik PIN 4 digit...'}
-                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono tracking-widest font-bold"
+                        className={`w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-mono tracking-widest font-bold ${
+                          showFormPin ? 'pin-mask-visible' : 'pin-mask-hidden'
+                        }`}
                         required={!editingUserId}
                       />
                     </div>
@@ -910,12 +921,23 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
                     </button>
                   </div>
                   <input
-                    type={showResetPinText ? 'text' : 'password'}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="one-time-code"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
                     maxLength={8}
                     value={newResetPin}
                     onChange={(e) => setNewResetPin(e.target.value)}
                     placeholder="Masukkan 4 digit PIN baru..."
-                    className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono tracking-widest font-bold text-center"
+                    className={`w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono tracking-widest font-bold text-center ${
+                      showResetPinText ? 'pin-mask-visible' : 'pin-mask-hidden'
+                    }`}
                     autoFocus
                     required
                   />

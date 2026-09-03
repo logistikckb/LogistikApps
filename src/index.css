@@ -47,6 +47,14 @@
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+
+  /* PIN input masking without triggering browser password manager / data breach warnings */
+  .pin-mask-hidden {
+    -webkit-text-security: disc !important;
+  }
+  .pin-mask-visible {
+    -webkit-text-security: none !important;
+  }
 }
 
 *, *::before, *::after {

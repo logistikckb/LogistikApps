@@ -53,6 +53,10 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
             type="email" 
             value={email}
             onChange={e => setEmail(e.target.value)}
+            autoComplete="off"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-form-type="other"
             className="w-full bg-white/60 text-slate-800 border border-white/80 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-2 focus:ring-blue-800 outline-none transition-all mb-4 shadow-sm placeholder:text-slate-400" 
             placeholder="Email Address" 
           />
@@ -60,6 +64,10 @@ export function LoginModal({ onClose, onSuccess }: LoginModalProps) {
             type="password" 
             value={password}
             onChange={e => setPassword(e.target.value)}
+            autoComplete="new-password"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-form-type="other"
             className="w-full bg-white/60 text-slate-800 border border-white/80 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-2 focus:ring-blue-800 outline-none transition-all mb-6 shadow-sm placeholder:text-slate-400" 
             placeholder="Password" 
           />

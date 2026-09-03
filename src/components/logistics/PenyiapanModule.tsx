@@ -3894,9 +3894,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       </div>
 
       {/* ========================================================================= */}
-      {/* STATUS FILTER CARDS (Belum Ada Status, Ada, Beda, Tidak, Semua) */}
+      {/* STATUS FILTER KPI CARDS (Hanya Muncul di Mode Desktop, Hidden di Mobile) */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="hidden md:grid md:grid-cols-5 gap-2">
         {/* Card 1: Semua Status */}
         <button
           type="button"
@@ -3927,7 +3927,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             setStatusFilter(prev => prev === 'BELUM_ADA_STATUS' ? 'ALL' : 'BELUM_ADA_STATUS');
             setCurrentPage(1);
           }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer col-span-1 ${
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'BELUM_ADA_STATUS'
               ? 'bg-amber-100/90 border-amber-400 ring-2 ring-amber-500/30 shadow-2xs'
               : 'bg-white border-slate-200 hover:border-amber-300'
@@ -4003,7 +4003,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             setStatusFilter(prev => prev.toLowerCase() === 'tidak' ? 'ALL' : 'Tidak');
             setCurrentPage(1);
           }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer col-span-2 sm:col-span-1 ${
+          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter.toLowerCase() === 'tidak'
               ? 'bg-rose-100/90 border-rose-400 ring-2 ring-rose-500/30 shadow-2xs'
               : 'bg-white border-slate-200 hover:border-rose-300'

@@ -196,10 +196,10 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
             </div>
           )}
 
-          <form onSubmit={handleFormSubmit} className="space-y-4">
+          <form onSubmit={handleFormSubmit} className="space-y-4" autoComplete="off">
             {/* Username Field */}
             <div className="space-y-1.5">
-              <label htmlFor="login-username-input" className="block text-xs font-bold text-slate-700">
+              <label htmlFor="login-account-id" className="block text-xs font-bold text-slate-700">
                 Username / Akun
               </label>
 
@@ -208,12 +208,16 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                   <User size={16} />
                 </div>
                 <input
-                  id="login-username-input"
+                  id="login-account-id"
+                  name="cbk_account_id"
                   ref={usernameInputRef}
                   type="text"
-                  autoComplete="username"
+                  autoComplete="off"
                   autoCapitalize="none"
                   spellCheck="false"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-form-type="other"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Masukkan username..."
@@ -241,15 +245,26 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                 </div>
                 <input
                   id="login-pin-input"
+                  name="cbk_pin_code"
                   ref={pinInputRef}
-                  type={showPin ? 'text' : 'password'}
+                  type="text"
                   inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-form-type="other"
                   maxLength={8}
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   placeholder="Masukkan PIN..."
                   disabled={isSubmitting}
-                  className="w-full pl-10 pr-10 py-2.5 text-base bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent font-mono tracking-widest text-slate-800 transition-colors font-bold text-center placeholder:text-slate-400 placeholder:font-sans placeholder:tracking-normal placeholder:text-sm placeholder:font-normal"
+                  className={`w-full pl-10 pr-10 py-2.5 text-base bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent font-mono tracking-widest text-slate-800 transition-colors font-bold text-center placeholder:text-slate-400 placeholder:font-sans placeholder:tracking-normal placeholder:text-sm placeholder:font-normal ${
+                    showPin ? 'pin-mask-visible' : 'pin-mask-hidden'
+                  }`}
                 />
                 <button
                   type="button"
