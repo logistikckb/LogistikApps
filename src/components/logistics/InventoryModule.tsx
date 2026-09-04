@@ -520,45 +520,6 @@ export function InventoryModule({
     }
   };
 
-  // Bulk Set Status
-  const handleBulkUpdateStatus = async (targetStatus: string) => {
-    if (selectedIds.length === 0) return;
-
-    const count = selectedIds.length;
-    const nowIso = new Date().toISOString();
-    const previousList = [...inventoryList];
-
-    // Optimistic Update
-    setInventoryList(prev => {
-      const updated = prev.map(i => selectedIds.includes(i.id_inventory) ? { ...i, status: targetStatus, updated_at: nowIso } : i);
-      try {
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    if (isSupabaseConfigured) {
-      try {
-        const chunkSize = 50;
-        for (let i = 0; i < selectedIds.length; i += chunkSize) {
-          const chunk = selectedIds.slice(i, i + chunkSize);
-          const { error } = await supabase
-            .from('data_inventory')
-            .update({ status: targetStatus, updated_at: nowIso })
-            .in('id_inventory', chunk);
-          if (error) throw error;
-        }
-      } catch (err: any) {
-        console.error('Bulk update status error:', err);
-        showToast('Gagal Update Status', err.message || 'Terjadi kesalahan sistem.', 'error');
-        setInventoryList(previousList);
-        try {
-          localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(previousList));
-        } catch {}
-      }
-    }
-  };
-
   // Export to Excel
   const handleExportExcel = () => {
     if (filteredData.length === 0) {
@@ -1004,52 +965,6 @@ export function InventoryModule({
     const distinctBatch = new Set(selectedItems.map(i => i.batch).filter(Boolean)).size;
     const distinctLocation = new Set(selectedItems.map(i => i.location).filter(Boolean)).size;
 
-    // Aggregate by Location + Item/SKU: { "LOC - ITEM": { location, item_name, item_code, totalLastQty, totalQtyConvert, uom, uom_convert, count, batches: [] } }
-    const skuByLocMap: Record<string, {
-      location: string;
-      item_name: string;
-      item_code: string;
-      totalLastQty: number;
-      totalQtyConvert: number;
-      uom: string;
-      uom_convert: string;
-      count: number;
-      batches: string[];
-    }> = {};
-
-    selectedItems.forEach(item => {
-      const loc = item.location || 'Tanpa Lokasi';
-      const itemName = item.item_name || 'Tanpa Nama Item';
-      const itemCode = item.item_code || '';
-      const key = `${loc}__${itemCode || itemName}`;
-
-      if (!skuByLocMap[key]) {
-        skuByLocMap[key] = {
-          location: loc,
-          item_name: itemName,
-          item_code: itemCode,
-          totalLastQty: 0,
-          totalQtyConvert: 0,
-          uom: item.uom || 'CTN',
-          uom_convert: item.uom_convert || 'PCS',
-          count: 0,
-          batches: []
-        };
-      }
-
-      skuByLocMap[key].totalLastQty += Number(item.last_qty || 0);
-      skuByLocMap[key].totalQtyConvert += Number(item.qty_convert || item.last_qty || 0);
-      skuByLocMap[key].count += 1;
-      if (item.batch && !skuByLocMap[key].batches.includes(item.batch)) {
-        skuByLocMap[key].batches.push(item.batch);
-      }
-    });
-
-    const skuByLocationList = Object.values(skuByLocMap).sort((a, b) => {
-      if (a.location !== b.location) return a.location.localeCompare(b.location);
-      return a.item_name.localeCompare(b.item_name);
-    });
-
     return {
       selectedCount: selectedItems.length,
       totalRows: inventoryList.length,
@@ -1060,7 +975,6 @@ export function InventoryModule({
       distinctLocationCount: distinctLocation,
       displayUom: selectedItems[0]?.uom || 'CTN',
       displayUomConvert: selectedItems[0]?.uom_convert || 'PCS',
-      skuByLocationList,
       selectedItems
     };
   }, [selectedIds, inventoryList]);
@@ -1517,50 +1431,6 @@ export function InventoryModule({
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap ml-auto">
-              {/* Set Status Ada */}
-              <button
-                type="button"
-                onClick={() => handleBulkUpdateStatus('Ada')}
-                className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                title="Ubah status semua baris terpilih menjadi 'Ada'"
-              >
-                <Check size={12} className="text-emerald-700" />
-                <span>Set "Ada"</span>
-              </button>
-
-              {/* Set Status Tidak */}
-              <button
-                type="button"
-                onClick={() => handleBulkUpdateStatus('Tidak')}
-                className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                title="Ubah status semua baris terpilih menjadi 'Tidak'"
-              >
-                <AlertCircle size={12} className="text-amber-700" />
-                <span>Set "Tidak"</span>
-              </button>
-
-              {/* Set Status Beda */}
-              <button
-                type="button"
-                onClick={() => handleBulkUpdateStatus('Beda')}
-                className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                title="Ubah status semua baris terpilih menjadi 'Beda'"
-              >
-                <AlertTriangle size={12} className="text-blue-700" />
-                <span>Set "Beda"</span>
-              </button>
-
-              {/* Reset Status */}
-              <button
-                type="button"
-                onClick={() => handleBulkUpdateStatus('')}
-                className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                title="Kosongkan status baris terpilih"
-              >
-                <RotateCcw size={12} className="text-slate-500" />
-                <span>Reset Status</span>
-              </button>
-
               {/* Pindah Data Massal Button */}
               <button
                 type="button"
@@ -1596,52 +1466,6 @@ export function InventoryModule({
               </button>
             </div>
           </div>
-
-          {/* Rangkuman SKU per Lokasi (Khusus membantu Stock Opname Rak) */}
-          {selectedSummary.skuByLocationList && selectedSummary.skuByLocationList.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-slate-200/80">
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-tight flex items-center gap-1">
-                  <MapPin size={12} className="text-teal-700" />
-                  <span>Rincian Total Last Qty SKU per Lokasi:</span>
-                </span>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  {selectedSummary.skuByLocationList.length} kelompok lokasi & barang terpilih
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
-                {selectedSummary.skuByLocationList.map((group, gIdx) => (
-                  <div
-                    key={`${group.location}_${group.item_code || group.item_name}_${gIdx}`}
-                    className="p-2 rounded-lg bg-slate-50/90 border border-slate-200 flex flex-col justify-between gap-1 shadow-2xs hover:border-teal-300 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="flex items-center gap-1 text-slate-800 font-bold font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                        <MapPin size={11} className="text-teal-700 shrink-0" />
-                        <span className="truncate max-w-[120px]" title={group.location}>{group.location}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-200/70 px-1.5 py-0.2 rounded-full">
-                        {group.count} baris {group.batches.length > 1 ? `(${group.batches.length} batch)` : ''}
-                      </span>
-                    </div>
-
-                    <div className="text-xs font-bold text-slate-900 line-clamp-1" title={group.item_name}>
-                      {group.item_name}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 mt-0.5 text-xs">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Total Last Qty:</span>
-                      <div className="flex items-center gap-1 font-mono font-black text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
-                        <span>{group.totalLastQty.toLocaleString('id-ID')}</span>
-                        <span className="text-[10px] font-semibold text-emerald-700 uppercase">{group.uom}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
