@@ -126,9 +126,9 @@ export function InventoryModule({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteValue, setEditingNoteValue] = useState<string>('');
 
-  // Sorting
-  const [sortField, setSortField] = useState<keyof InventoryItem>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  // Sorting - Standar tampilan tabel urut sesuai location (A-Z)
+  const [sortField, setSortField] = useState<keyof InventoryItem>('location');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Pagination
   const [pageSize, setPageSize] = useState<number | 'ALL'>(50);
@@ -878,19 +878,59 @@ export function InventoryModule({
     });
   }, [baseDataList, statusFilter, locationFilter, slocFilter, searchQuery]);
 
-  // Sort Logic
+  // Sort Logic - Standar tampilan tabel urut sesuai location (A-Z)
   const sortedData = useMemo(() => {
+    const effectiveSortField = sortField || 'location';
+    const effectiveSortOrder = sortOrder || 'asc';
+
     return [...filteredData].sort((a, b) => {
-      const valA = a[sortField] ?? '';
-      const valB = b[sortField] ?? '';
+      // Sorting Lokasi (dengan tie-breaker Nama Barang)
+      if (effectiveSortField === 'location') {
+        const locA = String(a.location || '').trim();
+        const locB = String(b.location || '').trim();
+        const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        if (locComp !== 0) {
+          return effectiveSortOrder === 'asc' ? locComp : -locComp;
+        }
+        const nameA = String(a.item_name || '').trim();
+        const nameB = String(b.item_name || '').trim();
+        const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        return effectiveSortOrder === 'asc' ? nameComp : -nameComp;
+      }
+
+      // Sorting Nama Barang (dengan tie-breaker Lokasi)
+      if (effectiveSortField === 'item_name') {
+        const nameA = String(a.item_name || '').trim();
+        const nameB = String(b.item_name || '').trim();
+        const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        if (nameComp !== 0) {
+          return effectiveSortOrder === 'asc' ? nameComp : -nameComp;
+        }
+        const locA = String(a.location || '').trim();
+        const locB = String(b.location || '').trim();
+        return effectiveSortOrder === 'asc'
+          ? locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' })
+          : locB.localeCompare(locA, 'id-ID', { numeric: true, sensitivity: 'base' });
+      }
+
+      const valA = a[effectiveSortField] ?? '';
+      const valB = b[effectiveSortField] ?? '';
+
+      if (effectiveSortField === 'qty_convert' || effectiveSortField === 'last_qty' || effectiveSortField === 'first_qty') {
+        const numA = Number(valA) || 0;
+        const numB = Number(valB) || 0;
+        return effectiveSortOrder === 'asc' ? numA - numB : numB - numA;
+      }
 
       if (typeof valA === 'number' && typeof valB === 'number') {
-        return sortOrder === 'asc' ? valA - valB : valB - valA;
+        return effectiveSortOrder === 'asc' ? valA - valB : valB - valA;
       }
 
       const strA = String(valA).toLowerCase();
       const strB = String(valB).toLowerCase();
-      return sortOrder === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+      return effectiveSortOrder === 'asc'
+        ? strA.localeCompare(strB, 'id-ID', { numeric: true, sensitivity: 'base' })
+        : strB.localeCompare(strA, 'id-ID', { numeric: true, sensitivity: 'base' });
     });
   }, [filteredData, sortField, sortOrder]);
 
@@ -903,10 +943,15 @@ export function InventoryModule({
 
   const totalPages = pageSize === 'ALL' ? 1 : Math.ceil(sortedData.length / pageSize) || 1;
 
-  // Sorting Handler
+  // Sorting Handler (kembali ke standar tampilan tabel urut lokasi A-Z)
   const handleSort = (field: keyof InventoryItem) => {
     if (sortField === field) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+      if (sortOrder === 'asc') {
+        setSortOrder('desc');
+      } else {
+        setSortField('location');
+        setSortOrder('asc');
+      }
     } else {
       setSortField(field);
       setSortOrder('asc');
@@ -1050,6 +1095,27 @@ export function InventoryModule({
     return { total, ada, beda, tidak, belumDicek, totalQty };
   }, [inventoryList]);
 
+  // Check if any filter is active
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() !== '' ||
+    statusFilter !== 'ALL' ||
+    locationFilter !== 'ALL' ||
+    slocFilter !== 'ALL'
+  );
+
+  // Check if custom sort is active (bukan standar tampilan tabel urut lokasi A-Z)
+  const isCustomSortActive = Boolean(sortField && !(sortField === 'location' && sortOrder === 'asc'));
+
+  const handleClearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('ALL');
+    setLocationFilter('ALL');
+    setSlocFilter('ALL');
+    setSortField('location');
+    setSortOrder('asc');
+    setCurrentPage(1);
+  };
+
   return (
     <div className="space-y-3 animate-fade-in text-slate-800 text-xs">
       
@@ -1165,101 +1231,6 @@ export function InventoryModule({
       </div>
 
       {/* ========================================================================= */}
-      {/* STATUS FILTER PILLS & QUICK METRICS */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <button
-          type="button"
-          onClick={() => { setStatusFilter('ALL'); setCurrentPage(1); }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'ALL'
-              ? 'bg-teal-50 border-teal-300 ring-2 ring-teal-500/20 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-tight">
-            <span>Semua Stok</span>
-            <Package size={13} className="text-teal-700" />
-          </div>
-          <div className="text-base font-black text-slate-900 font-mono mt-0.5">
-            {statusStats.total}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setStatusFilter('Ada'); setCurrentPage(1); }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter.toLowerCase() === 'ada'
-              ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-emerald-200'
-          }`}
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800 uppercase tracking-tight">
-            <span>Status "Ada"</span>
-            <CheckCircle2 size={13} className="text-emerald-700" />
-          </div>
-          <div className="text-base font-black text-emerald-900 font-mono mt-0.5">
-            {statusStats.ada}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setStatusFilter('Tidak'); setCurrentPage(1); }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter.toLowerCase() === 'tidak'
-              ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-amber-200'
-          }`}
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-amber-800 uppercase tracking-tight">
-            <span>Status "Tidak"</span>
-            <AlertCircle size={13} className="text-amber-700" />
-          </div>
-          <div className="text-base font-black text-amber-900 font-mono mt-0.5">
-            {statusStats.tidak}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setStatusFilter('Beda'); setCurrentPage(1); }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter.toLowerCase() === 'beda'
-              ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-blue-200'
-          }`}
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-blue-800 uppercase tracking-tight">
-            <span>Status "Beda"</span>
-            <AlertTriangle size={13} className="text-blue-700" />
-          </div>
-          <div className="text-base font-black text-blue-900 font-mono mt-0.5">
-            {statusStats.beda}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setStatusFilter('UNCHECKED'); setCurrentPage(1); }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer col-span-2 sm:col-span-1 ${
-            statusFilter === 'UNCHECKED'
-              ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-500/20 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-tight">
-            <span>Belum Dicek</span>
-            <RotateCcw size={13} className="text-slate-400" />
-          </div>
-          <div className="text-base font-black text-slate-600 font-mono mt-0.5">
-            {statusStats.belumDicek}
-          </div>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
       {/* SEARCH & FILTER BAR */}
       {/* ========================================================================= */}
       <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
@@ -1355,23 +1326,194 @@ export function InventoryModule({
               ))}
             </select>
           </div>
+
+          {/* Status Filter */}
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-bold text-slate-500 shrink-0">Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+            >
+              <option value="ALL">Semua Status</option>
+              <option value="Ada">Ada</option>
+              <option value="Tidak">Tidak</option>
+              <option value="Beda">Beda</option>
+              <option value="UNCHECKED">Belum Dicek</option>
+            </select>
+          </div>
         </div>
+
+        {/* Active Filter & Sorting Badges */}
+        {(hasActiveFilters || isCustomSortActive) && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+              <Filter size={12} className="text-teal-900" />
+              Filter Aktif:
+            </span>
+
+            {/* Active Sort Badge - Hanya muncul jika sort BUKAN standar urutan lokasi A-Z */}
+            {isCustomSortActive && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-300">
+                <ArrowUpDown size={11} className="text-teal-700" />
+                <span>
+                  Urutan:{' '}
+                  {sortField === 'location'
+                    ? 'Lokasi (Z-A)'
+                    : sortField === 'item_name'
+                    ? 'Nama Barang'
+                    : sortField === 'last_qty'
+                    ? 'Last Qty'
+                    : sortField === 'qty_convert'
+                    ? 'Qty Convert'
+                    : sortField === 'sloc'
+                    ? 'SLOC'
+                    : sortField === 'status'
+                    ? 'Status'
+                    : sortField === 'batch'
+                    ? 'Batch'
+                    : sortField === 'created_at'
+                    ? 'Waktu Input'
+                    : String(sortField)}{' '}
+                  ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSortField('location');
+                    setSortOrder('asc');
+                  }}
+                  className="hover:text-rose-600 cursor-pointer ml-0.5"
+                  title="Kembalikan ke standar urutan lokasi (A-Z)"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-900 text-[11px] font-bold border border-teal-200">
+                <span>Cari: "{searchQuery}"</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-teal-700 cursor-pointer ml-0.5"
+                  title="Hapus pencarian"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {locationFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-900 text-[11px] font-bold border border-indigo-200">
+                <MapPin size={11} />
+                <span>Lokasi: {locationFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocationFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-indigo-700 cursor-pointer ml-0.5"
+                  title="Hapus filter lokasi"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {slocFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-900 text-[11px] font-bold border border-blue-200">
+                <span>SLOC: {slocFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlocFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:text-blue-700 cursor-pointer ml-0.5"
+                  title="Hapus filter SLOC"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {statusFilter !== 'ALL' && (
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                statusFilter === 'UNCHECKED'
+                  ? 'bg-slate-100 text-slate-800 border-slate-300'
+                  : statusFilter.toLowerCase() === 'ada'
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                  : statusFilter.toLowerCase() === 'beda'
+                  ? 'bg-blue-50 text-blue-900 border-blue-300'
+                  : 'bg-amber-50 text-amber-900 border-amber-300'
+              }`}>
+                <span>Status: {statusFilter === 'UNCHECKED' ? 'Belum Dicek' : statusFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className="hover:opacity-75 cursor-pointer ml-0.5"
+                  title="Hapus filter status"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="ml-auto inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200"
+            >
+              <RotateCcw size={11} />
+              Reset Semua Filter
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ========================================================================= */}
-      {/* BULK ACTION BAR KETIKA PILIH BARIS */}
-      {/* ========================================================================= */}
+      {/* BULK ACTION BAR KETIKA PILIH BARIS (INLINE SUMMARY) */}
       {selectedSummary && (
-        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-teal-200/90 shadow-2xs space-y-2 animate-fade-in">
-          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 text-teal-900 text-[11px] font-black border border-teal-300">
-                <CheckCheck size={13} className="text-teal-700" />
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-teal-200/90 shadow-2xs space-y-1.5 animate-fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 text-teal-900 text-xs font-black border border-teal-300">
+                <CheckCheck size={14} className="text-teal-700" />
                 <span>{selectedSummary.selectedCount} Baris Terpilih</span>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  / {selectedSummary.totalRows}
+                </span>
               </span>
-              <span className="text-[10px] text-slate-500 font-semibold hidden sm:inline">
-                • {selectedSummary.distinctSkuCount} SKU • {selectedSummary.distinctBatchCount} Batch • {selectedSummary.distinctLocationCount} Lokasi
-              </span>
+
+              {/* Inline Summary Metrics */}
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-semibold border border-slate-200">
+                  <span>Total Last Qty:</span>
+                  <strong className="text-teal-900 font-mono font-black">{selectedSummary.totalLastQty.toLocaleString('id-ID')} {selectedSummary.displayUom}</strong>
+                </span>
+
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-semibold border border-emerald-200">
+                  <span>Total Qty Convert:</span>
+                  <strong className="text-emerald-900 font-mono font-black">{selectedSummary.totalQtyConvert.toLocaleString('id-ID')} {selectedSummary.displayUomConvert}</strong>
+                </span>
+
+                {selectedSummary.distinctSkuCount > 0 && (
+                  <span className="text-[11px] text-slate-500 font-medium hidden lg:inline">
+                    • {selectedSummary.distinctSkuCount} SKU • {selectedSummary.distinctBatchCount} Batch • {selectedSummary.distinctLocationCount} Lokasi
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap ml-auto">
@@ -1452,39 +1594,6 @@ export function InventoryModule({
                 <X size={12} />
                 <span>Batal</span>
               </button>
-            </div>
-          </div>
-
-          {/* Mini KPI Cards for Selection */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">Baris Terpilih</span>
-                <div className="text-xs font-black text-slate-900 font-mono mt-0.5">
-                  {selectedSummary.selectedCount} / {selectedSummary.totalRows}
-                </div>
-              </div>
-              <Layers size={14} className="text-slate-400" />
-            </div>
-
-            <div className="p-2 rounded-lg bg-teal-50/70 border border-teal-200 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-teal-800 uppercase tracking-tight block">Total Last Qty</span>
-                <div className="text-xs font-black text-teal-900 font-mono mt-0.5">
-                  {selectedSummary.totalLastQty.toLocaleString('id-ID')} {selectedSummary.displayUom}
-                </div>
-              </div>
-              <Package size={14} className="text-teal-600" />
-            </div>
-
-            <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">Total Qty Convert</span>
-                <div className="text-xs font-black text-emerald-900 font-mono mt-0.5">
-                  {selectedSummary.totalQtyConvert.toLocaleString('id-ID')} {selectedSummary.displayUomConvert}
-                </div>
-              </div>
-              <Boxes size={14} className="text-emerald-600" />
             </div>
           </div>
 
