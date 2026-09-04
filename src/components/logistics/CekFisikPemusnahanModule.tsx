@@ -105,7 +105,7 @@ export const BULK_DESTINATIONS_CEK_FISIK: BulkDestinationOption[] = [
     defaultLocationType: '',
     defaultQcCode: '',
     defaultDestinationCode: '',
-    defaultStatus: 'Siap Dimusnahkan',
+    defaultStatus: '',
     defaultTujuan: 'Pemusnahan Limbah Terkontrol',
     defaultCategory: '',
     sourceStatusDefault: 'Terkirim ke Pemusnahan',
@@ -816,7 +816,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           source: `Cek Fisik (${item.id_cek_fisik})`,
           user_input: currentUser?.nama || 'QA Officer',
           tanggal_update: nowIso,
-          status: item.status || targetConfig.defaultStatus,
+          status: (item.status && item.status.trim() !== '' && item.status.trim() !== '-') ? item.status : (targetConfig.defaultStatus || ''),
           note: item.note ? `${item.note} [Dari Cek Fisik: ${item.id_cek_fisik}]` : `Ditransfer dari Cek Fisik: ${item.id_cek_fisik}`,
           created_at: nowIso,
           updated_at: nowIso

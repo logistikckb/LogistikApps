@@ -108,7 +108,7 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     defaultLocationType: '',
     defaultQcCode: '',
     defaultDestinationCode: '',
-    defaultStatus: 'Siap Dimusnahkan',
+    defaultStatus: '',
     defaultTujuan: 'Pemusnahan Limbah Terkontrol',
     defaultCategory: '',
     sourceStatusDefault: 'Terkirim ke Pemusnahan',
@@ -1225,33 +1225,32 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     }
 
-    // 3. Sorting - JANGAN sort otomatis jika sortField null (tampilkan sesuai urutan asli data / upload)
-    if (!sortField) {
-      return searchedList;
-    }
+    // 3. Sorting - Standar tampilan tabel urut sesuai location (A-Z)
+    const effectiveSortField = sortField || 'location';
+    const effectiveSortOrder = sortOrder || 'asc';
 
     return [...searchedList].sort((a, b) => {
       // Sorting Kombinasi: Lokasi lalu Nama Barang
-      if (sortField === 'location_then_name') {
+      if (effectiveSortField === 'location_then_name') {
         const locA = String(a.location || '').trim();
         const locB = String(b.location || '').trim();
         const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
         if (locComp !== 0) {
-          return sortOrder === 'asc' ? locComp : -locComp;
+          return effectiveSortOrder === 'asc' ? locComp : -locComp;
         }
         const nameA = String(a.item_name || '').trim();
         const nameB = String(b.item_name || '').trim();
         const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
-        return sortOrder === 'asc' ? nameComp : -nameComp;
+        return effectiveSortOrder === 'asc' ? nameComp : -nameComp;
       }
 
-      // Sorting Lokasi (dengan tie-breaker Nama Barang)
-      if (sortField === 'location') {
+      // Sorting Lokasi (dengan tie-breaker Nama Barang) - Standar Tampilan Tabel
+      if (effectiveSortField === 'location') {
         const locA = String(a.location || '').trim();
         const locB = String(b.location || '').trim();
         const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
         if (locComp !== 0) {
-          return sortOrder === 'asc' ? locComp : -locComp;
+          return effectiveSortOrder === 'asc' ? locComp : -locComp;
         }
         const nameA = String(a.item_name || '').trim();
         const nameB = String(b.item_name || '').trim();
@@ -1259,34 +1258,34 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
 
       // Sorting Nama Barang (dengan tie-breaker Lokasi)
-      if (sortField === 'item_name') {
+      if (effectiveSortField === 'item_name') {
         const nameA = String(a.item_name || '').trim();
         const nameB = String(b.item_name || '').trim();
         const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
         if (nameComp !== 0) {
-          return sortOrder === 'asc' ? nameComp : -nameComp;
+          return effectiveSortOrder === 'asc' ? nameComp : -nameComp;
         }
         const locA = String(a.location || '').trim();
         const locB = String(b.location || '').trim();
         return locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
       }
 
-      const valA = a[sortField as keyof PenyiapanItem] ?? '';
-      const valB = b[sortField as keyof PenyiapanItem] ?? '';
+      const valA = a[effectiveSortField as keyof PenyiapanItem] ?? '';
+      const valB = b[effectiveSortField as keyof PenyiapanItem] ?? '';
 
-      if (sortField === 'qty_convert' || sortField === 'last_qty' || sortField === 'first_qty') {
+      if (effectiveSortField === 'qty_convert' || effectiveSortField === 'last_qty' || effectiveSortField === 'first_qty') {
         const numA = Number(valA) || 0;
         const numB = Number(valB) || 0;
-        return sortOrder === 'asc' ? numA - numB : numB - numA;
+        return effectiveSortOrder === 'asc' ? numA - numB : numB - numA;
       }
 
       if (typeof valA === 'number' && typeof valB === 'number') {
-        return sortOrder === 'asc' ? valA - valB : valB - valA;
+        return effectiveSortOrder === 'asc' ? valA - valB : valB - valA;
       }
 
       const strA = String(valA).trim();
       const strB = String(valB).trim();
-      return sortOrder === 'asc'
+      return effectiveSortOrder === 'asc'
         ? strA.localeCompare(strB, 'id-ID', { numeric: true, sensitivity: 'base' })
         : strB.localeCompare(strA, 'id-ID', { numeric: true, sensitivity: 'base' });
     });
@@ -1314,6 +1313,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     statusFilter !== 'ALL' ||
     tujuanFilter !== 'ALL'
   );
+
+  // Check if a custom sort is active (bukan standar tampilan tabel urut lokasi A-Z)
+  const isCustomSortActive = Boolean(sortField && !(sortField === 'location' && sortOrder === 'asc'));
 
   // Quick count of items with status "Ada"
   const adaCount = statusStats.ada;
@@ -1500,14 +1502,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     setCurrentPage(1);
   };
 
-  // Sort Toggle (null -> asc -> desc -> null)
+  // Sort Toggle (standar tampilan tabel urut sesuai location A-Z)
   const handleSort = (field: keyof PenyiapanItem | 'location_then_name') => {
     if (sortField === field) {
       if (sortOrder === 'asc') {
         setSortOrder('desc');
       } else {
-        // Toggle off back to unsorted (urutan asli)
-        setSortField(null);
+        // Toggle off kembali ke standar tampilan tabel urut lokasi A-Z
+        setSortField('location');
         setSortOrder('asc');
       }
     } else {
@@ -1784,7 +1786,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       source: `Penyiapan (${item.id_penyiapan})`,
       user_input: currentUser?.nama || 'Admin',
       tanggal_update: now.toISOString(),
-      status: 'Siap Dimusnahkan',
+      status: item.status || '',
       note: item.note ? `${item.note} - Dari Penyiapan ${item.id_penyiapan}` : `Ditransfer dari Penyiapan ID: ${item.id_penyiapan}`
     });
     setShowPemusnahanModal(true);
@@ -1822,7 +1824,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       source: pemusnahanFormData.source || `Penyiapan (${pemusnahanTargetItem.id_penyiapan})`,
       user_input: currentUser?.nama || 'Admin',
       tanggal_update: nowIso,
-      status: pemusnahanFormData.status || 'Siap Dimusnahkan',
+      status: pemusnahanFormData.status !== undefined && pemusnahanFormData.status !== '' ? pemusnahanFormData.status : (pemusnahanTargetItem.status || ''),
       note: pemusnahanFormData.note || '',
       created_at: nowIso,
       updated_at: nowIso
@@ -2011,8 +2013,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     const initialDest = BULK_DESTINATIONS.find(d => d.id === bulkTargetModuleId) || BULK_DESTINATIONS[0];
     const selectedItems = penyiapanList.filter(item => selectedIds.includes(item.id_penyiapan));
 
-    // Ambil nilai Tujuan dan Note dari data terpilih di tabel penyiapan
+    // Ambil nilai Tujuan, Status, dan Note dari data terpilih di tabel penyiapan
     const initialTujuan = selectedItems.find(i => i.tujuan && i.tujuan.trim() !== '' && i.tujuan.trim() !== '-')?.tujuan || selectedItems[0]?.tujuan || '';
+    const initialStatus = selectedItems.find(i => i.status && i.status.trim() !== '' && i.status.trim() !== '-')?.status || selectedItems[0]?.status || '';
     const initialNote = selectedItems.find(i => i.note && i.note.trim() !== '' && i.note.trim() !== '-')?.note || selectedItems[0]?.note || '';
 
     setBulkFormData({
@@ -2021,7 +2024,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       location_type: initialDest.defaultLocationType,
       qc_code: initialDest.defaultQcCode,
       destination_code: initialDest.defaultDestinationCode,
-      target_status: '', // biarkan kosong saja sesuai permintaan
+      target_status: initialStatus, // sesuaikan dengan kolom status penyiapan
       tujuan: initialTujuan,
       category: initialDest.defaultCategory,
       note: initialNote
@@ -2041,7 +2044,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         location_type: dest.defaultLocationType,
         qc_code: dest.defaultQcCode,
         destination_code: dest.defaultDestinationCode,
-        target_status: prev.target_status || '', // biarkan kosong saja
+        target_status: prev.target_status || '', // pertahankan status dari penyiapan
         tujuan: prev.tujuan || '', // pertahankan tujuan dari tabel penyiapan
         category: dest.defaultCategory,
         note: prev.note || '' // pertahankan note dari tabel penyiapan
@@ -2110,8 +2113,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         ? bulkFormData.note
         : itemNote;
 
-      // Status di database tujuan: kosongkan jika tidak diisi
-      const resolvedStatus = bulkFormData.target_status || '';
+      // Status di database tujuan: sesuaikan dengan status di data penyiapan masing-masing item (atau input form jika diubah manual)
+      const itemStatus = (item.status && item.status.trim() !== '' && item.status.trim() !== '-') ? item.status : '';
+      const resolvedStatus = bulkFormData.target_status !== undefined && bulkFormData.target_status !== ''
+        ? bulkFormData.target_status
+        : itemStatus;
 
       // Kolom Category, Location, Location Type, SLOC, Destination Code, QC Code, User Tally
       // Harus diisi sesuai data awal di data penyiapan, JANGAN diisi mock data seperti Finished Good, WH-REJECT-01, Quarantine, SL99, INCINERATOR, QC-REJECT
@@ -2832,7 +2838,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   };
 
   // Copy template header format database data_penyiapan to clipboard
-  const handleCopyPasteTemplateHeader = (formatType: 'db_full' | 'form_sku' = 'db_full') => {
+  const handleCopyPasteTemplateHeader = (formatType: 'db_full' | 'form_sku' = 'form_sku') => {
     let headers: string[] = [];
     if (formatType === 'db_full') {
       // Urutan Persis Sesuai Gambar Tabel Database: Item Code (1), Item Name (2), Category (3), Location (4)...
@@ -3908,133 +3914,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       </div>
 
       {/* ========================================================================= */}
-      {/* STATUS FILTER KPI CARDS (Hanya Muncul di Mode Desktop, Hidden di Mobile) */}
-      {/* ========================================================================= */}
-      <div className="hidden md:grid md:grid-cols-5 gap-2">
-        {/* Card 1: Semua Status */}
-        <button
-          type="button"
-          onClick={() => {
-            setStatusFilter('ALL');
-            setCurrentPage(1);
-          }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'ALL'
-              ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-          title="Tampilkan semua data penyiapan"
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-tight">
-            <span>Semua Data</span>
-            <Package size={13} className="text-blue-700" />
-          </div>
-          <div className="text-base font-black text-slate-900 font-mono mt-0.5">
-            {statusStats.total.toLocaleString('id-ID')}
-          </div>
-        </button>
-
-        {/* Card 2: Belum Ada Status */}
-        <button
-          type="button"
-          onClick={() => {
-            setStatusFilter(prev => prev === 'BELUM_ADA_STATUS' ? 'ALL' : 'BELUM_ADA_STATUS');
-            setCurrentPage(1);
-          }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'BELUM_ADA_STATUS'
-              ? 'bg-amber-100/90 border-amber-400 ring-2 ring-amber-500/30 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-amber-300'
-          }`}
-          title="Klik untuk memfilter data yang belum memiliki status (kosong / belum dicek)"
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 uppercase tracking-tight">
-            <span>Belum Ada Status</span>
-            <Clock size={13} className="text-amber-700" />
-          </div>
-          <div className="flex items-center justify-between mt-0.5">
-            <span className="text-base font-black text-amber-950 font-mono">
-              {statusStats.belumAda.toLocaleString('id-ID')}
-            </span>
-            {statusStats.belumAda > 0 && (
-              <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-200/80 text-amber-900">
-                Pending
-              </span>
-            )}
-          </div>
-        </button>
-
-        {/* Card 3: Status Ada */}
-        <button
-          type="button"
-          onClick={() => {
-            setStatusFilter(prev => prev.toLowerCase() === 'ada' ? 'ALL' : 'Ada');
-            setCurrentPage(1);
-          }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter.toLowerCase() === 'ada'
-              ? 'bg-emerald-100/90 border-emerald-400 ring-2 ring-emerald-500/30 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-emerald-300'
-          }`}
-          title="Filter data berstatus 'Ada'"
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900 uppercase tracking-tight">
-            <span>Status "Ada"</span>
-            <CheckCircle2 size={13} className="text-emerald-700" />
-          </div>
-          <div className="text-base font-black text-emerald-950 font-mono mt-0.5">
-            {statusStats.ada.toLocaleString('id-ID')}
-          </div>
-        </button>
-
-        {/* Card 4: Status Beda */}
-        <button
-          type="button"
-          onClick={() => {
-            setStatusFilter(prev => prev.toLowerCase() === 'beda' ? 'ALL' : 'Beda');
-            setCurrentPage(1);
-          }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter.toLowerCase() === 'beda'
-              ? 'bg-blue-100/90 border-blue-400 ring-2 ring-blue-500/30 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-blue-300'
-          }`}
-          title="Filter data berstatus 'Beda'"
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-blue-900 uppercase tracking-tight">
-            <span>Status "Beda"</span>
-            <AlertTriangle size={13} className="text-blue-700" />
-          </div>
-          <div className="text-base font-black text-blue-950 font-mono mt-0.5">
-            {statusStats.beda.toLocaleString('id-ID')}
-          </div>
-        </button>
-
-        {/* Card 5: Status Tidak */}
-        <button
-          type="button"
-          onClick={() => {
-            setStatusFilter(prev => prev.toLowerCase() === 'tidak' ? 'ALL' : 'Tidak');
-            setCurrentPage(1);
-          }}
-          className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter.toLowerCase() === 'tidak'
-              ? 'bg-rose-100/90 border-rose-400 ring-2 ring-rose-500/30 shadow-2xs'
-              : 'bg-white border-slate-200 hover:border-rose-300'
-          }`}
-          title="Filter data berstatus 'Tidak'"
-        >
-          <div className="flex items-center justify-between text-[11px] font-bold text-rose-900 uppercase tracking-tight">
-            <span>Status "Tidak"</span>
-            <XCircle size={13} className="text-rose-700" />
-          </div>
-          <div className="text-base font-black text-rose-950 font-mono mt-0.5">
-            {statusStats.tidak.toLocaleString('id-ID')}
-          </div>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
       {/* SEARCH BAR & DYNAMIC FILTERS */}
       {/* ========================================================================= */}
       <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5">
@@ -4243,23 +4122,21 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         </div>
 
         {/* Active Filter & Sorting Badges */}
-        {(hasActiveFilters || sortField !== null) && (
+        {(hasActiveFilters || isCustomSortActive) && (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
             <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
               <Filter size={12} className="text-blue-900" />
-              Filter & Urutan Aktif:
+              Filter Aktif:
             </span>
 
-            {/* Active Sort Badge */}
-            {sortField !== null && (
+            {/* Active Sort Badge - Hanya muncul jika sort BUKAN standar urutan lokasi A-Z */}
+            {isCustomSortActive && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-300">
                 <ArrowUpDown size={11} className="text-indigo-600" />
                 <span>
                   Urutan:{' '}
                   {sortField === 'location_then_name'
                     ? 'Lokasi & Nama Barang'
-                    : sortField === 'location'
-                    ? 'Lokasi'
                     : sortField === 'item_name'
                     ? 'Nama Barang'
                     : sortField === 'last_qty'
@@ -4272,17 +4149,19 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     ? 'Expired Date'
                     : sortField === 'batch'
                     ? 'Batch'
+                    : sortField === 'location'
+                    ? 'Lokasi (Z-A)'
                     : sortField}{' '}
                   ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
                 </span>
                 <button
                   type="button"
                   onClick={() => {
-                    setSortField(null);
+                    setSortField('location');
                     setSortOrder('asc');
                   }}
                   className="hover:text-rose-600 cursor-pointer ml-0.5"
-                  title="Kembalikan ke urutan asli tanpa sort"
+                  title="Kembalikan ke standar urutan lokasi (A-Z)"
                 >
                   <X size={12} />
                 </button>
@@ -4398,29 +4277,46 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               className="ml-auto inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200"
             >
               <RotateCcw size={11} />
-              Reset Semua Filter & Urutan
+              Reset Semua Filter
             </button>
           </div>
         )}
       </div>
 
       {/* ========================================================================= */}
-      {/* BULK ACTION & KPI SUMMARY CARDS KETIKA PILIH BARIS */}
+      {/* BULK ACTION & RINGKASAN BARIS TERPILIH (INLINE SUMMARY) */}
       {/* ========================================================================= */}
       {selectedSummary && (
-        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-2 animate-fade-in">
+        <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 animate-fade-in">
           {/* Header Action & Selection Info */}
-          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-900 text-[11px] font-extrabold border border-blue-200">
-                <CheckCheck size={13} className="text-blue-700" />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-900 text-xs font-black border border-blue-200">
+                <CheckCheck size={14} className="text-blue-700" />
                 <span>{selectedSummary.selectedCount} Baris Terpilih</span>
-              </span>
-              {selectedSummary.distinctSkuCount > 0 && (
-                <span className="text-[10px] text-slate-500 font-semibold hidden sm:inline">
-                  • {selectedSummary.distinctSkuCount} SKU • {selectedSummary.distinctBatchCount} Batch • {selectedSummary.distinctLocationCount} Lokasi
+                <span className="text-[11px] font-semibold text-slate-500">
+                  / {selectedSummary.totalRows}
                 </span>
-              )}
+              </span>
+
+              {/* Inline Summary Metrics */}
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-semibold border border-slate-200">
+                  <span>Total Last Qty:</span>
+                  <strong className="text-blue-900 font-mono font-black">{selectedSummary.totalLastQty.toLocaleString('id-ID')} {selectedSummary.displayUom}</strong>
+                </span>
+
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-semibold border border-emerald-200">
+                  <span>Total Qty Convert:</span>
+                  <strong className="text-emerald-900 font-mono font-black">{selectedSummary.totalQtyConvert.toLocaleString('id-ID')} {selectedSummary.displayUomConvert}</strong>
+                </span>
+
+                {selectedSummary.distinctSkuCount > 0 && (
+                  <span className="text-[11px] text-slate-500 font-medium hidden lg:inline">
+                    • {selectedSummary.distinctSkuCount} SKU • {selectedSummary.distinctBatchCount} Batch • {selectedSummary.distinctLocationCount} Lokasi
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap ml-auto">
@@ -4469,63 +4365,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 <X size={12} />
                 <span>Batal</span>
               </button>
-            </div>
-          </div>
-
-          {/* Simple Small Lightweight KPI Cards (Total Baris, Total Last Qty, Total Qty Convert) */}
-          <div className="grid grid-cols-3 gap-2">
-            {/* Card 1: Total Baris */}
-            <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">
-                  Total Baris
-                </span>
-                <div className="text-xs sm:text-sm font-extrabold text-slate-900 font-mono leading-tight mt-0.5">
-                  {selectedSummary.selectedCount.toLocaleString('id-ID')}
-                  <span className="text-[10px] font-semibold text-slate-500 ml-1">
-                    / {selectedSummary.totalRows.toLocaleString('id-ID')}
-                  </span>
-                </div>
-              </div>
-              <div className="w-6 h-6 rounded-md bg-slate-200/70 text-slate-700 flex items-center justify-center shrink-0">
-                <Layers size={13} />
-              </div>
-            </div>
-
-            {/* Card 2: Total Last Qty */}
-            <div className="p-2 rounded-lg bg-blue-50/70 border border-blue-200/80 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-tight block">
-                  Total Last Qty
-                </span>
-                <div className="text-xs sm:text-sm font-extrabold text-blue-900 font-mono leading-tight mt-0.5">
-                  {selectedSummary.totalLastQty.toLocaleString('id-ID')}
-                  <span className="text-[10px] font-bold text-blue-700 ml-1">
-                    {selectedSummary.displayUom}
-                  </span>
-                </div>
-              </div>
-              <div className="w-6 h-6 rounded-md bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
-                <Package size={13} />
-              </div>
-            </div>
-
-            {/* Card 3: Total Qty Convert */}
-            <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">
-                  Total Qty Convert
-                </span>
-                <div className="text-xs sm:text-sm font-extrabold text-emerald-900 font-mono leading-tight mt-0.5">
-                  {selectedSummary.totalQtyConvert.toLocaleString('id-ID')}
-                  <span className="text-[10px] font-bold text-emerald-700 ml-1">
-                    {selectedSummary.displayUomConvert}
-                  </span>
-                </div>
-              </div>
-              <div className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                <Boxes size={13} />
-              </div>
             </div>
           </div>
         </div>
@@ -6046,16 +5885,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Status Pemusnahan</label>
-                  <select
-                    value={pemusnahanFormData.status || 'Siap Dimusnahkan'}
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Status Pemusnahan <span className="text-[10px] font-normal text-slate-500">(Sesuai Status Penyiapan)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.status || ''}
                     onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, status: e.target.value })}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-rose-800 text-xs"
-                  >
-                    <option value="Siap Dimusnahkan">Siap Dimusnahkan</option>
-                    <option value="Dalam Proses">Dalam Proses</option>
-                    <option value="Disposed">Disposed (Musnah)</option>
-                  </select>
+                    placeholder="Sesuai status data penyiapan..."
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
+                  />
                 </div>
               </div>
 
@@ -6292,13 +6131,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <div>
                     <label className="block font-bold text-slate-600 text-[10px] uppercase mb-1">
                       <span>Status di Database Tujuan</span>
-                      <span className="text-[9px] font-normal text-slate-400 ml-1">(Dikosongkan)</span>
+                      <span className="text-[9px] font-normal text-slate-400 ml-1">(Dari Tabel Penyiapan)</span>
                     </label>
                     <input
                       type="text"
                       value={bulkFormData.target_status || ''}
                       onChange={(e) => setBulkFormData({ ...bulkFormData, target_status: e.target.value })}
-                      placeholder="Kosong (biarkan kosong)"
+                      placeholder="Sesuai kolom status penyiapan (bisa disesuaikan jika perlu)"
                       className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-blue-900 text-xs focus:ring-2 focus:ring-blue-600 outline-none"
                     />
                   </div>
@@ -6911,22 +6750,6 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                       <button
                         type="button"
                         onClick={() => {
-                          setPasteFormatPreset('db_full');
-                          if (pastedRawText) parsePastedText(pastedRawText, pasteHasHeader, 'db_full');
-                        }}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                          pasteFormatPreset === 'db_full'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Format Tabel Database"
-                      >
-                        📦 Tabel Database (23 Kolom)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
                           setPasteFormatPreset('form_sku');
                           if (pastedRawText) parsePastedText(pastedRawText, pasteHasHeader, 'form_sku');
                         }}
@@ -6946,12 +6769,12 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => handleCopyPasteTemplateHeader('db_full')}
+                      onClick={() => handleCopyPasteTemplateHeader('form_sku')}
                       className="px-2.5 py-1 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 text-slate-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                      title="Salin deretan header database"
+                      title="Salin deretan header Form Ringkas 13 kolom"
                     >
                       <Copy size={12} className="text-indigo-600" />
-                      <span>Salin Header DB</span>
+                      <span>Salin Header (13 Kolom)</span>
                     </button>
 
                     {pastedRawText && (
