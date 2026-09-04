@@ -103,14 +103,14 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     tableName: 'data_pemusnahan',
     idPrefix: 'PMS-',
     idField: 'id_pemusnahan',
-    defaultSloc: 'SL99',
-    defaultLocation: 'WH-REJECT-01',
-    defaultLocationType: 'Quarantine',
-    defaultQcCode: 'QC-REJECT',
-    defaultDestinationCode: 'INCINERATOR',
+    defaultSloc: '',
+    defaultLocation: '',
+    defaultLocationType: '',
+    defaultQcCode: '',
+    defaultDestinationCode: '',
     defaultStatus: 'Siap Dimusnahkan',
     defaultTujuan: 'Pemusnahan Limbah Terkontrol',
-    defaultCategory: 'Damaged',
+    defaultCategory: '',
     sourceStatusDefault: 'Terkirim ke Pemusnahan',
     cacheKey: 'pemusnahan_cache_v1',
     description: 'Tabel: public.data_pemusnahan - Karantina limbah / scrap / expired barang',
@@ -195,14 +195,14 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [showBulkTransferModal, setShowBulkTransferModal] = useState(false);
   const [bulkTargetModuleId, setBulkTargetModuleId] = useState<string>('pemusnahan');
   const [bulkFormData, setBulkFormData] = useState<any>({
-    sloc: 'SL99',
-    location: 'WH-REJECT-01',
-    location_type: 'Quarantine',
-    qc_code: 'QC-REJECT',
-    destination_code: 'INCINERATOR',
+    sloc: '',
+    location: '',
+    location_type: '',
+    qc_code: '',
+    destination_code: '',
     target_status: '',
     tujuan: '',
-    category: 'Damaged',
+    category: '',
     note: ''
   });
   const [bulkSourceAction, setBulkSourceAction] = useState<'update_status' | 'delete' | 'keep'>('update_status');
@@ -1761,12 +1761,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
     setPemusnahanFormData({
       id_pemusnahan: generatedId,
-      tujuan: 'Pemusnahan Limbah Terkontrol',
+      tujuan: item.tujuan || 'Pemusnahan Limbah Terkontrol',
       item_code: item.item_code,
       item_name: item.item_name,
-      category: item.category || 'Damaged',
-      location: 'WH-REJECT-01',
-      location_type: 'Quarantine',
+      category: item.category || '',
+      location: item.location || '',
+      location_type: item.location_type || '',
       first_qty: item.first_qty ?? 0,
       last_qty: item.last_qty ?? 0,
       uom: item.uom || 'CTN',
@@ -1775,11 +1775,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       lpn_serial_number: item.lpn_serial_number && item.lpn_serial_number !== '-' ? item.lpn_serial_number : `LPN-PMS-${dateStr}-${randomSuffix}`,
       batch: item.batch || '-',
       vendor_batch: item.vendor_batch || '-',
-      sloc: 'SL99',
+      sloc: item.sloc || '',
       expired_date: item.expired_date || '-',
-      destination_code: 'INCINERATOR',
-      qc_code: 'QC-REJECT',
-      user_tally: currentUser?.nama || item.user_tally || 'Tally QC',
+      destination_code: item.destination_code || '',
+      qc_code: item.qc_code || '',
+      user_tally: item.user_tally || currentUser?.nama || '',
       shelf_life: item.shelf_life || 'Expired',
       source: `Penyiapan (${item.id_penyiapan})`,
       user_input: currentUser?.nama || 'Admin',
@@ -1799,12 +1799,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     const nowIso = new Date().toISOString();
     const payload = {
       id_pemusnahan: pemusnahanFormData.id_pemusnahan,
-      tujuan: pemusnahanFormData.tujuan || 'Pemusnahan Limbah Terkontrol',
+      tujuan: pemusnahanFormData.tujuan || pemusnahanTargetItem.tujuan || 'Pemusnahan Limbah Terkontrol',
       item_code: pemusnahanFormData.item_code,
       item_name: pemusnahanFormData.item_name,
-      category: pemusnahanFormData.category || 'Damaged',
-      location: pemusnahanFormData.location || 'WH-REJECT-01',
-      location_type: pemusnahanFormData.location_type || 'Quarantine',
+      category: pemusnahanFormData.category || pemusnahanTargetItem.category || '',
+      location: pemusnahanFormData.location || pemusnahanTargetItem.location || '',
+      location_type: pemusnahanFormData.location_type || pemusnahanTargetItem.location_type || '',
       first_qty: Number(pemusnahanFormData.first_qty) || 0,
       last_qty: Number(pemusnahanFormData.last_qty) || 0,
       uom: pemusnahanFormData.uom || 'CTN',
@@ -1813,11 +1813,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       lpn_serial_number: pemusnahanFormData.lpn_serial_number || '-',
       batch: pemusnahanFormData.batch || '-',
       vendor_batch: pemusnahanFormData.vendor_batch || '-',
-      sloc: pemusnahanFormData.sloc || 'SL99',
+      sloc: pemusnahanFormData.sloc || pemusnahanTargetItem.sloc || '',
       expired_date: pemusnahanFormData.expired_date || '-',
-      destination_code: pemusnahanFormData.destination_code || 'INCINERATOR',
-      qc_code: pemusnahanFormData.qc_code || 'QC-REJECT',
-      user_tally: pemusnahanFormData.user_tally || currentUser?.nama || 'Tally QC',
+      destination_code: pemusnahanFormData.destination_code || pemusnahanTargetItem.destination_code || '',
+      qc_code: pemusnahanFormData.qc_code || pemusnahanTargetItem.qc_code || '',
+      user_tally: pemusnahanFormData.user_tally || pemusnahanTargetItem.user_tally || currentUser?.nama || '',
       shelf_life: pemusnahanFormData.shelf_life || 'Expired',
       source: pemusnahanFormData.source || `Penyiapan (${pemusnahanTargetItem.id_penyiapan})`,
       user_input: currentUser?.nama || 'Admin',
@@ -2113,14 +2113,28 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       // Status di database tujuan: kosongkan jika tidak diisi
       const resolvedStatus = bulkFormData.target_status || '';
 
+      // Kolom Category, Location, Location Type, SLOC, Destination Code, QC Code, User Tally
+      // Harus diisi sesuai data awal di data penyiapan, JANGAN diisi mock data seperti Finished Good, WH-REJECT-01, Quarantine, SL99, INCINERATOR, QC-REJECT
+      const cleanVal = (val?: string) => (val && val.trim() !== '' && val.trim() !== '-') ? val.trim() : '';
+
+      const isTargetPemusnahan = targetConfig.id === 'pemusnahan' || targetConfig.tableName === 'data_pemusnahan';
+
+      const resolvedCategory = cleanVal(item.category) || (isTargetPemusnahan ? '' : (targetConfig.defaultCategory || ''));
+      const resolvedLocation = cleanVal(item.location) || (isTargetPemusnahan ? '' : (targetConfig.defaultLocation || ''));
+      const resolvedLocationType = cleanVal(item.location_type) || (isTargetPemusnahan ? '' : (targetConfig.defaultLocationType || ''));
+      const resolvedSloc = cleanVal(item.sloc) || (isTargetPemusnahan ? '' : (targetConfig.defaultSloc || ''));
+      const resolvedDestinationCode = cleanVal(item.destination_code) || (isTargetPemusnahan ? '' : (targetConfig.defaultDestinationCode || ''));
+      const resolvedQcCode = cleanVal(item.qc_code) || (isTargetPemusnahan ? '' : (targetConfig.defaultQcCode || ''));
+      const resolvedUserTally = cleanVal(item.user_tally) || (currentUser?.nama || '');
+
       return {
         [targetConfig.idField]: generatedId,
         tujuan: resolvedTujuan,
         item_code: item.item_code,
         item_name: item.item_name,
-        category: item.category || targetConfig.defaultCategory,
-        location: targetConfig.defaultLocation || item.location || 'WH-01',
-        location_type: targetConfig.defaultLocationType || item.location_type || 'Rack',
+        category: resolvedCategory,
+        location: resolvedLocation,
+        location_type: resolvedLocationType,
         first_qty: Number(item.first_qty) || 0,
         last_qty: Number(item.last_qty) || 0,
         uom: item.uom || 'CTN',
@@ -2129,11 +2143,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         lpn_serial_number: item.lpn_serial_number && item.lpn_serial_number !== '-' ? item.lpn_serial_number : `LPN-${targetConfig.idPrefix}${dateStr}-${randomSuffix}`,
         batch: item.batch || '-',
         vendor_batch: item.vendor_batch || '-',
-        sloc: targetConfig.defaultSloc || item.sloc || 'SL01',
+        sloc: resolvedSloc,
         expired_date: (item.expired_date && item.expired_date !== '-') ? item.expired_date : null,
-        destination_code: targetConfig.defaultDestinationCode || item.destination_code || 'DST-01',
-        qc_code: targetConfig.defaultQcCode || item.qc_code || 'QC-PASS',
-        user_tally: item.user_tally || currentUser?.nama || 'Tally QC',
+        destination_code: resolvedDestinationCode,
+        qc_code: resolvedQcCode,
+        user_tally: resolvedUserTally,
         shelf_life: item.shelf_life || '24 Bulan',
         source: `Penyiapan (${item.id_penyiapan})`,
         user_input: currentUser?.nama || 'Admin',
@@ -6051,9 +6065,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <label className="block font-bold text-slate-700 mb-1">Lokasi Karantina Pemusnahan</label>
                   <input
                     type="text"
-                    value={pemusnahanFormData.location || 'WH-REJECT-01'}
+                    value={pemusnahanFormData.location || ''}
                     onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, location: e.target.value })}
-                    required
+                    placeholder="Sesuai data penyiapan / masukkan lokasi"
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
                   />
                 </div>
@@ -6062,24 +6076,22 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <label className="block font-bold text-slate-700 mb-1">SLOC Pemusnahan</label>
                   <input
                     type="text"
-                    value={pemusnahanFormData.sloc || 'SL99'}
+                    value={pemusnahanFormData.sloc || ''}
                     onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, sloc: e.target.value })}
-                    required
+                    placeholder="Sesuai data penyiapan"
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-slate-800 text-xs"
                   />
                 </div>
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Status QC</label>
-                  <select
-                    value={pemusnahanFormData.qc_code || 'QC-REJECT'}
+                  <input
+                    type="text"
+                    value={pemusnahanFormData.qc_code || ''}
                     onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, qc_code: e.target.value })}
+                    placeholder="Sesuai data penyiapan"
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
-                  >
-                    <option value="QC-REJECT">QC-REJECT</option>
-                    <option value="QC-HOLD">QC-HOLD</option>
-                    <option value="EXPIRED">EXPIRED</option>
-                  </select>
+                  />
                 </div>
               </div>
 
@@ -6089,9 +6101,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <label className="block font-bold text-slate-700 mb-1">Tempat / Destinasi Pemusnahan</label>
                   <input
                     type="text"
-                    value={pemusnahanFormData.destination_code || 'INCINERATOR'}
+                    value={pemusnahanFormData.destination_code || ''}
                     onChange={(e) => setPemusnahanFormData({ ...pemusnahanFormData, destination_code: e.target.value })}
-                    placeholder="Contoh: INCINERATOR / SCRAP YARD"
+                    placeholder="Sesuai data penyiapan (opsional)"
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs"
                   />
                 </div>

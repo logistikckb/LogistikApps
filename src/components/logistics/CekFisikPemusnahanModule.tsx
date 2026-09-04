@@ -100,14 +100,14 @@ export const BULK_DESTINATIONS_CEK_FISIK: BulkDestinationOption[] = [
     tableName: 'data_pemusnahan',
     idPrefix: 'PMS-',
     idField: 'id_pemusnahan',
-    defaultSloc: 'SL99',
-    defaultLocation: 'WH-REJECT-01',
-    defaultLocationType: 'Quarantine',
-    defaultQcCode: 'QC-REJECT',
-    defaultDestinationCode: 'INCINERATOR',
+    defaultSloc: '',
+    defaultLocation: '',
+    defaultLocationType: '',
+    defaultQcCode: '',
+    defaultDestinationCode: '',
     defaultStatus: 'Siap Dimusnahkan',
     defaultTujuan: 'Pemusnahan Limbah Terkontrol',
-    defaultCategory: 'Damaged',
+    defaultCategory: '',
     sourceStatusDefault: 'Terkirim ke Pemusnahan',
     cacheKey: 'pemusnahan_cache_v1',
     description: 'Tabel: public.data_pemusnahan - Karantina limbah / scrap / expired barang',
@@ -577,9 +577,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       tujuan: 'Check Fisik Pemusnahan',
       item_code: '',
       item_name: '',
-      category: 'Damaged',
-      location: 'WH-REJECT-01',
-      location_type: 'Quarantine',
+      category: '',
+      location: '',
+      location_type: '',
       first_qty: 0,
       last_qty: 0,
       uom: 'CTN',
@@ -588,11 +588,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       lpn_serial_number: '-',
       batch: '-',
       vendor_batch: '-',
-      sloc: 'SL99',
+      sloc: '',
       expired_date: nowIso.slice(0, 10),
-      destination_code: 'INCINERATOR',
-      qc_code: 'QC-REJECT',
-      user_tally: currentUser?.nama || 'Tally QC',
+      destination_code: '',
+      qc_code: '',
+      user_tally: currentUser?.nama || '',
       shelf_life: 'Expired',
       source: 'Retur Customer',
       user_input: currentUser?.nama || 'QA Officer',
@@ -648,9 +648,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       tujuan: formData.tujuan || 'Check Fisik Pemusnahan',
       item_code: formData.item_code.trim(),
       item_name: formData.item_name.trim(),
-      category: formData.category || 'Damaged',
-      location: formData.location || 'WH-REJECT-01',
-      location_type: formData.location_type || 'Quarantine',
+      category: formData.category || '',
+      location: formData.location || '',
+      location_type: formData.location_type || '',
       first_qty: Number(formData.first_qty) || 0,
       last_qty: Number(formData.last_qty) || 0,
       uom: formData.uom || 'CTN',
@@ -659,11 +659,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       lpn_serial_number: formData.lpn_serial_number || '-',
       batch: formData.batch || '-',
       vendor_batch: formData.vendor_batch || '-',
-      sloc: formData.sloc || 'SL99',
+      sloc: formData.sloc || '',
       expired_date: normalizeToIsoDate(formData.expired_date) || (formData.expired_date && formData.expired_date !== '-' ? formData.expired_date : null as any),
-      destination_code: formData.destination_code || 'INCINERATOR',
-      qc_code: formData.qc_code || 'QC-REJECT',
-      user_tally: formData.user_tally || currentUser?.nama || 'Tally QC',
+      destination_code: formData.destination_code || '',
+      qc_code: formData.qc_code || '',
+      user_tally: formData.user_tally || currentUser?.nama || '',
       shelf_life: formData.shelf_life || 'Expired',
       source: formData.source || 'Retur Customer',
       user_input: currentUser?.nama || 'QA Officer',
@@ -778,14 +778,27 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       const targetPayloads = selectedItems.map((item, index) => {
         const targetId = `${targetConfig.idPrefix}${nowIso.slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}-${String(index + 1).padStart(3, '0')}`;
         
+        // Kolom Category, Location, Location Type, SLOC, Destination Code, QC Code, User Tally
+        // Harus diisi sesuai data awal di data cek fisik (penyiapan pemusnahan), JANGAN diisi mock data seperti Finished Good, WH-REJECT-01, Quarantine, SL99, INCINERATOR, QC-REJECT
+        const cleanVal = (val?: string) => (val && val.trim() !== '' && val.trim() !== '-') ? val.trim() : '';
+        const isPemusnahanFinal = targetConfig.id === 'pemusnahan_final' || targetConfig.tableName === 'data_pemusnahan';
+
+        const resolvedCategory = cleanVal(item.category) || (isPemusnahanFinal ? '' : (targetConfig.defaultCategory || ''));
+        const resolvedLocation = cleanVal(item.location) || (isPemusnahanFinal ? '' : (targetConfig.defaultLocation || ''));
+        const resolvedLocationType = cleanVal(item.location_type) || (isPemusnahanFinal ? '' : (targetConfig.defaultLocationType || ''));
+        const resolvedSloc = cleanVal(item.sloc) || (isPemusnahanFinal ? '' : (targetConfig.defaultSloc || ''));
+        const resolvedDestinationCode = cleanVal(item.destination_code) || (isPemusnahanFinal ? '' : (targetConfig.defaultDestinationCode || ''));
+        const resolvedQcCode = cleanVal(item.qc_code) || (isPemusnahanFinal ? '' : (targetConfig.defaultQcCode || ''));
+        const resolvedUserTally = cleanVal(item.user_tally) || (currentUser?.nama || '');
+
         return {
           [targetConfig.idField]: targetId,
           tujuan: item.tujuan || targetConfig.defaultTujuan,
           item_code: item.item_code,
           item_name: item.item_name,
-          category: item.category || targetConfig.defaultCategory,
-          location: item.location || targetConfig.defaultLocation,
-          location_type: item.location_type || targetConfig.defaultLocationType,
+          category: resolvedCategory,
+          location: resolvedLocation,
+          location_type: resolvedLocationType,
           first_qty: Number(item.first_qty) || 0,
           last_qty: Number(item.last_qty) || 0,
           uom: item.uom || 'CTN',
@@ -794,11 +807,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           lpn_serial_number: item.lpn_serial_number || '-',
           batch: item.batch || '-',
           vendor_batch: item.vendor_batch || '-',
-          sloc: item.sloc || targetConfig.defaultSloc,
+          sloc: resolvedSloc,
           expired_date: normalizeToIsoDate(item.expired_date) || (item.expired_date && item.expired_date !== '-' ? item.expired_date : null),
-          destination_code: item.destination_code || targetConfig.defaultDestinationCode,
-          qc_code: item.qc_code || targetConfig.defaultQcCode,
-          user_tally: item.user_tally || currentUser?.nama || 'Tally QC',
+          destination_code: resolvedDestinationCode,
+          qc_code: resolvedQcCode,
+          user_tally: resolvedUserTally,
           shelf_life: item.shelf_life || 'Expired',
           source: `Cek Fisik (${item.id_cek_fisik})`,
           user_input: currentUser?.nama || 'QA Officer',
@@ -1290,9 +1303,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       let tujuan = '';
       let item_code = '';
       let item_name = '';
-      let category = 'Damaged';
-      let location = 'WH-REJECT-01';
-      let location_type = 'Quarantine';
+      let category = '';
+      let location = '';
+      let location_type = '';
       let first_qty = 0;
       let last_qty = 0;
       let uom = 'CTN';
@@ -1301,11 +1314,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       let lpn_serial_number = '-';
       let batch = '-';
       let vendor_batch = '-';
-      let sloc = 'SL99';
+      let sloc = '';
       let expired_date = '-';
-      let destination_code = 'INCINERATOR';
-      let qc_code = 'QC-REJECT';
-      let user_tally = currentUser?.nama || 'Tally QC';
+      let destination_code = '';
+      let qc_code = '';
+      let user_tally = currentUser?.nama || '';
       let shelf_life = 'Expired';
       let source = 'Retur Customer';
       let status: 'Cek' | 'Ada' | 'Beda' | 'Tidak' = 'Cek';
@@ -1324,9 +1337,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             status = normalizeStatus(getCol(1));
             item_code = getCol(2);
             item_name = getCol(3);
-            category = getCol(4) || 'Damaged';
-            location = getCol(5) || 'WH-REJECT-01';
-            location_type = getCol(6) || 'Quarantine';
+            category = getCol(4) || '';
+            location = getCol(5) || '';
+            location_type = getCol(6) || '';
             first_qty = cleanNumber(getCol(7));
             last_qty = cleanNumber(getCol(8)) || first_qty;
             uom = getCol(9) || 'CTN';
@@ -1335,11 +1348,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             lpn_serial_number = getCol(12) || '-';
             batch = getCol(13) || '-';
             vendor_batch = getCol(14) || '-';
-            sloc = getCol(15) || 'SL99';
+            sloc = getCol(15) || '';
             expired_date = parseDateToIso(getCol(16));
-            destination_code = getCol(17) || 'INCINERATOR';
-            qc_code = getCol(18) || 'QC-REJECT';
-            user_tally = getCol(19) || currentUser?.nama || 'Tally QC';
+            destination_code = getCol(17) || '';
+            qc_code = getCol(18) || '';
+            user_tally = getCol(19) || currentUser?.nama || '';
             shelf_life = getCol(20) || 'Expired';
             source = getCol(21) || 'Retur Customer';
             note = getCol(22);
@@ -1347,9 +1360,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           } else {
             item_code = getCol(1);
             item_name = getCol(2);
-            category = getCol(3) || 'Damaged';
-            location = getCol(4) || 'WH-REJECT-01';
-            location_type = getCol(5) || 'Quarantine';
+            category = getCol(3) || '';
+            location = getCol(4) || '';
+            location_type = getCol(5) || '';
             first_qty = cleanNumber(getCol(6));
             last_qty = cleanNumber(getCol(7)) || first_qty;
             uom = getCol(8) || 'CTN';
@@ -1358,11 +1371,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             lpn_serial_number = getCol(11) || '-';
             batch = getCol(12) || '-';
             vendor_batch = getCol(13) || '-';
-            sloc = getCol(14) || 'SL99';
+            sloc = getCol(14) || '';
             expired_date = parseDateToIso(getCol(15));
-            destination_code = getCol(16) || 'INCINERATOR';
-            qc_code = getCol(17) || 'QC-REJECT';
-            user_tally = getCol(18) || currentUser?.nama || 'Tally QC';
+            destination_code = getCol(16) || '';
+            qc_code = getCol(17) || '';
+            user_tally = getCol(18) || currentUser?.nama || '';
             shelf_life = getCol(19) || 'Expired';
             source = getCol(20) || 'Retur Customer';
             status = normalizeStatus(getCol(21));
@@ -1373,8 +1386,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           // Layout Standar Tabel Database Gudang
           item_code = getCol(0);
           item_name = getCol(1);
-          category = getCol(2) || 'Damaged';
-          location = getCol(3) || 'WH-REJECT-01';
+          category = getCol(2) || '';
+          location = getCol(3) || '';
 
           const cell4IsNum = /^[0-9.,-]+$/.test(getCol(4)) && getCol(4).length > 0;
 
@@ -1387,18 +1400,18 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             lpn_serial_number = getCol(9) || '-';
             batch = getCol(10) || '-';
             vendor_batch = getCol(11) || '-';
-            sloc = getCol(12) || 'SL99';
+            sloc = getCol(12) || '';
             expired_date = parseDateToIso(getCol(13));
-            destination_code = getCol(14) || 'INCINERATOR';
-            qc_code = getCol(15) || 'QC-REJECT';
+            destination_code = getCol(14) || '';
+            qc_code = getCol(15) || '';
             source = getCol(16) || 'Retur Customer';
             status = normalizeStatus(getCol(17));
-            user_tally = getCol(18) || currentUser?.nama || 'Tally QC';
+            user_tally = getCol(18) || currentUser?.nama || '';
             shelf_life = getCol(19) || 'Expired';
             note = getCol(21) || getCol(20);
             tujuan = getCol(22);
           } else {
-            location_type = getCol(4) || 'Quarantine';
+            location_type = getCol(4) || '';
             first_qty = cleanNumber(getCol(5));
             last_qty = cleanNumber(getCol(6)) || first_qty;
             uom = getCol(7) || 'CTN';
@@ -1407,11 +1420,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             lpn_serial_number = getCol(10) || '-';
             batch = getCol(11) || '-';
             vendor_batch = getCol(12) || '-';
-            sloc = getCol(13) || 'SL99';
+            sloc = getCol(13) || '';
             expired_date = parseDateToIso(getCol(14));
-            destination_code = getCol(15) || 'INCINERATOR';
-            qc_code = getCol(16) || 'QC-REJECT';
-            user_tally = getCol(17) || currentUser?.nama || 'Tally QC';
+            destination_code = getCol(15) || '';
+            qc_code = getCol(16) || '';
+            user_tally = getCol(17) || currentUser?.nama || '';
             shelf_life = getCol(18) || 'Expired';
             source = getCol(19) || 'Retur Customer';
             status = normalizeStatus(getCol(20));
@@ -1429,7 +1442,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
         if (isStatusFirst) {
           status = normalizeStatus(getCol(0));
-          location = getCol(1) || 'WH-REJECT-01';
+          location = getCol(1) || '';
           item_code = getCol(2);
           item_name = getCol(3);
           last_qty = cleanNumber(getCol(4));
@@ -1443,7 +1456,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         } else {
           item_code = getCol(0);
           item_name = getCol(1);
-          location = getCol(2) || 'WH-REJECT-01';
+          location = getCol(2) || '';
           last_qty = cleanNumber(getCol(3));
           first_qty = last_qty;
           uom = getCol(4) || 'CTN';
@@ -1515,9 +1528,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         tujuan: tujuan || activeDefaultTujuan || '',
         item_code: item_code,
         item_name: item_name || matchedMaster?.item_name || 'Item Tanpa Nama',
-        category: category || matchedMaster?.category || 'Damaged',
-        location: location || 'WH-REJECT-01',
-        location_type: location_type || 'Quarantine',
+        category: category || matchedMaster?.category || '',
+        location: location || '',
+        location_type: location_type || '',
         first_qty: first_qty || last_qty || 0,
         last_qty: last_qty || 0,
         uom: uom || matchedMaster?.uom || 'CTN',
@@ -1526,11 +1539,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         lpn_serial_number: lpn_serial_number || '-',
         batch: batch || '-',
         vendor_batch: vendor_batch || '-',
-        sloc: sloc || 'SL99',
+        sloc: sloc || '',
         expired_date: expired_date || '-',
-        destination_code: destination_code || 'INCINERATOR',
-        qc_code: qc_code || 'QC-REJECT',
-        user_tally: user_tally || currentUser?.nama || 'Tally QC',
+        destination_code: destination_code || '',
+        qc_code: qc_code || '',
+        user_tally: user_tally || currentUser?.nama || '',
         shelf_life: shelf_life || 'Expired',
         source: source || 'Retur Customer',
         user_input: currentUser?.nama || 'QA Officer',
@@ -1655,13 +1668,13 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       return {
         ...item,
         id_cek_fisik: item.id_cek_fisik && !item.id_cek_fisik.includes('CKF-') ? generatedId : (item.id_cek_fisik || generatedId),
-        category: '',
-        first_qty: 0,
-        vendor_batch: '',
-        destination_code: '',
-        qc_code: '',
-        user_tally: '',
-        source: '',
+        category: item.category || '',
+        first_qty: Number(item.first_qty) || Number(item.last_qty) || 0,
+        vendor_batch: item.vendor_batch || '-',
+        destination_code: item.destination_code || '',
+        qc_code: item.qc_code || '',
+        user_tally: item.user_tally || currentUser?.nama || '',
+        source: item.source || 'Retur Customer',
         last_qty: Number(item.last_qty) || 0,
         qty_convert: Number(item.qty_convert) || 0,
         user_input: currentUser?.nama || 'QA Officer',
@@ -1776,9 +1789,9 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             tujuan: getVal('tujuan') || excelUploadTujuan || 'Check Fisik Pemusnahan',
             item_code: itemCode,
             item_name: itemName || matchedMaster?.item_name || 'Item Tanpa Nama',
-            category: getVal('category') || matchedMaster?.category || 'Damaged',
-            location: getVal('location') || 'WH-REJECT-01',
-            location_type: getVal('location_type') || 'Quarantine',
+            category: getVal('category') || matchedMaster?.category || '',
+            location: getVal('location') || '',
+            location_type: getVal('location_type') || '',
             first_qty: firstQtyNum,
             last_qty: lastQtyNum,
             uom: getVal('uom') || matchedMaster?.uom || 'CTN',
@@ -1787,11 +1800,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             lpn_serial_number: getVal('lpn_serial_number') || '-',
             batch: batchVal,
             vendor_batch: getVal('vendor_batch') || '-',
-            sloc: getVal('sloc') || 'SL99',
+            sloc: getVal('sloc') || '',
             expired_date: expDateVal,
-            destination_code: getVal('destination_code') || 'INCINERATOR',
-            qc_code: getVal('qc_code') || 'QC-REJECT',
-            user_tally: getVal('user_tally') || currentUser?.nama || 'Tally QC',
+            destination_code: getVal('destination_code') || '',
+            qc_code: getVal('qc_code') || '',
+            user_tally: getVal('user_tally') || currentUser?.nama || '',
             shelf_life: getVal('shelf_life') || 'Expired',
             source: getVal('source') || 'Retur Customer',
             user_input: currentUser?.nama || 'QA Officer',
@@ -2322,7 +2335,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       {/* 2. LOCATION */}
                       {!isLocationFiltered && (
                         <td className="px-2.5 py-1 text-slate-700 whitespace-nowrap font-medium">
-                          {item.location || 'WH-REJECT-01'}
+                          {item.location || '-'}
                         </td>
                       )}
 
