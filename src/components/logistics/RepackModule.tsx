@@ -130,7 +130,7 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
           spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
           sheetName: safeSheetName,
           secretToken: parsed.secretToken || '',
-          mode: (specificSaved && parsed.mode ? parsed.mode : 'append') as 'overwrite' | 'append'
+          mode: (specificSaved && parsed.mode ? parsed.mode : 'overwrite') as 'overwrite' | 'append'
         };
       }
     } catch {}
@@ -139,7 +139,7 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
       spreadsheetId: defaultEnvSpreadsheetId,
       sheetName: defaultEnvSheetName,
       secretToken: '',
-      mode: 'append' as 'overwrite' | 'append'
+      mode: 'overwrite' as 'overwrite' | 'append'
     };
   });
   const [isConfigFromSupabase, setIsConfigFromSupabase] = useState(false);
@@ -1118,6 +1118,67 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
     setGSheetSyncResult(null);
 
     const itemsToSync = filteredRepackList.length > 0 ? filteredRepackList : repackList;
+
+    // Susun Header Kolom Resmi untuk Sheet Repack
+    const headers = [
+      'ID Repack',
+      'Tujuan',
+      'Item Code',
+      'Nama Barang',
+      'Kategori',
+      'Lokasi',
+      'Tipe Lokasi',
+      'Qty Awal',
+      'Qty Akhir',
+      'UOM',
+      'Qty Convert',
+      'UOM Convert',
+      'LPN / SN',
+      'Batch',
+      'Vendor Batch',
+      'SLOC',
+      'Expired Date',
+      'Kode Tujuan',
+      'Status QC',
+      'User Tally',
+      'Shelf Life',
+      'Sumber',
+      'User Input',
+      'Tanggal Update',
+      'Status',
+      'Catatan / Note'
+    ];
+
+    // Susun Baris Data Sesuai Urutan Header
+    const rows = itemsToSync.map(item => [
+      item.id_repack || '-',
+      item.tujuan || '-',
+      item.item_code || '-',
+      item.item_name || '-',
+      item.category || 'Repack',
+      item.location || '-',
+      item.location_type || '-',
+      Number(item.first_qty) || 0,
+      Number(item.last_qty) || 0,
+      item.uom || 'CTN',
+      Number(item.qty_convert) || 0,
+      item.uom_convert || 'PCS',
+      item.lpn_serial_number || '-',
+      item.batch || '-',
+      item.vendor_batch || '-',
+      item.sloc || 'SL04',
+      item.expired_date || '-',
+      item.destination_code || 'PROMO-BUNDLING',
+      item.qc_code || 'QC-PASS',
+      item.user_tally || 'Tally Repack',
+      item.shelf_life || '24 Bulan',
+      item.source || 'Penyiapan',
+      item.user_input || '-',
+      item.tanggal_update ? item.tanggal_update.substring(0, 10) : (item.created_at ? item.created_at.substring(0, 10) : '-'),
+      item.status || '-',
+      item.note || '-'
+    ]);
+
     const payload = {
       action: 'sync_logistik_repack',
       source: 'repack_module',
@@ -1125,10 +1186,12 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
       sheetName: gSheetConfig.sheetName || 'Repack',
       spreadsheetId: gSheetConfig.spreadsheetId || '',
       secretToken: gSheetConfig.secretToken || '',
-      mode: gSheetConfig.mode || 'append',
+      mode: gSheetConfig.mode || 'overwrite',
       timestamp: new Date().toISOString(),
       user: currentUser?.nama || currentUser?.username || 'Admin',
       totalRows: itemsToSync.length,
+      headers,
+      rows,
       data: itemsToSync
     };
 
@@ -2214,9 +2277,20 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
                     onChange={(e) => setGSheetConfig(p => ({ ...p, mode: e.target.value as any }))}
                     className="w-full bg-white border border-slate-300 rounded-xl p-2 font-bold"
                   >
+                    <option value="overwrite">Overwrite (Timpa Penuh + Header Kolom)</option>
                     <option value="append">Append (Tambahkan ke Bawah)</option>
-                    <option value="overwrite">Overwrite (Timpa Penuh)</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Info Header Kolom */}
+              <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-[11px] flex items-start gap-2">
+                <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Header Kolom Otomatis:</span>
+                  <span>
+                    Sinkronisasi menyertakan 26 judul kolom resmi (ID Repack, Tujuan, SKU, Nama Barang, Qty, Batch, Lokasi, SLOC, Status, dll.) di baris pertama dengan styling otomatis (background biru tua & teks putih tebal).
+                  </span>
                 </div>
               </div>
 

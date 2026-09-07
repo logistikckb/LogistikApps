@@ -60,6 +60,44 @@ function doPost(e) {
     var headers = payload.headers || [];
     var rows = payload.rows || [];
 
+    // Fallback otomatis jika headers belum dikirimkan dari frontend
+    if (headers.length === 0) {
+      var sheetLower = (targetSheetName || '').toLowerCase();
+      var modLower = (payload.module || '').toLowerCase();
+      var actLower = (payload.action || '').toLowerCase();
+
+      if (sheetLower === 'repack' || modLower === 'repack' || actLower.indexOf('repack') !== -1) {
+        headers = [
+          'ID Repack',
+          'Tujuan',
+          'Item Code',
+          'Nama Barang',
+          'Kategori',
+          'Lokasi',
+          'Tipe Lokasi',
+          'Qty Awal',
+          'Qty Akhir',
+          'UOM',
+          'Qty Convert',
+          'UOM Convert',
+          'LPN / SN',
+          'Batch',
+          'Vendor Batch',
+          'SLOC',
+          'Expired Date',
+          'Kode Tujuan',
+          'Status QC',
+          'User Tally',
+          'Shelf Life',
+          'Sumber',
+          'User Input',
+          'Tanggal Update',
+          'Status',
+          'Catatan / Note'
+        ];
+      }
+    }
+
     if (rows.length === 0 && payload.data && payload.data.length > 0) {
       // Fallback jika rows belum diformat
       rows = payload.data.map(function(item) {

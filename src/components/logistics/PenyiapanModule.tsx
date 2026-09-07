@@ -71,6 +71,9 @@ import { PenyiapanItem, DataBarang } from '../../types';
 import { getEdIsoDateString } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
+// Reusable high-speed Collator for Indonesian text & numeric comparison
+const idCollator = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' });
+
 // Pilihan Tujuan Transfer Database Massal
 export interface DestinationOption {
   id: string;
@@ -182,10 +185,28 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
-  // Primary Data State
-  const [penyiapanList, setPenyiapanList] = useState<PenyiapanItem[]>([]);
+  // Primary Data State (Optimized with instant cache hydration)
+  const [penyiapanList, setPenyiapanList] = useState<PenyiapanItem[]>(() => {
+    try {
+      const cached = localStorage.getItem('penyiapan_cache_v1');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
   const [barangList, setBarangList] = useState<DataBarang[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('penyiapan_cache_v1');
+      return !cached;
+    } catch {
+      return true;
+    }
+  });
   const [isPushing, setIsPushing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSupabaseError, setLastSupabaseError] = useState<string | null>(null);
@@ -223,9 +244,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const [sortField, setSortField] = useState<keyof PenyiapanItem | 'location_then_name' | null>('location');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Pagination & Display
+  // Pagination & Display (Default to 100 rows for instant rendering performance, remembered in localStorage)
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'ALL'>('ALL');
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'ALL'>(() => {
+    try {
+      const saved = localStorage.getItem('penyiapan_rows_per_page');
+      if (saved === 'ALL') return 'ALL';
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 100;
+  });
 
   // Modals
   const [showFormModal, setShowFormModal] = useState(false);
@@ -484,15 +512,20 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
   }, [loadMasterBarangLocally]);
 
-  // Fetch data_penyiapan from Supabase
+  // Fetch data_penyiapan from Supabase (Optimized with background stale-while-revalidate)
   const fetchPenyiapanData = useCallback(async (silent = false) => {
-    if (!silent) {
-      setIsLoading(true);
-    }
+    setPenyiapanList(prev => {
+      // Only set blocking isLoading if there is no data in memory
+      if (!silent && prev.length === 0) {
+        setIsLoading(true);
+      }
+      return prev;
+    });
     setLastSupabaseError(null);
 
     if (!isSupabaseConfigured) {
-      if (!silent) setIsLoading(false);
+      setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
@@ -505,43 +538,31 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (Array.isArray(data)) {
         setPenyiapanList(data);
 
-        if (data.length > 0) {
+        // Async write to localStorage so UI never drops frames
+        setTimeout(() => {
           try {
-            localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
+            if (data.length > 0) {
+              localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
+            } else {
+              localStorage.removeItem('penyiapan_cache_v1');
+            }
           } catch {}
-        } else {
-          try {
-            localStorage.removeItem('penyiapan_cache_v1');
-          } catch {}
-        }
+        }, 50);
       }
     } catch (err: any) {
       console.error('Unexpected error fetching data_penyiapan:', err);
       setLastSupabaseError(err?.message || 'Gagal terhubung ke tabel data_penyiapan');
     } finally {
-      if (!silent) setIsLoading(false);
+      setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
   // Initial Load & Realtime Sync
   useEffect(() => {
-    // 1. Load cached data from localStorage
-    const cached = localStorage.getItem('penyiapan_cache_v1');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPenyiapanList(parsed);
-        }
-      } catch (e) {
-        console.error('Error loading penyiapan cache:', e);
-      }
-    }
-
-    // 2. Fetch live data
+    // 1. Initial live revalidation (silent background refresh if cache was already loaded)
     fetchMasterData();
-    fetchPenyiapanData();
+    fetchPenyiapanData(penyiapanList.length > 0);
 
     // Supabase Realtime channel (in-place updates to guarantee sync across devices)
     if (isSupabaseConfigured) {
@@ -586,22 +607,28 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
   }, [fetchMasterData, fetchPenyiapanData]);
 
-  // Save to local storage whenever penyiapanList changes
+  // Save to local storage whenever penyiapanList changes (debounced to avoid UI lag)
   useEffect(() => {
-    if (penyiapanList.length > 0) {
+    const timer = setTimeout(() => {
       try {
-        localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
+        if (penyiapanList.length > 0) {
+          localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
+        } else {
+          localStorage.removeItem('penyiapan_cache_v1');
+        }
       } catch {}
-    } else {
-      localStorage.removeItem('penyiapan_cache_v1');
-    }
+    }, 200);
+    return () => clearTimeout(timer);
   }, [penyiapanList]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchMasterData();
-    fetchPenyiapanData();
-    showToast('Memperbarui Data', 'Mengambil data penyiapan terbaru dari database...', 'info');
+    // Background refresh: table remains visible and interactive
+    fetchPenyiapanData(true);
+    if (barangList.length === 0) {
+      fetchMasterData();
+    }
+    showToast('Sinkronisasi Data', 'Memperbarui data penyiapan di latar belakang...', 'info');
   };
 
   // Helper ID generator
@@ -1225,7 +1252,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       }
     }
 
-    // 3. Sorting - Standar tampilan tabel urut sesuai location (A-Z)
+    // 3. Sorting - Standar tampilan tabel urut sesuai location (A-Z) (Optimized with idCollator)
     const effectiveSortField = sortField || 'location';
     const effectiveSortOrder = sortOrder || 'asc';
 
@@ -1234,13 +1261,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (effectiveSortField === 'location_then_name') {
         const locA = String(a.location || '').trim();
         const locB = String(b.location || '').trim();
-        const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        const locComp = idCollator.compare(locA, locB);
         if (locComp !== 0) {
           return effectiveSortOrder === 'asc' ? locComp : -locComp;
         }
         const nameA = String(a.item_name || '').trim();
         const nameB = String(b.item_name || '').trim();
-        const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        const nameComp = idCollator.compare(nameA, nameB);
         return effectiveSortOrder === 'asc' ? nameComp : -nameComp;
       }
 
@@ -1248,26 +1275,26 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (effectiveSortField === 'location') {
         const locA = String(a.location || '').trim();
         const locB = String(b.location || '').trim();
-        const locComp = locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        const locComp = idCollator.compare(locA, locB);
         if (locComp !== 0) {
           return effectiveSortOrder === 'asc' ? locComp : -locComp;
         }
         const nameA = String(a.item_name || '').trim();
         const nameB = String(b.item_name || '').trim();
-        return nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        return idCollator.compare(nameA, nameB);
       }
 
       // Sorting Nama Barang (dengan tie-breaker Lokasi)
       if (effectiveSortField === 'item_name') {
         const nameA = String(a.item_name || '').trim();
         const nameB = String(b.item_name || '').trim();
-        const nameComp = nameA.localeCompare(nameB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        const nameComp = idCollator.compare(nameA, nameB);
         if (nameComp !== 0) {
           return effectiveSortOrder === 'asc' ? nameComp : -nameComp;
         }
         const locA = String(a.location || '').trim();
         const locB = String(b.location || '').trim();
-        return locA.localeCompare(locB, 'id-ID', { numeric: true, sensitivity: 'base' });
+        return idCollator.compare(locA, locB);
       }
 
       const valA = a[effectiveSortField as keyof PenyiapanItem] ?? '';
@@ -1286,8 +1313,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const strA = String(valA).trim();
       const strB = String(valB).trim();
       return effectiveSortOrder === 'asc'
-        ? strA.localeCompare(strB, 'id-ID', { numeric: true, sensitivity: 'base' })
-        : strB.localeCompare(strA, 'id-ID', { numeric: true, sensitivity: 'base' });
+        ? idCollator.compare(strA, strB)
+        : idCollator.compare(strB, strA);
     });
   }, [penyiapanList, searchQuery, itemNameFilter, categoryFilter, locationFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, sortField, sortOrder]);
 
@@ -4380,6 +4407,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
           <div className="flex items-center gap-1.5 flex-wrap">
             <Boxes size={14} className="text-blue-900" />
             <span>Daftar Data Penyiapan ({filteredPenyiapan.length} item)</span>
+            {isRefreshing && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200 animate-pulse">
+                <RefreshCw size={10} className="animate-spin text-blue-700" />
+                <span>Sinkronisasi latar belakang...</span>
+              </span>
+            )}
             {selectedIds.length > 0 && (
               <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-[10px] font-extrabold border border-blue-200">
                 {selectedIds.length} dipilih
@@ -4417,7 +4450,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <select
               value={rowsPerPage}
               onChange={(e) => {
-                setRowsPerPage(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
+                const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+                setRowsPerPage(val);
+                try {
+                  localStorage.setItem('penyiapan_rows_per_page', String(val));
+                } catch {}
                 setCurrentPage(1);
               }}
               className="px-1.5 py-0.5 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-700"
@@ -4431,7 +4468,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         </div>
 
         {/* Responsive Table Wrapper with Horizontal Scroll */}
-        <div className="overflow-x-auto min-h-[250px]">
+        <div className="overflow-x-auto min-h-[250px] relative">
+          {isRefreshing && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-blue-100 overflow-hidden z-20">
+              <div className="h-full bg-blue-600 animate-pulse w-full" />
+            </div>
+          )}
           <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
             <thead>
               <tr className="bg-slate-100/90 text-slate-700 font-extrabold uppercase tracking-tight text-[10px] border-b border-slate-200 select-none">
@@ -4570,7 +4612,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/70">
-              {isLoading ? (
+              {isLoading && penyiapanList.length === 0 ? (
                 <tr>
                   <td colSpan={isLocationFiltered ? 9 : 10} className="p-6 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
