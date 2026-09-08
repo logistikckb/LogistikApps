@@ -198,6 +198,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [selectedDestination, setSelectedDestination] = useState<string>('pemusnahan_final');
   const [bulkSourceAction, setBulkSourceAction] = useState<'update_status' | 'delete' | 'keep'>('update_status');
   const [bulkSourceStatus, setBulkSourceStatus] = useState<string>('Cek');
+  const [bulkTransferNote, setBulkTransferNote] = useState<string>('');
   const [isBulkTransferring, setIsBulkTransferring] = useState(false);
 
   // Bulk Status Update Modal State
@@ -582,19 +583,19 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       location_type: '',
       first_qty: 0,
       last_qty: 0,
-      uom: 'CTN',
+      uom: '',
       qty_convert: 0,
-      uom_convert: 'PCS',
-      lpn_serial_number: '-',
-      batch: '-',
-      vendor_batch: '-',
+      uom_convert: '',
+      lpn_serial_number: '',
+      batch: '',
+      vendor_batch: '',
       sloc: '',
-      expired_date: nowIso.slice(0, 10),
+      expired_date: '',
       destination_code: '',
       qc_code: '',
       user_tally: currentUser?.nama || '',
-      shelf_life: 'Expired',
-      source: 'Retur Customer',
+      shelf_life: '',
+      source: '',
       user_input: currentUser?.nama || 'QA Officer',
       status: 'Cek',
       note: ''
@@ -618,8 +619,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         ...prev,
         item_code: barang.item_code,
         item_name: barang.item_name,
-        category: barang.category || prev.category || 'Damaged',
-        uom: barang.uom || prev.uom || 'CTN'
+        category: barang.category || prev.category || '',
+        uom: barang.uom || prev.uom || ''
       };
       if (prev.batch && prev.batch !== '-') {
         const autoCalc = getEdIsoDateString(barang.item_code, barang.item_name, prev.batch);
@@ -645,7 +646,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     const nowIso = new Date().toISOString();
     const finalItem: CekFisikPemusnahanItem = {
       id_cek_fisik: formData.id_cek_fisik || `CKF-${nowIso.slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
-      tujuan: formData.tujuan || 'Check Fisik Pemusnahan',
+      tujuan: formData.tujuan || '',
       item_code: formData.item_code.trim(),
       item_name: formData.item_name.trim(),
       category: formData.category || '',
@@ -653,19 +654,19 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       location_type: formData.location_type || '',
       first_qty: Number(formData.first_qty) || 0,
       last_qty: Number(formData.last_qty) || 0,
-      uom: formData.uom || 'CTN',
+      uom: formData.uom || '',
       qty_convert: Number(formData.qty_convert) || 0,
-      uom_convert: formData.uom_convert || 'PCS',
-      lpn_serial_number: formData.lpn_serial_number || '-',
-      batch: formData.batch || '-',
-      vendor_batch: formData.vendor_batch || '-',
+      uom_convert: formData.uom_convert || '',
+      lpn_serial_number: formData.lpn_serial_number || '',
+      batch: formData.batch || '',
+      vendor_batch: formData.vendor_batch || '',
       sloc: formData.sloc || '',
       expired_date: normalizeToIsoDate(formData.expired_date) || (formData.expired_date && formData.expired_date !== '-' ? formData.expired_date : null as any),
       destination_code: formData.destination_code || '',
       qc_code: formData.qc_code || '',
-      user_tally: formData.user_tally || currentUser?.nama || '',
-      shelf_life: formData.shelf_life || 'Expired',
-      source: formData.source || 'Retur Customer',
+      user_tally: formData.user_tally || '',
+      shelf_life: formData.shelf_life || '',
+      source: formData.source || '',
       user_input: currentUser?.nama || 'QA Officer',
       tanggal_update: nowIso,
       status: formData.status === 'Ada' ? 'Ada' : formData.status === 'Beda' ? 'Beda' : formData.status === 'Tidak' ? 'Tidak' : 'Cek',
@@ -778,46 +779,35 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       const targetPayloads = selectedItems.map((item, index) => {
         const targetId = `${targetConfig.idPrefix}${nowIso.slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}-${String(index + 1).padStart(3, '0')}`;
         
-        // Kolom Category, Location, Location Type, SLOC, Destination Code, QC Code, User Tally
-        // Harus diisi sesuai data awal di data cek fisik (penyiapan pemusnahan), JANGAN diisi mock data seperti Finished Good, WH-REJECT-01, Quarantine, SL99, INCINERATOR, QC-REJECT
         const cleanVal = (val?: string) => (val && val.trim() !== '' && val.trim() !== '-') ? val.trim() : '';
-        const isPemusnahanFinal = targetConfig.id === 'pemusnahan_final' || targetConfig.tableName === 'data_pemusnahan';
-
-        const resolvedCategory = cleanVal(item.category) || (isPemusnahanFinal ? '' : (targetConfig.defaultCategory || ''));
-        const resolvedLocation = cleanVal(item.location) || (isPemusnahanFinal ? '' : (targetConfig.defaultLocation || ''));
-        const resolvedLocationType = cleanVal(item.location_type) || (isPemusnahanFinal ? '' : (targetConfig.defaultLocationType || ''));
-        const resolvedSloc = cleanVal(item.sloc) || (isPemusnahanFinal ? '' : (targetConfig.defaultSloc || ''));
-        const resolvedDestinationCode = cleanVal(item.destination_code) || (isPemusnahanFinal ? '' : (targetConfig.defaultDestinationCode || ''));
-        const resolvedQcCode = cleanVal(item.qc_code) || (isPemusnahanFinal ? '' : (targetConfig.defaultQcCode || ''));
-        const resolvedUserTally = cleanVal(item.user_tally) || (currentUser?.nama || '');
 
         return {
           [targetConfig.idField]: targetId,
-          tujuan: item.tujuan || targetConfig.defaultTujuan,
+          tujuan: cleanVal(item.tujuan) || (targetConfig.defaultTujuan || ''),
           item_code: item.item_code,
           item_name: item.item_name,
-          category: resolvedCategory,
-          location: resolvedLocation,
-          location_type: resolvedLocationType,
+          category: cleanVal(item.category),
+          location: cleanVal(item.location),
+          location_type: cleanVal(item.location_type),
           first_qty: Number(item.first_qty) || 0,
           last_qty: Number(item.last_qty) || 0,
-          uom: item.uom || 'CTN',
+          uom: cleanVal(item.uom),
           qty_convert: Number(item.qty_convert) || 0,
-          uom_convert: item.uom_convert || 'PCS',
-          lpn_serial_number: item.lpn_serial_number || '-',
-          batch: item.batch || '-',
-          vendor_batch: item.vendor_batch || '-',
-          sloc: resolvedSloc,
+          uom_convert: cleanVal(item.uom_convert),
+          lpn_serial_number: cleanVal(item.lpn_serial_number),
+          batch: cleanVal(item.batch),
+          vendor_batch: cleanVal(item.vendor_batch),
+          sloc: cleanVal(item.sloc),
           expired_date: normalizeToIsoDate(item.expired_date) || (item.expired_date && item.expired_date !== '-' ? item.expired_date : null),
-          destination_code: resolvedDestinationCode,
-          qc_code: resolvedQcCode,
-          user_tally: resolvedUserTally,
-          shelf_life: item.shelf_life || 'Expired',
-          source: `Cek Fisik (${item.id_cek_fisik})`,
+          destination_code: cleanVal(item.destination_code),
+          qc_code: cleanVal(item.qc_code),
+          user_tally: cleanVal(item.user_tally),
+          shelf_life: cleanVal(item.shelf_life),
+          source: '', // Kolom Sumber dikosongkan sesuai permintaan
           user_input: currentUser?.nama || 'QA Officer',
           tanggal_update: nowIso,
-          status: (item.status && item.status.trim() !== '' && item.status.trim() !== '-') ? item.status : (targetConfig.defaultStatus || ''),
-          note: item.note ? `${item.note} [Dari Cek Fisik: ${item.id_cek_fisik}]` : `Ditransfer dari Cek Fisik: ${item.id_cek_fisik}`,
+          status: cleanVal(item.status) || (targetConfig.defaultStatus || ''),
+          note: bulkTransferNote.trim() ? bulkTransferNote.trim() : '', // Catatan dari form input manual, jika kosong dibiarkan kosong
           created_at: nowIso,
           updated_at: nowIso
         };
@@ -861,6 +851,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
       showToast('Pindah Data Massal Berhasil!', `${targetPayloads.length} item berhasil dipindahkan ke ${targetConfig.name}`, 'success');
       setSelectedIds([]);
+      setBulkTransferNote('');
       setShowBulkTransferModal(false);
 
       if (onDataTransferred) onDataTransferred();
@@ -1186,7 +1177,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
   const parseDateToIso = (rawDateStr: string): string => {
     if (!rawDateStr || rawDateStr.trim() === '' || rawDateStr.trim() === '-' || rawDateStr.trim() === 'null') {
-      return '-';
+      return '';
     }
     const val = rawDateStr.trim();
     if (/^\d{5}$/.test(val)) {
@@ -1279,26 +1270,28 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
     const activeDefaultTujuan = defaultTujuanOverride !== undefined ? defaultTujuanOverride : pasteDefaultTujuan;
 
-    // Semua baris yang dipaste langsung masuk ke tabel dari baris pertama (index 0)
-    const dataRows = parsedMatrix.filter(row => row.some(c => c && c.trim().length > 0));
+    const firstRowNormalized = parsedMatrix[0].map(c => normalizeKey(c));
+    const isFirstRowHeader = firstRowNormalized.some(h =>
+      ['itemcode', 'sku', 'kodebarang', 'kode_barang', 'itemname', 'namabarang', 'nama_barang', 'lastqty', 'qty', 'status', 'nobatch', 'batch', 'location', 'lokasi', 'uom', 'satuan', 'kategori', 'category', 'destinationcode', 'kodedestinasi', 'tujuan', 'sloc', 'qccode', 'kodeqc'].includes(h)
+    );
+
+    let dataRows: string[][];
+    let headerMap: { [field: string]: number } | null = null;
+
+    if (isFirstRowHeader) {
+      headerMap = resolveHeaderColumnMap(parsedMatrix[0]);
+      dataRows = parsedMatrix.slice(1).filter(row => row.some(c => c && c.trim().length > 0));
+    } else {
+      dataRows = parsedMatrix.filter(row => row.some(c => c && c.trim().length > 0));
+    }
+
+    const cleanCell = (val: any): string => {
+      if (val === undefined || val === null) return '';
+      const s = String(val).trim();
+      return (s === '-' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') ? '' : s;
+    };
 
     const resultRows: CekFisikPemusnahanItem[] = dataRows.map((row, rowIdx) => {
-      // Cek apakah kolom pertama adalah nomor urut (No: 1, 2, 3, 12, dll)
-      const rawCell0 = (row[0] || '').trim();
-      const rawCell1 = (row[1] || '').trim();
-      const isFirstColRowNumber = /^\d{1,4}$/.test(rawCell0) && (
-        /^[A-Za-z0-9._/-]{4,}$/.test(rawCell1) ||
-        rawCell1.toUpperCase().startsWith('SKU') ||
-        rawCell1.toUpperCase().startsWith('FG') ||
-        rawCell1.toUpperCase().startsWith('CKF-') ||
-        rawCell1.toUpperCase().startsWith('PEN-') ||
-        rawCell1.length >= 4 ||
-        barangMap.has(rawCell1.toLowerCase())
-      );
-
-      const r = isFirstColRowNumber ? row.slice(1) : row;
-      const colCount = r.length;
-
       let id_cek_fisik = '';
       let tujuan = '';
       let item_code = '';
@@ -1308,216 +1301,248 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       let location_type = '';
       let first_qty = 0;
       let last_qty = 0;
-      let uom = 'CTN';
+      let uom = '';
       let qty_convert = 0;
-      let uom_convert = 'PCS';
-      let lpn_serial_number = '-';
-      let batch = '-';
-      let vendor_batch = '-';
+      let uom_convert = '';
+      let lpn_serial_number = '';
+      let batch = '';
+      let vendor_batch = '';
       let sloc = '';
-      let expired_date = '-';
+      let expired_date = '';
       let destination_code = '';
       let qc_code = '';
-      let user_tally = currentUser?.nama || '';
-      let shelf_life = 'Expired';
-      let source = 'Retur Customer';
+      let user_tally = '';
+      let shelf_life = '';
+      let source = '';
       let status: 'Cek' | 'Ada' | 'Beda' | 'Tidak' = 'Cek';
       let note = '';
 
-      const getCol = (idx: number) => (idx < r.length && r[idx] !== undefined ? String(r[idx]).trim() : '');
+      if (headerMap) {
+        const getFromHeader = (field: keyof CekFisikPemusnahanItem): string => {
+          const mappedIdx = headerMap![field];
+          if (mappedIdx !== undefined && mappedIdx < row.length && row[mappedIdx] !== undefined) {
+            return cleanCell(row[mappedIdx]);
+          }
+          return '';
+        };
 
-      if (colCount >= 16) {
-        // Format Database / Export Gudang (20-25 Kolom)
-        const cell0 = getCol(0);
-        const startsWithId = cell0.toUpperCase().startsWith('CKF-') || cell0.toUpperCase().startsWith('PEN-') || cell0.toUpperCase().startsWith('PMS-');
+        id_cek_fisik = getFromHeader('id_cek_fisik');
+        status = normalizeStatus(getFromHeader('status'));
+        item_code = getFromHeader('item_code');
+        item_name = getFromHeader('item_name');
+        category = getFromHeader('category');
+        location = getFromHeader('location');
+        location_type = getFromHeader('location_type');
+        last_qty = cleanNumber(getFromHeader('last_qty'));
+        first_qty = cleanNumber(getFromHeader('first_qty')) || last_qty;
+        uom = getFromHeader('uom');
+        qty_convert = cleanNumber(getFromHeader('qty_convert'));
+        uom_convert = getFromHeader('uom_convert');
+        lpn_serial_number = getFromHeader('lpn_serial_number');
+        batch = getFromHeader('batch');
+        vendor_batch = getFromHeader('vendor_batch');
+        sloc = getFromHeader('sloc');
+        expired_date = parseDateToIso(getFromHeader('expired_date'));
+        destination_code = getFromHeader('destination_code');
+        qc_code = getFromHeader('qc_code');
+        user_tally = getFromHeader('user_tally');
+        shelf_life = getFromHeader('shelf_life');
+        source = getFromHeader('source');
+        note = getFromHeader('note');
+        tujuan = getFromHeader('tujuan');
+      } else {
+        // Cek apakah kolom pertama adalah nomor urut (No: 1, 2, 3, 12, dll)
+        const rawCell0 = (row[0] || '').trim();
+        const rawCell1 = (row[1] || '').trim();
+        const isFirstColRowNumber = /^\d{1,4}$/.test(rawCell0) && (
+          /^[A-Za-z0-9._/-]{4,}$/.test(rawCell1) ||
+          rawCell1.toUpperCase().startsWith('SKU') ||
+          rawCell1.toUpperCase().startsWith('FG') ||
+          rawCell1.toUpperCase().startsWith('CKF-') ||
+          rawCell1.toUpperCase().startsWith('PEN-') ||
+          rawCell1.length >= 4 ||
+          barangMap.has(rawCell1.toLowerCase())
+        );
 
-        if (startsWithId) {
-          id_cek_fisik = getCol(0);
-          if (['ada', 'beda', 'tidak', 'cek', 'good', 'reject'].includes(getCol(1).toLowerCase())) {
-            status = normalizeStatus(getCol(1));
+        const r = isFirstColRowNumber ? row.slice(1) : row;
+        const colCount = r.length;
+        const getCol = (idx: number) => (idx < r.length && r[idx] !== undefined ? cleanCell(r[idx]) : '');
+
+        if (colCount >= 16) {
+          // Format Database / Export Gudang (20-25 Kolom)
+          const cell0 = getCol(0);
+          const startsWithId = cell0.toUpperCase().startsWith('CKF-') || cell0.toUpperCase().startsWith('PEN-') || cell0.toUpperCase().startsWith('PMS-');
+
+          if (startsWithId) {
+            id_cek_fisik = getCol(0);
+            if (['ada', 'beda', 'tidak', 'cek', 'good', 'reject'].includes(getCol(1).toLowerCase())) {
+              status = normalizeStatus(getCol(1));
+              item_code = getCol(2);
+              item_name = getCol(3);
+              category = getCol(4);
+              location = getCol(5);
+              location_type = getCol(6);
+              first_qty = cleanNumber(getCol(7));
+              last_qty = cleanNumber(getCol(8)) || first_qty;
+              uom = getCol(9);
+              qty_convert = cleanNumber(getCol(10));
+              uom_convert = getCol(11);
+              lpn_serial_number = getCol(12);
+              batch = getCol(13);
+              vendor_batch = getCol(14);
+              sloc = getCol(15);
+              expired_date = parseDateToIso(getCol(16));
+              destination_code = getCol(17);
+              qc_code = getCol(18);
+              user_tally = getCol(19);
+              shelf_life = getCol(20);
+              source = getCol(21);
+              note = getCol(22);
+              tujuan = getCol(23);
+            } else {
+              item_code = getCol(1);
+              item_name = getCol(2);
+              category = getCol(3);
+              location = getCol(4);
+              location_type = getCol(5);
+              first_qty = cleanNumber(getCol(6));
+              last_qty = cleanNumber(getCol(7)) || first_qty;
+              uom = getCol(8);
+              qty_convert = cleanNumber(getCol(9));
+              uom_convert = getCol(10);
+              lpn_serial_number = getCol(11);
+              batch = getCol(12);
+              vendor_batch = getCol(13);
+              sloc = getCol(14);
+              expired_date = parseDateToIso(getCol(15));
+              destination_code = getCol(16);
+              qc_code = getCol(17);
+              user_tally = getCol(18);
+              shelf_life = getCol(19);
+              source = getCol(20);
+              status = normalizeStatus(getCol(21));
+              note = getCol(22);
+              tujuan = getCol(23);
+            }
+          } else {
+            // Layout Standar Tabel Database Gudang
+            item_code = getCol(0);
+            item_name = getCol(1);
+            category = getCol(2);
+            location = getCol(3);
+
+            const cell4IsNum = /^[0-9.,-]+$/.test(getCol(4)) && getCol(4).length > 0;
+
+            if (cell4IsNum) {
+              first_qty = cleanNumber(getCol(4));
+              last_qty = cleanNumber(getCol(5)) || first_qty;
+              uom = getCol(6);
+              qty_convert = cleanNumber(getCol(7));
+              uom_convert = getCol(8);
+              lpn_serial_number = getCol(9);
+              batch = getCol(10);
+              vendor_batch = getCol(11);
+              sloc = getCol(12);
+              expired_date = parseDateToIso(getCol(13));
+              destination_code = getCol(14);
+              qc_code = getCol(15);
+              source = getCol(16);
+              status = normalizeStatus(getCol(17));
+              user_tally = getCol(18);
+              shelf_life = getCol(19);
+              note = getCol(21) || getCol(20);
+              tujuan = getCol(22);
+            } else {
+              location_type = getCol(4);
+              first_qty = cleanNumber(getCol(5));
+              last_qty = cleanNumber(getCol(6)) || first_qty;
+              uom = getCol(7);
+              qty_convert = cleanNumber(getCol(8));
+              uom_convert = getCol(9);
+              lpn_serial_number = getCol(10);
+              batch = getCol(11);
+              vendor_batch = getCol(12);
+              sloc = getCol(13);
+              expired_date = parseDateToIso(getCol(14));
+              destination_code = getCol(15);
+              qc_code = getCol(16);
+              user_tally = getCol(17);
+              shelf_life = getCol(18);
+              source = getCol(19);
+              status = normalizeStatus(getCol(20));
+              note = getCol(21);
+              tujuan = getCol(22);
+            }
+          }
+        } else if (colCount >= 8 && colCount <= 15) {
+          // Format 11 Kolom Form Cek Fisik:
+          // [0] STATUS | [1] LOCATION | [2] ITEM CODE | [3] ITEM NAME | [4] LAST QTY | [5] UOM | [6] QTY CONVERT | [7] BATCH | [8] EXPIRED DATE | [9] NOTE | [10] TUJUAN
+          const c0 = getCol(0).toLowerCase();
+          const c1 = getCol(1).toUpperCase();
+          const isStatusFirst = ['ada', 'beda', 'tidak', 'cek', 'good', 'reject', 'ok', 'pass'].includes(c0) ||
+            c1.includes('WH') || c1.includes('RAK') || c1.includes('BIN') || c1.includes('CKB') || c1.includes('SL');
+
+          if (isStatusFirst) {
+            status = normalizeStatus(getCol(0));
+            location = getCol(1);
             item_code = getCol(2);
             item_name = getCol(3);
-            category = getCol(4) || '';
-            location = getCol(5) || '';
-            location_type = getCol(6) || '';
-            first_qty = cleanNumber(getCol(7));
-            last_qty = cleanNumber(getCol(8)) || first_qty;
-            uom = getCol(9) || 'CTN';
-            qty_convert = cleanNumber(getCol(10));
-            uom_convert = getCol(11) || 'PCS';
-            lpn_serial_number = getCol(12) || '-';
-            batch = getCol(13) || '-';
-            vendor_batch = getCol(14) || '-';
-            sloc = getCol(15) || '';
-            expired_date = parseDateToIso(getCol(16));
-            destination_code = getCol(17) || '';
-            qc_code = getCol(18) || '';
-            user_tally = getCol(19) || currentUser?.nama || '';
-            shelf_life = getCol(20) || 'Expired';
-            source = getCol(21) || 'Retur Customer';
-            note = getCol(22);
-            tujuan = getCol(23);
-          } else {
-            item_code = getCol(1);
-            item_name = getCol(2);
-            category = getCol(3) || '';
-            location = getCol(4) || '';
-            location_type = getCol(5) || '';
-            first_qty = cleanNumber(getCol(6));
-            last_qty = cleanNumber(getCol(7)) || first_qty;
-            uom = getCol(8) || 'CTN';
-            qty_convert = cleanNumber(getCol(9));
-            uom_convert = getCol(10) || 'PCS';
-            lpn_serial_number = getCol(11) || '-';
-            batch = getCol(12) || '-';
-            vendor_batch = getCol(13) || '-';
-            sloc = getCol(14) || '';
-            expired_date = parseDateToIso(getCol(15));
-            destination_code = getCol(16) || '';
-            qc_code = getCol(17) || '';
-            user_tally = getCol(18) || currentUser?.nama || '';
-            shelf_life = getCol(19) || 'Expired';
-            source = getCol(20) || 'Retur Customer';
-            status = normalizeStatus(getCol(21));
-            note = getCol(22);
-            tujuan = getCol(23);
-          }
-        } else {
-          // Layout Standar Tabel Database Gudang
-          item_code = getCol(0);
-          item_name = getCol(1);
-          category = getCol(2) || '';
-          location = getCol(3) || '';
-
-          const cell4IsNum = /^[0-9.,-]+$/.test(getCol(4)) && getCol(4).length > 0;
-
-          if (cell4IsNum) {
-            first_qty = cleanNumber(getCol(4));
-            last_qty = cleanNumber(getCol(5)) || first_qty;
-            uom = getCol(6) || 'CTN';
-            qty_convert = cleanNumber(getCol(7));
-            uom_convert = getCol(8) || 'PCS';
-            lpn_serial_number = getCol(9) || '-';
-            batch = getCol(10) || '-';
-            vendor_batch = getCol(11) || '-';
-            sloc = getCol(12) || '';
-            expired_date = parseDateToIso(getCol(13));
-            destination_code = getCol(14) || '';
-            qc_code = getCol(15) || '';
-            source = getCol(16) || 'Retur Customer';
-            status = normalizeStatus(getCol(17));
-            user_tally = getCol(18) || currentUser?.nama || '';
-            shelf_life = getCol(19) || 'Expired';
-            note = getCol(21) || getCol(20);
-            tujuan = getCol(22);
-          } else {
-            location_type = getCol(4) || '';
-            first_qty = cleanNumber(getCol(5));
-            last_qty = cleanNumber(getCol(6)) || first_qty;
-            uom = getCol(7) || 'CTN';
-            qty_convert = cleanNumber(getCol(8));
-            uom_convert = getCol(9) || 'PCS';
-            lpn_serial_number = getCol(10) || '-';
-            batch = getCol(11) || '-';
-            vendor_batch = getCol(12) || '-';
-            sloc = getCol(13) || '';
-            expired_date = parseDateToIso(getCol(14));
-            destination_code = getCol(15) || '';
-            qc_code = getCol(16) || '';
-            user_tally = getCol(17) || currentUser?.nama || '';
-            shelf_life = getCol(18) || 'Expired';
-            source = getCol(19) || 'Retur Customer';
-            status = normalizeStatus(getCol(20));
-            note = getCol(21);
-            tujuan = getCol(22);
-          }
-        }
-      } else if (colCount >= 8 && colCount <= 15) {
-        // Format 11 Kolom Form Cek Fisik:
-        // [0] STATUS | [1] LOCATION | [2] ITEM CODE | [3] ITEM NAME | [4] LAST QTY | [5] UOM | [6] QTY CONVERT | [7] BATCH | [8] EXPIRED DATE | [9] NOTE | [10] TUJUAN
-        const c0 = getCol(0).toLowerCase();
-        const c1 = getCol(1).toUpperCase();
-        const isStatusFirst = ['ada', 'beda', 'tidak', 'cek', 'good', 'reject', 'ok', 'pass'].includes(c0) ||
-          c1.includes('WH') || c1.includes('RAK') || c1.includes('BIN') || c1.includes('CKB') || c1.includes('SL');
-
-        if (isStatusFirst) {
-          status = normalizeStatus(getCol(0));
-          location = getCol(1) || '';
-          item_code = getCol(2);
-          item_name = getCol(3);
-          last_qty = cleanNumber(getCol(4));
-          first_qty = last_qty;
-          uom = getCol(5) || 'CTN';
-          qty_convert = cleanNumber(getCol(6));
-          batch = getCol(7) || '-';
-          expired_date = parseDateToIso(getCol(8));
-          note = getCol(9);
-          tujuan = getCol(10);
-        } else {
-          item_code = getCol(0);
-          item_name = getCol(1);
-          location = getCol(2) || '';
-          last_qty = cleanNumber(getCol(3));
-          first_qty = last_qty;
-          uom = getCol(4) || 'CTN';
-          qty_convert = cleanNumber(getCol(5));
-          batch = getCol(6) || '-';
-          expired_date = parseDateToIso(getCol(7));
-          status = normalizeStatus(getCol(8));
-          note = getCol(9);
-          tujuan = getCol(10);
-        }
-      } else {
-        // Short SKU format (1-7 kolom)
-        item_code = getCol(0);
-        if (colCount >= 2) {
-          if (/^[0-9.,-]+$/.test(getCol(1))) {
-            last_qty = cleanNumber(getCol(1));
+            last_qty = cleanNumber(getCol(4));
             first_qty = last_qty;
+            uom = getCol(5);
+            qty_convert = cleanNumber(getCol(6));
+            batch = getCol(7);
+            expired_date = parseDateToIso(getCol(8));
+            note = getCol(9);
+            tujuan = getCol(10);
           } else {
+            item_code = getCol(0);
             item_name = getCol(1);
-          }
-        }
-        if (colCount >= 3) {
-          if (/^[0-9.,-]+$/.test(getCol(2))) {
-            last_qty = cleanNumber(getCol(2));
+            location = getCol(2);
+            last_qty = cleanNumber(getCol(3));
             first_qty = last_qty;
-          } else {
-            batch = getCol(2);
+            uom = getCol(4);
+            qty_convert = cleanNumber(getCol(5));
+            batch = getCol(6);
+            expired_date = parseDateToIso(getCol(7));
+            status = normalizeStatus(getCol(8));
+            note = getCol(9);
+            tujuan = getCol(10);
           }
-        }
-        if (colCount >= 4) {
-          batch = getCol(3) || batch;
-        }
-        if (colCount >= 5) {
-          expired_date = parseDateToIso(getCol(4));
+        } else {
+          // Short SKU format (1-7 kolom)
+          item_code = getCol(0);
+          if (colCount >= 2) {
+            if (/^[0-9.,-]+$/.test(getCol(1))) {
+              last_qty = cleanNumber(getCol(1));
+              first_qty = last_qty;
+            } else {
+              item_name = getCol(1);
+            }
+          }
+          if (colCount >= 3) {
+            if (/^[0-9.,-]+$/.test(getCol(2))) {
+              last_qty = cleanNumber(getCol(2));
+              first_qty = last_qty;
+            } else {
+              batch = getCol(2);
+            }
+          }
+          if (colCount >= 4) {
+            batch = getCol(3) || batch;
+          }
+          if (colCount >= 5) {
+            expired_date = parseDateToIso(getCol(4));
+          }
         }
       }
 
-      // Smart Heuristic Scanning Fallbacks
-      if (!expired_date || expired_date === '-') {
-        for (let i = 0; i < r.length; i++) {
-          const cellVal = getCol(i);
-          if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(cellVal) || /^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(cellVal) || /^\d{5}$/.test(cellVal)) {
-            expired_date = parseDateToIso(cellVal);
-            break;
-          }
-        }
-      }
-
-      // Lookup Master Barang
+      // Lookup Master Barang if item_name is empty
       const matchedMaster = item_code ? barangMap.get(item_code.toLowerCase()) : undefined;
       if (matchedMaster) {
-        if (!item_name || item_name === 'Item Tanpa Nama') item_name = matchedMaster.item_name;
-        if (category === 'Damaged' && matchedMaster.category) category = matchedMaster.category;
-        if (uom === 'CTN' && matchedMaster.uom) uom = matchedMaster.uom;
-      }
-
-      if ((!expired_date || expired_date === '-') && batch !== '-' && (item_code || item_name)) {
-        const calc = getEdIsoDateString(item_code, item_name, batch);
-        if (calc && calc.isoDate) {
-          expired_date = calc.isoDate;
-        }
+        if (!item_name) item_name = matchedMaster.item_name;
+        if (!category && matchedMaster.category) category = matchedMaster.category;
+        if (!uom && matchedMaster.uom) uom = matchedMaster.uom;
       }
 
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -1527,36 +1552,36 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         id_cek_fisik: rowId,
         tujuan: tujuan || activeDefaultTujuan || '',
         item_code: item_code,
-        item_name: item_name || matchedMaster?.item_name || 'Item Tanpa Nama',
-        category: category || matchedMaster?.category || '',
-        location: location || '',
-        location_type: location_type || '',
+        item_name: item_name,
+        category: category,
+        location: location,
+        location_type: location_type,
         first_qty: first_qty || last_qty || 0,
         last_qty: last_qty || 0,
-        uom: uom || matchedMaster?.uom || 'CTN',
+        uom: uom,
         qty_convert: qty_convert || 0,
-        uom_convert: uom_convert || 'PCS',
-        lpn_serial_number: lpn_serial_number || '-',
-        batch: batch || '-',
-        vendor_batch: vendor_batch || '-',
-        sloc: sloc || '',
-        expired_date: expired_date || '-',
-        destination_code: destination_code || '',
-        qc_code: qc_code || '',
-        user_tally: user_tally || currentUser?.nama || '',
-        shelf_life: shelf_life || 'Expired',
-        source: source || 'Retur Customer',
+        uom_convert: uom_convert,
+        lpn_serial_number: lpn_serial_number,
+        batch: batch,
+        vendor_batch: vendor_batch,
+        sloc: sloc,
+        expired_date: expired_date,
+        destination_code: destination_code,
+        qc_code: qc_code,
+        user_tally: user_tally,
+        shelf_life: shelf_life,
+        source: source,
         user_input: currentUser?.nama || 'QA Officer',
         tanggal_update: nowIso,
         status: status || 'Cek',
-        note: note || '',
+        note: note,
         created_at: nowIso,
         updated_at: nowIso
       };
     });
 
     // Filter baris kosong
-    const validRows = resultRows.filter(r => r.item_code || r.item_name || r.location || (r.batch && r.batch !== '-'));
+    const validRows = resultRows.filter(r => r.item_code || r.item_name || r.location || r.batch || r.last_qty > 0);
     setPastedRows(validRows);
   };
 
@@ -1670,11 +1695,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         id_cek_fisik: item.id_cek_fisik && !item.id_cek_fisik.includes('CKF-') ? generatedId : (item.id_cek_fisik || generatedId),
         category: item.category || '',
         first_qty: Number(item.first_qty) || Number(item.last_qty) || 0,
-        vendor_batch: item.vendor_batch || '-',
+        vendor_batch: item.vendor_batch || '',
         destination_code: item.destination_code || '',
         qc_code: item.qc_code || '',
-        user_tally: item.user_tally || currentUser?.nama || '',
-        source: item.source || 'Retur Customer',
+        user_tally: item.user_tally || '',
+        source: item.source || '',
         last_qty: Number(item.last_qty) || 0,
         qty_convert: Number(item.qty_convert) || 0,
         user_input: currentUser?.nama || 'QA Officer',
@@ -1757,7 +1782,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             const mappedIdx = fileColMap[field];
             if (mappedIdx !== undefined && keys[mappedIdx]) {
               const k = keys[mappedIdx];
-              return String(row[k] || '').trim();
+              const v = String(row[k] || '').trim();
+              return (v === '-' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') ? '' : v;
             }
             return '';
           };
@@ -1769,13 +1795,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             if (!itemName) itemName = matchedMaster.item_name;
           }
 
-          const batchVal = getVal('batch') || '-';
-          let expDateVal = parseDateToIso(getVal('expired_date'));
-
-          if ((!expDateVal || expDateVal === '-') && batchVal !== '-' && (itemCode || itemName)) {
-            const calc = getEdIsoDateString(itemCode, itemName, batchVal);
-            if (calc && calc.isoDate) expDateVal = calc.isoDate;
-          }
+          const batchVal = getVal('batch');
+          const expDateVal = parseDateToIso(getVal('expired_date'));
 
           const lastQtyNum = Number(getVal('last_qty').replace(/[^0-9.-]/g, '')) || 0;
           const firstQtyNum = Number(getVal('first_qty').replace(/[^0-9.-]/g, '')) || lastQtyNum;
@@ -1786,27 +1807,27 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
           return {
             id_cek_fisik: getVal('id_cek_fisik') || rowId,
-            tujuan: getVal('tujuan') || excelUploadTujuan || 'Check Fisik Pemusnahan',
+            tujuan: getVal('tujuan') || excelUploadTujuan || '',
             item_code: itemCode,
-            item_name: itemName || matchedMaster?.item_name || 'Item Tanpa Nama',
+            item_name: itemName || matchedMaster?.item_name || '',
             category: getVal('category') || matchedMaster?.category || '',
             location: getVal('location') || '',
             location_type: getVal('location_type') || '',
             first_qty: firstQtyNum,
             last_qty: lastQtyNum,
-            uom: getVal('uom') || matchedMaster?.uom || 'CTN',
+            uom: getVal('uom') || matchedMaster?.uom || '',
             qty_convert: qtyConvNum,
-            uom_convert: getVal('uom_convert') || 'PCS',
-            lpn_serial_number: getVal('lpn_serial_number') || '-',
+            uom_convert: getVal('uom_convert') || '',
+            lpn_serial_number: getVal('lpn_serial_number') || '',
             batch: batchVal,
-            vendor_batch: getVal('vendor_batch') || '-',
+            vendor_batch: getVal('vendor_batch') || '',
             sloc: getVal('sloc') || '',
             expired_date: expDateVal,
             destination_code: getVal('destination_code') || '',
             qc_code: getVal('qc_code') || '',
-            user_tally: getVal('user_tally') || currentUser?.nama || '',
-            shelf_life: getVal('shelf_life') || 'Expired',
-            source: getVal('source') || 'Retur Customer',
+            user_tally: getVal('user_tally') || '',
+            shelf_life: getVal('shelf_life') || '',
+            source: getVal('source') || '',
             user_input: currentUser?.nama || 'QA Officer',
             tanggal_update: nowIso,
             status: (() => {
@@ -1820,7 +1841,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             created_at: nowIso,
             updated_at: nowIso
           };
-        }).filter(r => r.item_code || r.item_name);
+        }).filter(r => r.item_code || r.item_name || r.location || r.batch || r.last_qty > 0);
 
         setParsedExcelRows(parsed);
         showToast('File Excel Terbaca', `${parsed.length} baris data berhasil dimuat`, 'info');
@@ -2561,6 +2582,21 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     <span>Biarkan data sumber apa adanya (Duplikat)</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Input Catatan / Note Manual */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Catatan / Note (Manual):</label>
+                <input
+                  type="text"
+                  value={bulkTransferNote}
+                  onChange={(e) => setBulkTransferNote(e.target.value)}
+                  placeholder="Ketik catatan transfer manual (opsional, jika tidak diisi akan dikosongkan)..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Catatan ini akan tersimpan pada kolom Catatan / Note di modul tujuan. Kosongkan jika tidak diperlukan.
+                </p>
               </div>
             </div>
 
