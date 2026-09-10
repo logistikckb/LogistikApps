@@ -20,8 +20,6 @@ import {
   Layers, 
   Boxes, 
   Database, 
-  Mic, 
-  MicOff, 
   Share2, 
   Printer, 
   Sparkles, 
@@ -30,11 +28,9 @@ import {
   Calendar, 
   AlertTriangle, 
   Eye, 
+  EyeOff, 
   FileSpreadsheet, 
   Send,
-  ScanBarcode,
-  QrCode,
-  Scan,
   ClipboardList,
   CheckCircle2,
   AlertCircle,
@@ -48,7 +44,6 @@ import { useNotification } from '../../context/NotificationContext';
 import { InventoryFormModal } from './inventory/InventoryFormModal';
 import { InventoryDetailModal } from './inventory/InventoryDetailModal';
 import { InventoryExcelModal } from './inventory/InventoryExcelModal';
-import { InventoryScannerModal } from './inventory/InventoryScannerModal';
 import { 
   InventoryBulkTransferModal, 
   TransferDestination 
@@ -144,11 +139,25 @@ export function InventoryModule({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
-  const [showScannerModal, setShowScannerModal] = useState(false);
 
-  // Voice Search
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  // Column Visibility: Hide / Unhide Kolom Location
+  const [showLocationColumn, setShowLocationColumn] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ckb_inventory_show_location_col');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true;
+  });
+
+  const handleToggleLocationColumn = () => {
+    setShowLocationColumn(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('ckb_inventory_show_location_col', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // 1. Load Data from Supabase with LocalStorage fallback (support pagination for full records)
   const fetchInventoryData = async (isManualRefresh = false) => {
@@ -618,74 +627,6 @@ export function InventoryModule({
     showToast('Ekspor Berhasil', `Laporan berhasil diekspor (${filteredData.length} baris).`, 'success');
   };
 
-  // Voice Search Handler
-  const handleToggleVoice = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      showToast('Tidak Didukung', 'Browser Anda tidak mendukung Web Speech API.', 'warning');
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-
-      recognition.onstart = () => setIsListening(true);
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setSearchQuery(transcript);
-        showToast('Pencarian Suara', `Mencari: "${transcript}"`, 'info');
-      };
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {
-      setIsListening(false);
-    }
-  };
-
-  // Scan Barcode / QR Handler
-  const handleScanResult = (scannedText: string, metadata?: { sku?: string; batch?: string; lpn?: string }) => {
-    const q = scannedText.trim();
-    if (!q) return;
-
-    setSearchQuery(q);
-    setCurrentPage(1);
-
-    const matches = inventoryList.filter(item => {
-      const target = q.toLowerCase();
-      return (item.item_code || '').toLowerCase().includes(target) ||
-             (item.item_name || '').toLowerCase().includes(target) ||
-             (item.batch || '').toLowerCase().includes(target) ||
-             (item.lpn_serial_number || '').toLowerCase().includes(target) ||
-             (item.location || '').toLowerCase().includes(target);
-    });
-
-    if (matches.length > 0) {
-      showToast(
-        'Scan Barcode Berhasil',
-        `Menemukan ${matches.length} baris untuk "${q}"${metadata?.sku ? ` (SKU: ${metadata.sku})` : ''}`,
-        'success'
-      );
-    } else {
-      showToast(
-        'Barcode Dipindai',
-        `Mencari "${q}". Belum ada stok dengan data ini di inventory.`,
-        'info'
-      );
-    }
-  };
-
   // Stock Opname SUMIFS Aggregation: Group by (location + item_code / item_name) and sum QTYs
   const stockOpnameAggregatedData = useMemo<InventoryItem[]>(() => {
     const groupMap = new Map<string, {
@@ -979,6 +920,66 @@ export function InventoryModule({
     };
   }, [selectedIds, inventoryList]);
 
+  // SKU Filter Analytics (Sum Last Qty for same SKU to eliminate manual calculation)
+  const skuFilterSummary = useMemo(() => {
+    if (filteredData.length === 0) return null;
+
+    const skuMap = new Map<string, {
+      item_code: string;
+      item_name: string;
+      uom: string;
+      uom_convert: string;
+      totalLastQty: number;
+      totalQtyConvert: number;
+      locations: Set<string>;
+      batches: Set<string>;
+      count: number;
+    }>();
+
+    filteredData.forEach(item => {
+      const rawCode = (item.item_code || '').trim();
+      const rawName = (item.item_name || '').trim();
+      const key = (rawCode || rawName).toUpperCase();
+
+      if (!skuMap.has(key)) {
+        skuMap.set(key, {
+          item_code: rawCode || '-',
+          item_name: rawName || '-',
+          uom: item.uom || 'CTN',
+          uom_convert: item.uom_convert || 'PCS',
+          totalLastQty: 0,
+          totalQtyConvert: 0,
+          locations: new Set<string>(),
+          batches: new Set<string>(),
+          count: 0
+        });
+      }
+
+      const g = skuMap.get(key)!;
+      g.totalLastQty += Number(item.last_qty || 0);
+      g.totalQtyConvert += Number(item.qty_convert ?? item.last_qty ?? 0);
+      if (item.location) g.locations.add(item.location);
+      if (item.batch) g.batches.add(item.batch);
+      g.count++;
+    });
+
+    const distinctSkuCount = skuMap.size;
+    const isSingleSku = distinctSkuCount === 1;
+    const singleSku = isSingleSku ? Array.from(skuMap.values())[0] : null;
+
+    const overallLastQty = filteredData.reduce((acc, item) => acc + Number(item.last_qty || 0), 0);
+    const overallQtyConvert = filteredData.reduce((acc, item) => acc + Number(item.qty_convert ?? item.last_qty ?? 0), 0);
+
+    return {
+      distinctSkuCount,
+      isSingleSku,
+      singleSku,
+      overallLastQty,
+      overallQtyConvert,
+      totalRows: filteredData.length
+    };
+  }, [filteredData]);
+
   // Distinct Lists for Filters
   const uniqueLocations = useMemo(() => {
     return Array.from(new Set(inventoryList.map(i => i.location).filter(Boolean))).sort();
@@ -1105,23 +1106,23 @@ export function InventoryModule({
             <span className="hidden sm:inline">Sinkron</span>
           </button>
 
-          {/* Export Excel */}
+          {/* Export Excel - Desktop Only */}
           <button
             type="button"
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+            className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
             title="Unduh laporan ke file Excel (.xlsx)"
           >
             <Download size={13} className="text-emerald-700" />
             <span>Export Excel</span>
           </button>
 
-          {/* Upload Excel (Admin Only) */}
+          {/* Upload Excel (Admin Only) - Desktop Only */}
           {isSuperAdmin && (
             <button
               type="button"
               onClick={() => setShowExcelModal(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-teal-50 text-teal-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+              className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-teal-50 text-teal-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
               title="Upload file Excel massal khusus Admin"
             >
               <Upload size={13} className="text-teal-700" />
@@ -1129,14 +1130,14 @@ export function InventoryModule({
             </button>
           )}
 
-          {/* Tambah Data */}
+          {/* Tambah Data - Desktop Only */}
           <button
             type="button"
             onClick={() => {
               setItemToEdit(null);
               setShowFormModal(true);
             }}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
+            className="hidden lg:inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
           >
             <Plus size={13} />
             <span>Tambah Data</span>
@@ -1150,7 +1151,7 @@ export function InventoryModule({
       <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           {/* Main Search Input */}
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -1160,50 +1161,22 @@ export function InventoryModule({
                 setCurrentPage(1);
               }}
               placeholder="Cari Lokasi, SKU, Nama Barang, Batch, LPN, Note..."
-              className="w-full pl-9 pr-24 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+              className="w-full pl-9 pr-8 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
-                  title="Hapus teks pencarian"
-                >
-                  <X size={12} />
-                </button>
-              )}
+            {searchQuery && (
               <button
                 type="button"
-                onClick={handleToggleVoice}
-                className={`p-1 rounded transition-colors ${
-                  isListening ? 'bg-rose-500 text-white animate-pulse' : 'text-slate-400 hover:text-teal-700'
-                }`}
-                title={isListening ? 'Mendengarkan...' : 'Pencarian Suara'}
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded transition-colors cursor-pointer"
+                title="Hapus teks pencarian"
               >
-                {isListening ? <MicOff size={13} /> : <Mic size={13} />}
+                <X size={12} />
               </button>
-              <button
-                type="button"
-                onClick={() => setShowScannerModal(true)}
-                className="p-1 rounded text-slate-500 hover:text-teal-800 hover:bg-teal-50 transition-colors"
-                title="Scan QR / Barcode Kamera"
-              >
-                <ScanBarcode size={14} className="text-teal-700" />
-              </button>
-            </div>
+            )}
           </div>
-
-          {/* Quick Scan Button beside search */}
-          <button
-            type="button"
-            onClick={() => setShowScannerModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-teal-50 text-teal-800 font-bold text-xs shadow-2xs transition-colors cursor-pointer shrink-0 active:scale-95"
-            title="Buka Kamera Scan QR & Barcode"
-          >
-            <ScanBarcode size={13} className="text-teal-700" />
-            <span className="hidden sm:inline">Scan Barcode</span>
-          </button>
 
           {/* Location Filter */}
           <div className="flex items-center gap-1">
@@ -1223,8 +1196,8 @@ export function InventoryModule({
             </select>
           </div>
 
-          {/* SLoc Filter */}
-          <div className="flex items-center gap-1">
+          {/* SLoc Filter - Desktop Only */}
+          <div className="hidden lg:flex items-center gap-1">
             <span className="text-[11px] font-bold text-slate-500 shrink-0">SLOC:</span>
             <select
               value={slocFilter}
@@ -1470,6 +1443,39 @@ export function InventoryModule({
       )}
 
       {/* ========================================================================= */}
+      {/* SKU FILTER ANALYTICS: HANYA SUM LAST QTY & SUM QTY CONVERT (RINGKAS & LEGA) */}
+      {/* ========================================================================= */}
+      {skuFilterSummary && skuFilterSummary.isSingleSku && skuFilterSummary.singleSku && (
+        <div className="px-3 py-1.5 rounded-lg bg-emerald-50/70 border border-emerald-200/80 shadow-2xs flex flex-wrap items-center justify-end gap-2 text-slate-800 animate-fade-in">
+          {/* SUM LAST QTY */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-emerald-300 text-xs shadow-2xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
+              SUM LAST QTY:
+            </span>
+            <span className="font-mono font-black text-emerald-950 text-xs sm:text-sm">
+              {skuFilterSummary.singleSku.totalLastQty.toLocaleString('id-ID')}
+            </span>
+            <span className="text-[10px] font-black text-emerald-700 uppercase">
+              {skuFilterSummary.singleSku.uom}
+            </span>
+          </div>
+
+          {/* SUM QTY CONVERT */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-teal-300 text-xs shadow-2xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">
+              SUM QTY CONVERT:
+            </span>
+            <span className="font-mono font-black text-teal-950 text-xs sm:text-sm">
+              {skuFilterSummary.singleSku.totalQtyConvert.toLocaleString('id-ID')}
+            </span>
+            <span className="text-[10px] font-black text-teal-700 uppercase">
+              {skuFilterSummary.singleSku.uom_convert}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* DATA TABLE (DYNAMIC COLUMNS ACCORDING TO VIEW MODE) */}
       {/* ========================================================================= */}
       <div className="rounded-xl bg-white border border-slate-200/80 shadow-2xs overflow-hidden">
@@ -1492,8 +1498,23 @@ export function InventoryModule({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-slate-500">Tampilkan:</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Tombol Hide / Unhide Kolom Location */}
+            <button
+              type="button"
+              onClick={handleToggleLocationColumn}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold border transition-colors cursor-pointer shadow-2xs ${
+                showLocationColumn
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                  : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 font-black'
+              }`}
+              title={showLocationColumn ? 'Klik untuk sembunyikan kolom Location di tabel' : 'Klik untuk tampilkan kembali kolom Location di tabel'}
+            >
+              {showLocationColumn ? <EyeOff size={13} className="text-slate-500" /> : <Eye size={13} className="text-amber-800" />}
+              <span>{showLocationColumn ? 'Hide Location' : 'Unhide Location'}</span>
+            </button>
+
+            <span className="text-[11px] font-semibold text-slate-500 ml-1">Tampilkan:</span>
             <select
               value={pageSize}
               onChange={(e) => {
@@ -1534,8 +1555,6 @@ export function InventoryModule({
                   </button>
                 </th>
 
-                <th className="px-2 py-1.5 text-center w-10">No</th>
-
                 {/* Status Column - Prominent & Sticky */}
                 <th 
                   onClick={() => handleSort('status')}
@@ -1552,19 +1571,21 @@ export function InventoryModule({
                 </th>
 
                 {/* Location Column */}
-                <th 
-                  onClick={() => handleSort('location')} 
-                  className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'location' ? 'bg-teal-50 text-teal-950 font-black' : ''}`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span>Location</span>
-                    {sortField === 'location' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-teal-700 font-black" /> : <ArrowDown size={12} className="text-teal-700 font-black" />
-                    ) : (
-                      <ArrowUpDown size={11} className="text-slate-400" />
-                    )}
-                  </div>
-                </th>
+                {showLocationColumn && (
+                  <th 
+                    onClick={() => handleSort('location')} 
+                    className={`px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 transition-colors ${sortField === 'location' ? 'bg-teal-50 text-teal-950 font-black' : ''}`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Location</span>
+                      {sortField === 'location' ? (
+                        sortOrder === 'asc' ? <ArrowUp size={12} className="text-teal-700 font-black" /> : <ArrowDown size={12} className="text-teal-700 font-black" />
+                      ) : (
+                        <ArrowUpDown size={11} className="text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                )}
 
                 {/* Item Name Column */}
                 <th 
@@ -1684,7 +1705,7 @@ export function InventoryModule({
             <tbody className="divide-y divide-slate-200/70">
               {isLoading ? (
                 <tr>
-                  <td colSpan={viewMode === 'stock_opname' ? 9 : 12} className="p-8 text-center text-slate-500 font-bold">
+                  <td colSpan={viewMode === 'stock_opname' ? (showLocationColumn ? 8 : 7) : (showLocationColumn ? 11 : 10)} className="p-8 text-center text-slate-500 font-bold">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw size={16} className="animate-spin text-teal-800" />
                       <span>Memuat data inventory dari database...</span>
@@ -1693,7 +1714,7 @@ export function InventoryModule({
                 </tr>
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={viewMode === 'stock_opname' ? 9 : 12} className="p-8 text-center text-slate-500">
+                  <td colSpan={viewMode === 'stock_opname' ? (showLocationColumn ? 8 : 7) : (showLocationColumn ? 11 : 10)} className="p-8 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Package size={32} className="text-slate-300" />
                       <span className="font-extrabold text-slate-700 text-xs">Belum Ada Data Inventory</span>
@@ -1709,7 +1730,6 @@ export function InventoryModule({
                 paginatedData.map((row, idx) => {
                   const isSelected = isRowSelected(row);
                   const isPartiallySelected = isSomeRowSelected(row);
-                  const rowNumber = pageSize === 'ALL' ? idx + 1 : (currentPage - 1) * pageSize + idx + 1;
                   
                   const statusKey = (row.status || '').toLowerCase().trim();
                   const isAda = statusKey === 'ada';
@@ -1781,11 +1801,6 @@ export function InventoryModule({
                         </div>
                       </td>
 
-                      {/* No */}
-                      <td className="px-2 py-1.5 text-center font-mono text-[10px] text-slate-400">
-                        {rowNumber}
-                      </td>
-
                       {/* Status Sticky Column with Direct Selector */}
                       <td 
                         className={`px-1.5 py-1 text-center sticky left-0 transition-colors z-10 shadow-2xs border-r border-slate-100 ${stickyCellBgClass}`}
@@ -1809,12 +1824,14 @@ export function InventoryModule({
                       </td>
 
                       {/* Location */}
-                      <td className={`px-2.5 py-1.5 min-w-[100px] rounded-sm ${locationCellClass}`}>
-                        <div className="flex items-center gap-1.5">
-                          <MapPin size={12} className={`shrink-0 ${locationIconClass}`} />
-                          <span>{row.location || '-'}</span>
-                        </div>
-                      </td>
+                      {showLocationColumn && (
+                        <td className={`px-2.5 py-1.5 min-w-[100px] rounded-sm ${locationCellClass}`}>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin size={12} className={`shrink-0 ${locationIconClass}`} />
+                            <span>{row.location || '-'}</span>
+                          </div>
+                        </td>
+                      )}
 
                       {/* Item Name */}
                       <td className={`px-2.5 py-1.5 min-w-[180px] max-w-xs ${isAda ? 'bg-emerald-50/40' : isBeda ? 'bg-blue-50/40' : isTidak ? 'bg-amber-50/40' : ''}`}>
@@ -2048,13 +2065,6 @@ export function InventoryModule({
           }
           setSelectedIds([]);
         }}
-      />
-
-      <InventoryScannerModal
-        isOpen={showScannerModal}
-        onClose={() => setShowScannerModal(false)}
-        onScanResult={handleScanResult}
-        inventoryList={inventoryList}
       />
 
     </div>
