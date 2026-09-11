@@ -30,6 +30,8 @@ interface InventoryDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: InventoryItem | null;
+  childItems?: InventoryItem[];
+  isOpnameMode?: boolean;
   onEdit: (item: InventoryItem) => void;
   onDelete?: (item: InventoryItem) => void;
   showToast: (title: string, message: string, type?: 'success' | 'warning' | 'info' | 'error') => void;
@@ -39,6 +41,8 @@ export function InventoryDetailModal({
   isOpen,
   onClose,
   item,
+  childItems = [],
+  isOpnameMode = false,
   onEdit,
   onDelete,
   showToast
@@ -46,6 +50,73 @@ export function InventoryDetailModal({
   // State QR Code & Copy
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState(false);
+
+  // Kumpulkan daftar semua batch dan qty jika terdapat lebih dari 1 batch
+  const batchList = React.useMemo(() => {
+    if (!item) return [];
+
+    // 1. Jika ada childItems (rekaman fisik dari database inventoryList)
+    if (childItems && childItems.length > 0) {
+      const map = new Map<string, {
+        batch: string;
+        expired_date: string;
+        last_qty: number;
+        uom: string;
+        qty_convert: number;
+        uom_convert: string;
+        status?: string;
+        count: number;
+      }>();
+
+      childItems.forEach(ci => {
+        const b = (ci.batch || '-').trim();
+        if (!map.has(b)) {
+          map.set(b, {
+            batch: b,
+            expired_date: ci.expired_date || '-',
+            last_qty: 0,
+            uom: ci.uom || item.uom || 'CTN',
+            qty_convert: 0,
+            uom_convert: ci.uom_convert || item.uom_convert || 'PCS',
+            status: ci.status || '-',
+            count: 0
+          });
+        }
+        const entry = map.get(b)!;
+        entry.last_qty += Number(ci.last_qty || 0);
+        entry.qty_convert += Number(ci.qty_convert || 0);
+        entry.count += 1;
+        if ((!entry.expired_date || entry.expired_date === '-') && ci.expired_date) {
+          entry.expired_date = ci.expired_date;
+        }
+      });
+
+      const list = Array.from(map.values());
+      if (list.length > 1) {
+        return list;
+      }
+    }
+
+    // 2. Fallback jika item.batch mengandung koma / multiple batches
+    if (item.batch && item.batch.includes(',')) {
+      const splittedBatches = item.batch.split(',').map(b => b.trim()).filter(Boolean);
+      const splittedDates = (item.expired_date || '').split(',').map(d => d.trim()).filter(Boolean);
+      if (splittedBatches.length > 1) {
+        return splittedBatches.map((b, idx) => ({
+          batch: b,
+          expired_date: splittedDates[idx] || splittedDates[0] || '-',
+          last_qty: idx === 0 ? Number(item.last_qty || 0) : 0,
+          uom: item.uom || 'CTN',
+          qty_convert: idx === 0 ? Number(item.qty_convert || 0) : 0,
+          uom_convert: item.uom_convert || 'PCS',
+          status: item.status || '-',
+          count: 1
+        }));
+      }
+    }
+
+    return [];
+  }, [item, childItems]);
 
   // Pengaturan Cetak Label Standar Honeywell PM42 (Sama Persis dengan QR Generator PM42)
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('landscape');
@@ -556,9 +627,16 @@ export function InventoryDetailModal({
               <Package size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-black uppercase tracking-tight m-0">
-                Detail Transaksi Inventory
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black uppercase tracking-tight m-0">
+                  Detail Transaksi Inventory
+                </h3>
+                {isOpnameMode && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-400 text-amber-950 border border-amber-500 shadow-2xs">
+                    Mode Opname Aktif
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-teal-200 m-0 font-medium font-mono">
                 {item.id_inventory}
               </p>
@@ -651,7 +729,14 @@ export function InventoryDetailModal({
             <div className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Nomor Batch / Lot</span>
               <div className="font-mono font-bold text-slate-800 text-xs">
-                {item.batch || '-'}
+                {batchList.length > 1 ? (
+                  <span className="text-teal-900 font-black flex items-center gap-1 flex-wrap">
+                    <span>{batchList.length} Batch</span>
+                    <span className="text-[10px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded border border-teal-200">Rincian di bawah</span>
+                  </span>
+                ) : (
+                  item.batch || '-'
+                )}
               </div>
             </div>
 
@@ -689,6 +774,105 @@ export function InventoryDetailModal({
               </div>
             </div>
           </div>
+
+          {/* ========================================================================= */}
+          {/* JIKA LEBIH DARI 1 BATCH: TAMPILKAN SEMUA BATCH DAN QTY (PERINTAH USER)     */}
+          {/* ========================================================================= */}
+          {batchList.length > 1 && (
+            <div className="p-3.5 rounded-2xl border-2 border-teal-500/40 bg-teal-50/40 space-y-2.5 shadow-2xs animate-fade-in">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-teal-800 text-white flex items-center justify-center font-black">
+                    <Layers size={15} />
+                  </div>
+                  <div>
+                    <h5 className="font-black text-teal-950 text-xs uppercase tracking-tight m-0">
+                      Rincian Multi-Batch & Qty Fisik
+                    </h5>
+                    <p className="text-[10px] text-teal-700 m-0 font-semibold">
+                      Terdapat {batchList.length} batch berbeda tercatat untuk SKU ini di lokasi {item.location || '-'}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-teal-200 text-teal-950 text-[10px] font-black border border-teal-300">
+                  {batchList.length} BATCH TERDAFTAR
+                </span>
+              </div>
+
+              {/* Tabel Semua Batch & Qty */}
+              <div className="overflow-x-auto rounded-xl border border-teal-200 bg-white shadow-2xs">
+                <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-teal-100/80 text-teal-950 font-black uppercase tracking-tight text-[10px] border-b border-teal-200">
+                      <th className="px-3 py-2 w-10 text-center">No</th>
+                      <th className="px-3 py-2">Nomor Batch / Lot</th>
+                      <th className="px-3 py-2">Expired Date</th>
+                      <th className="px-3 py-2 text-right">Last Qty (Fisik)</th>
+                      <th className="px-3 py-2 text-right">Konversi PCS</th>
+                      <th className="px-3 py-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-teal-100/70">
+                    {batchList.map((bItem, bIdx) => (
+                      <tr key={bItem.batch + bIdx} className="hover:bg-teal-50/50 transition-colors">
+                        <td className="px-3 py-2 font-mono text-slate-500 text-[11px] font-bold text-center">
+                          {bIdx + 1}
+                        </td>
+                        <td className="px-3 py-2 font-mono font-black text-slate-900 text-xs">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-teal-900 font-bold">
+                            {bItem.batch || '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-slate-700 text-xs">
+                          <div className="flex items-center gap-1">
+                            <Calendar size={12} className="text-amber-600 shrink-0" />
+                            <span>{bItem.expired_date || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="font-mono font-black text-emerald-950 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-300 text-xs">
+                            {bItem.last_qty.toLocaleString('id-ID')} {bItem.uom}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="font-mono font-bold text-teal-950 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-xs">
+                            {bItem.qty_convert.toLocaleString('id-ID')} {bItem.uom_convert}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border uppercase ${
+                            (bItem.status || '').toLowerCase() === 'ada'
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : (bItem.status || '').toLowerCase() === 'beda'
+                              ? 'bg-blue-100 text-blue-900 border-blue-300'
+                              : (bItem.status || '').toLowerCase() === 'tidak'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}>
+                            {bItem.status || '-'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-teal-50 font-black text-teal-950 border-t-2 border-teal-200 text-xs">
+                      <td colSpan={3} className="px-3 py-2 text-right uppercase text-[10px] font-extrabold tracking-wider">
+                        Total Seluruh Batch ({batchList.length}):
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-950 font-black">
+                        {batchList.reduce((sum, b) => sum + b.last_qty, 0).toLocaleString('id-ID')} {item.uom || 'CTN'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-teal-950 font-black">
+                        {batchList.reduce((sum, b) => sum + b.qty_convert, 0).toLocaleString('id-ID')} {item.uom_convert || 'PCS'}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Catatan & Tujuan */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -796,17 +980,26 @@ export function InventoryDetailModal({
             >
               Tutup
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onEdit(item);
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-xs cursor-pointer"
-            >
-              <Edit2 size={13} />
-              <span>Edit Data</span>
-            </button>
+            {isOpnameMode ? (
+              <span 
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 font-bold text-xs select-none shadow-2xs"
+                title="Mode Opname Aktif: Fungsi edit dimatikan"
+              >
+                <span>Mode Opname (Edit Dimatikan)</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(item);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-xs cursor-pointer"
+              >
+                <Edit2 size={13} />
+                <span>Edit Data</span>
+              </button>
+            )}
           </div>
         </div>
 

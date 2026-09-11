@@ -735,6 +735,25 @@ export function InventoryModule({
     return viewMode === 'stock_opname' ? stockOpnameAggregatedData : inventoryList;
   }, [viewMode, stockOpnameAggregatedData, inventoryList]);
 
+  // Child items untuk modal detail (menampilkan semua batch & qty jika terdapat lebih dari 1 batch)
+  const detailChildItems = useMemo(() => {
+    if (!detailItem) return [];
+    if (detailItem.child_ids && detailItem.child_ids.length > 0) {
+      const set = new Set(detailItem.child_ids);
+      return inventoryList.filter(i => set.has(i.id_inventory));
+    }
+    if (detailItem.location && (detailItem.item_code || detailItem.item_name)) {
+      const matches = inventoryList.filter(i => 
+        (i.location || '').trim().toUpperCase() === (detailItem.location || '').trim().toUpperCase() &&
+        (detailItem.item_code 
+          ? (i.item_code || '').trim().toUpperCase() === (detailItem.item_code || '').trim().toUpperCase()
+          : (i.item_name || '').trim().toUpperCase() === (detailItem.item_name || '').trim().toUpperCase())
+      );
+      if (matches.length > 1) return matches;
+    }
+    return [];
+  }, [detailItem, inventoryList]);
+
   // Filter & Search Logic
   const filteredData = useMemo(() => {
     return baseDataList.filter(item => {
@@ -1936,17 +1955,26 @@ export function InventoryModule({
                       {/* Actions */}
                       <td className="px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setItemToEdit(row);
-                              setShowFormModal(true);
-                            }}
-                            className="p-1 rounded-md text-slate-500 hover:text-teal-800 hover:bg-teal-50 transition-colors cursor-pointer"
-                            title="Edit baris ini"
-                          >
-                            <Edit2 size={13} />
-                          </button>
+                          {viewMode === 'standard' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setItemToEdit(row);
+                                setShowFormModal(true);
+                              }}
+                              className="p-1 rounded-md text-slate-500 hover:text-teal-800 hover:bg-teal-50 transition-colors cursor-pointer"
+                              title="Edit baris ini"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                          ) : (
+                            <span 
+                              className="p-1 text-slate-300 cursor-not-allowed select-none inline-flex items-center justify-center"
+                              title="Mode Opname Aktif: Fungsi edit dimatikan"
+                            >
+                              <Edit2 size={13} className="opacity-30" />
+                            </span>
+                          )}
                           {isSuperAdmin && (
                             <button
                               type="button"
@@ -2021,7 +2049,13 @@ export function InventoryModule({
           setDetailItem(null);
         }}
         item={detailItem}
+        childItems={detailChildItems}
+        isOpnameMode={viewMode === 'stock_opname'}
         onEdit={(item) => {
+          if (viewMode === 'stock_opname') {
+            showToast('Mode Opname Aktif', 'Fungsi edit dimatikan pada mode Stock Opname.', 'warning');
+            return;
+          }
           setItemToEdit(item);
           setShowFormModal(true);
         }}

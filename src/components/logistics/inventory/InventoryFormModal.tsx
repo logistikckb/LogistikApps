@@ -233,7 +233,7 @@ export function InventoryFormModal({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full ${isEdit ? 'max-w-lg' : 'max-w-3xl'} max-h-[92vh] flex flex-col overflow-hidden`}>
         
         {/* Modal Header */}
         <div className="p-4 bg-gradient-to-r from-teal-900 via-emerald-900 to-slate-900 text-white flex items-center justify-between">
@@ -243,10 +243,10 @@ export function InventoryFormModal({
             </div>
             <div>
               <h3 className="text-sm font-black uppercase tracking-tight m-0">
-                {isEdit ? 'Edit Data Inventory' : 'Tambah Data Inventory Baru'}
+                {isEdit ? 'Edit Data Inventory (Simple)' : 'Tambah Data Inventory Baru'}
               </h3>
               <p className="text-[11px] text-teal-200 m-0 font-medium">
-                Penyimpanan: Data Inventory Gudang
+                {isEdit ? 'Edit Qty Fisik, Batch, Expired Date & Catatan' : 'Penyimpanan: Data Inventory Gudang'}
               </p>
             </div>
           </div>
@@ -262,280 +262,376 @@ export function InventoryFormModal({
         {/* Modal Form Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
           
-          {/* Master SKU Autocomplete */}
-          <div ref={barangContainerRef} className="relative">
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-bold text-slate-700">
-                Cari Master SKU / Nama Barang <span className="text-rose-500">*</span>
-              </label>
-              {isBarangDropdownOpen && (
-                <button
-                  type="button"
-                  onClick={() => setIsBarangDropdownOpen(false)}
-                  className="text-[10px] font-bold text-slate-500 hover:text-rose-600 flex items-center gap-0.5 cursor-pointer"
-                >
-                  <X size={12} />
-                  <span>Tutup</span>
-                </button>
-              )}
-            </div>
-
-            <div className="relative flex items-center">
-              <Search size={14} className="absolute left-3 text-slate-400" />
-              <input
-                type="text"
-                value={barangSearchText}
-                onChange={(e) => {
-                  setBarangSearchText(e.target.value);
-                  setIsBarangDropdownOpen(true);
-                }}
-                onFocus={() => setIsBarangDropdownOpen(true)}
-                placeholder="Ketik SKU atau Nama Produk..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
-              />
-              {barangSearchText && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBarangSearchText('');
-                    setFormData(prev => ({ ...prev, item_code: '', item_name: '' }));
-                  }}
-                  className="absolute right-2 text-slate-400 hover:text-slate-600"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            {/* Dropdown Hasil Pencarian Master Barang */}
-            {isBarangDropdownOpen && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
-                {filteredBarangList.length === 0 ? (
-                  <div className="p-3 text-center text-slate-400 text-xs">
-                    Tidak ditemukan data barang yang sesuai
+          {isEdit ? (
+            /* ========================================================================= */
+            /* MODE EDIT SIMPLE (Hanya: Last Qty Fisik, Batch, Expired Date, Catatan)    */
+            /* ========================================================================= */
+            <>
+              {/* Ringkasan Item yang Sedang Diedit (Read-Only) */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-teal-900 text-xs bg-teal-100 px-2 py-0.5 rounded border border-teal-200">
+                      {formData.item_code || '-'}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-600">
+                      Lokasi: <strong className="text-slate-800 font-mono">{formData.location || '-'}</strong>
+                    </span>
                   </div>
-                ) : (
-                  filteredBarangList.map((b) => (
-                    <div
-                      key={b.item_code}
-                      onClick={() => handleSelectBarang(b)}
-                      className="p-2 px-3 hover:bg-teal-50 cursor-pointer flex items-center justify-between text-xs"
+                  {formData.id_inventory && (
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {formData.id_inventory}
+                    </span>
+                  )}
+                </div>
+                <div className="font-black text-slate-900 text-xs sm:text-sm">
+                  {formData.item_name || '-'}
+                </div>
+              </div>
+
+              {/* 1. Last Qty (Fisik) */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Last Qty (Fisik) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={formData.last_qty ?? 0}
+                    onChange={(e) => handleLastQtyChange(Number(e.target.value))}
+                    className="w-full pl-3 pr-14 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50/50 text-sm font-mono font-black text-emerald-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                    placeholder="Masukkan jumlah fisik..."
+                  />
+                  <span className="absolute right-3 text-xs font-black text-emerald-800 uppercase pointer-events-none">
+                    {formData.uom || 'CTN'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Nomor Batch / Lot */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Nomor Batch / Lot
+                </label>
+                <input
+                  type="text"
+                  value={formData.batch || ''}
+                  onChange={(e) => handleBatchChange(e.target.value)}
+                  placeholder="misal: 1234 atau LOT-99"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                />
+              </div>
+
+              {/* 3. Expired Date (YYYY-MM-DD) */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Expired Date (YYYY-MM-DD)
+                </label>
+                <input
+                  type="date"
+                  value={formData.expired_date || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expired_date: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                />
+              </div>
+
+              {/* 4. Catatan / Note */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Catatan / Note
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.note || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                  placeholder="Tambahkan catatan khusus untuk item inventory ini..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                />
+              </div>
+            </>
+          ) : (
+            /* ========================================================================= */
+            /* MODE TAMBAH BARU (Form Lengkap Master SKU, Lokasi, dsb)                   */
+            /* ========================================================================= */
+            <>
+              {/* Master SKU Autocomplete */}
+              <div ref={barangContainerRef} className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    Cari Master SKU / Nama Barang <span className="text-rose-500">*</span>
+                  </label>
+                  {isBarangDropdownOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setIsBarangDropdownOpen(false)}
+                      className="text-[10px] font-bold text-slate-500 hover:text-rose-600 flex items-center gap-0.5 cursor-pointer"
                     >
-                      <div>
-                        <span className="font-mono font-bold text-teal-800">{b.item_code}</span>
-                        <span className="ml-2 font-medium text-slate-800">{b.item_name}</span>
+                      <X size={12} />
+                      <span>Tutup</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative flex items-center">
+                  <Search size={14} className="absolute left-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={barangSearchText}
+                    onChange={(e) => {
+                      setBarangSearchText(e.target.value);
+                      setIsBarangDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsBarangDropdownOpen(true)}
+                    placeholder="Ketik SKU atau Nama Produk..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                  />
+                  {barangSearchText && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBarangSearchText('');
+                        setFormData(prev => ({ ...prev, item_code: '', item_name: '' }));
+                      }}
+                      className="absolute right-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown Hasil Pencarian Master Barang */}
+                {isBarangDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
+                    {filteredBarangList.length === 0 ? (
+                      <div className="p-3 text-center text-slate-400 text-xs">
+                        Tidak ditemukan data barang yang sesuai
                       </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
-                        {b.barcode || '-'}
-                      </span>
-                    </div>
-                  ))
+                    ) : (
+                      filteredBarangList.map((b) => (
+                        <div
+                          key={b.item_code}
+                          onClick={() => handleSelectBarang(b)}
+                          className="p-2 px-3 hover:bg-teal-50 cursor-pointer flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <span className="font-mono font-bold text-teal-800">{b.item_code}</span>
+                            <span className="ml-2 font-medium text-slate-800">{b.item_name}</span>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                            {b.barcode || '-'}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Grid 2 Column Fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Item Code / SKU</label>
-              <input
-                type="text"
-                required
-                value={formData.item_code || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, item_code: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
+              {/* Grid 2 Column Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Item Code / SKU</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.item_code || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, item_code: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Item Name / Deskripsi</label>
-              <input
-                type="text"
-                required
-                value={formData.item_name || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, item_name: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
-          </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Item Name / Deskripsi</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.item_name || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, item_name: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
+              </div>
 
-          {/* Lokasi & SLOC */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Lokasi Gudang</label>
-              <input
-                type="text"
-                value={formData.location || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                placeholder="misal: WH-INV-01"
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
+              {/* Lokasi & SLOC */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Lokasi Gudang</label>
+                  <input
+                    type="text"
+                    value={formData.location || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="misal: WH-INV-01"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Jenis Lokasi</label>
-              <select
-                value={formData.location_type || 'Rack'}
-                onChange={(e) => setFormData(prev => ({ ...prev, location_type: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              >
-                <option value="Rack">Rack</option>
-                <option value="Floor">Floor</option>
-                <option value="Bulk">Bulk</option>
-                <option value="Staging">Staging</option>
-              </select>
-            </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Jenis Lokasi</label>
+                  <select
+                    value={formData.location_type || 'Rack'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location_type: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  >
+                    <option value="Rack">Rack</option>
+                    <option value="Floor">Floor</option>
+                    <option value="Bulk">Bulk</option>
+                    <option value="Staging">Staging</option>
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Loc (SLOC)</label>
-              <input
-                type="text"
-                value={formData.sloc || 'SL01'}
-                onChange={(e) => setFormData(prev => ({ ...prev, sloc: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
-          </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Storage Loc (SLOC)</label>
+                  <input
+                    type="text"
+                    value={formData.sloc || 'SL01'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sloc: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
+              </div>
 
-          {/* Qty & UOM */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">First Qty</label>
-              <input
-                type="number"
-                value={formData.first_qty ?? 0}
-                onChange={(e) => setFormData(prev => ({ ...prev, first_qty: Number(e.target.value) }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
+              {/* Qty & UOM */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">First Qty</label>
+                  <input
+                    type="number"
+                    value={formData.first_qty ?? 0}
+                    onChange={(e) => setFormData(prev => ({ ...prev, first_qty: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Last Qty (Fisik)</label>
-              <input
-                type="number"
-                value={formData.last_qty ?? 0}
-                onChange={(e) => handleLastQtyChange(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50/50 text-xs font-mono font-black text-emerald-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-              />
-            </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Last Qty (Fisik)</label>
+                  <input
+                    type="number"
+                    value={formData.last_qty ?? 0}
+                    onChange={(e) => handleLastQtyChange(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50/50 text-xs font-mono font-black text-emerald-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Satuan (UOM)</label>
-              <select
-                value={formData.uom || 'CTN'}
-                onChange={(e) => {
-                  const uomVal = e.target.value;
-                  setFormData(prev => ({
-                    ...prev,
-                    uom: uomVal,
-                    qty_convert: uomVal === 'CTN' ? (prev.last_qty || 0) * 24 : (prev.last_qty || 0)
-                  }));
-                }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              >
-                <option value="CTN">CTN (Karton)</option>
-                <option value="PCS">PCS (Pieces)</option>
-                <option value="BOX">BOX</option>
-                <option value="PACK">PACK</option>
-                <option value="DRUM">DRUM</option>
-              </select>
-            </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Satuan (UOM)</label>
+                  <select
+                    value={formData.uom || 'CTN'}
+                    onChange={(e) => {
+                      const uomVal = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        uom: uomVal,
+                        qty_convert: uomVal === 'CTN' ? (prev.last_qty || 0) * 24 : (prev.last_qty || 0)
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  >
+                    <option value="CTN">CTN (Karton)</option>
+                    <option value="PCS">PCS (Pieces)</option>
+                    <option value="BOX">BOX</option>
+                    <option value="PACK">PACK</option>
+                    <option value="DRUM">DRUM</option>
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Qty Konversi (PCS)</label>
-              <input
-                type="number"
-                value={formData.qty_convert ?? 0}
-                onChange={(e) => setFormData(prev => ({ ...prev, qty_convert: Number(e.target.value) }))}
-                className="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/50 text-xs font-mono font-black text-teal-900 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
-          </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Qty Konversi (PCS)</label>
+                  <input
+                    type="number"
+                    value={formData.qty_convert ?? 0}
+                    onChange={(e) => setFormData(prev => ({ ...prev, qty_convert: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/50 text-xs font-mono font-black text-teal-900 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
+              </div>
 
-          {/* Batch & Expired Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Nomor Batch / Lot</label>
-              <input
-                type="text"
-                value={formData.batch || ''}
-                onChange={(e) => handleBatchChange(e.target.value)}
-                placeholder="misal: 1234 atau LOT-99"
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
+              {/* Batch & Expired Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Nomor Batch / Lot</label>
+                  <input
+                    type="text"
+                    value={formData.batch || ''}
+                    onChange={(e) => handleBatchChange(e.target.value)}
+                    placeholder="misal: 1234 atau LOT-99"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Masa Simpan (Shelf Life)</label>
-              <select
-                value={formData.shelf_life || '24 Bulan'}
-                onChange={(e) => {
-                  const sl = e.target.value;
-                  setFormData(prev => ({ ...prev, shelf_life: sl }));
-                  if (formData.batch) {
-                    const edResult = getEdIsoDateString(formData.item_code || '', formData.item_name || '', formData.batch);
-                    if (edResult?.isoDate) setFormData(prev => ({ ...prev, expired_date: edResult.isoDate }));
-                  }
-                }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              >
-                <option value="12 Bulan">12 Bulan (1 Tahun)</option>
-                <option value="24 Bulan">24 Bulan (2 Tahun)</option>
-                <option value="3 Tahun">36 Bulan (3 Tahun)</option>
-                <option value="4 Tahun">48 Bulan (4 Tahun)</option>
-                <option value="5 Tahun">60 Bulan (5 Tahun)</option>
-              </select>
-            </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Masa Simpan (Shelf Life)</label>
+                  <select
+                    value={formData.shelf_life || '24 Bulan'}
+                    onChange={(e) => {
+                      const sl = e.target.value;
+                      setFormData(prev => ({ ...prev, shelf_life: sl }));
+                      if (formData.batch) {
+                        const edResult = getEdIsoDateString(formData.item_code || '', formData.item_name || '', formData.batch);
+                        if (edResult?.isoDate) setFormData(prev => ({ ...prev, expired_date: edResult.isoDate }));
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  >
+                    <option value="12 Bulan">12 Bulan (1 Tahun)</option>
+                    <option value="24 Bulan">24 Bulan (2 Tahun)</option>
+                    <option value="3 Tahun">36 Bulan (3 Tahun)</option>
+                    <option value="4 Tahun">48 Bulan (4 Tahun)</option>
+                    <option value="5 Tahun">60 Bulan (5 Tahun)</option>
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Expired Date (YYYY-MM-DD)</label>
-              <input
-                type="date"
-                value={formData.expired_date || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, expired_date: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
-          </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Expired Date (YYYY-MM-DD)</label>
+                  <input
+                    type="date"
+                    value={formData.expired_date || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, expired_date: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
+              </div>
 
-          {/* Status, Note & Tujuan */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Status Fisik</label>
-              <select
-                value={formData.status || 'Ada'}
-                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/40 text-xs font-bold text-teal-900 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              >
-                <option value="Ada">Ada</option>
-                <option value="Beda">Beda</option>
-                <option value="Tidak">Tidak</option>
-              </select>
-            </div>
+              {/* Status, Note & Tujuan */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Status Fisik</label>
+                  <select
+                    value={formData.status || 'Ada'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-teal-300 bg-teal-50/40 text-xs font-bold text-teal-900 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  >
+                    <option value="Ada">Ada</option>
+                    <option value="Beda">Beda</option>
+                    <option value="Tidak">Tidak</option>
+                  </select>
+                </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Tujuan / Destinasi</label>
-              <input
-                type="text"
-                value={formData.tujuan || 'Stok Inventory Gudang'}
-                onChange={(e) => setFormData(prev => ({ ...prev, tujuan: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-              />
-            </div>
-          </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Tujuan / Destinasi</label>
+                  <input
+                    type="text"
+                    value={formData.tujuan || 'Stok Inventory Gudang'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tujuan: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
+                </div>
+              </div>
 
-          {/* Catatan / Note */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Catatan / Note</label>
-            <textarea
-              rows={2}
-              value={formData.note || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-              placeholder="Tambahkan catatan khusus untuk item inventory ini..."
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
-            />
-          </div>
+              {/* Catatan / Note */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Catatan / Note</label>
+                <textarea
+                  rows={2}
+                  value={formData.note || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                  placeholder="Tambahkan catatan khusus untuk item inventory ini..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                />
+              </div>
+            </>
+          )}
 
         </form>
 
