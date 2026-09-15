@@ -686,15 +686,17 @@ export function InventoryDetailModal({
                 {isCopied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
                 <span>{isCopied ? 'Tersalin' : 'Copy ID'}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setShowPrintModal(true)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-98 text-white font-bold text-[11px] shadow-xs cursor-pointer transition-all"
-                title="Buka Pengaturan & Cetak Label PM42"
-              >
-                <Printer size={13} />
-                <span>Cetak Label PM42</span>
-              </button>
+              {!isOpnameMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-98 text-white font-bold text-[11px] shadow-xs cursor-pointer transition-all"
+                  title="Buka Pengaturan & Cetak Label PM42"
+                >
+                  <Printer size={13} />
+                  <span>Cetak Label PM42</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -892,65 +894,67 @@ export function InventoryDetailModal({
           </div>
 
           {/* Label Preview Card (PM42 Standard Format) */}
-          <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Printer size={14} className="text-amber-700" />
-                <span className="font-bold text-slate-900 text-xs">Preview Format Label Honeywell PM42 (80x100 mm)</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPrintModal(true)}
-                className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer"
-              >
-                <Sliders size={12} />
-                <span>Ubah Pengaturan Cetak</span>
-              </button>
-            </div>
-
-            <div className="max-w-md mx-auto p-3 bg-white rounded-xl border border-slate-300 shadow-sm flex flex-col justify-between min-h-[160px]">
-              {/* 1. ATAS */}
-              <div className="w-full pb-1 border-b border-slate-900" style={{ paddingLeft: `${leftMarginMm}px` }}>
-                <div className="font-extrabold text-slate-950 leading-tight" style={{ fontSize: `${dynamicCardTitleSize}px` }}>
-                  ITEM: {item.item_code}
+          {!isOpnameMode && (
+            <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Printer size={14} className="text-amber-700" />
+                  <span className="font-bold text-slate-900 text-xs">Preview Format Label Honeywell PM42 (80x100 mm)</span>
                 </div>
-                <div className="font-bold text-slate-900 uppercase leading-tight mt-0.5" style={{ fontSize: `${dynamicCardTitleSize}px` }}>
-                  {item.item_name || '-'}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer"
+                >
+                  <Sliders size={12} />
+                  <span>Ubah Pengaturan Cetak</span>
+                </button>
               </div>
 
-              {/* 2. TENGAH */}
-              <div className="py-2 my-auto flex items-center justify-center w-full">
-                {qrDataUrl ? (
-                  <img 
-                    src={qrDataUrl} 
-                    alt="QR Code"
-                    className="w-20 h-20 aspect-square object-contain mx-auto"
-                  />
-                ) : (
-                  <div className="w-20 h-20 bg-slate-100 flex items-center justify-center text-slate-400 font-mono text-[10px]">
-                    QR Code
+              <div className="max-w-md mx-auto p-3 bg-white rounded-xl border border-slate-300 shadow-sm flex flex-col justify-between min-h-[160px]">
+                {/* 1. ATAS */}
+                <div className="w-full pb-1 border-b border-slate-900" style={{ paddingLeft: `${leftMarginMm}px` }}>
+                  <div className="font-extrabold text-slate-950 leading-tight" style={{ fontSize: `${dynamicCardTitleSize}px` }}>
+                    ITEM: {item.item_code}
                   </div>
-                )}
-              </div>
+                  <div className="font-bold text-slate-900 uppercase leading-tight mt-0.5" style={{ fontSize: `${dynamicCardTitleSize}px` }}>
+                    {item.item_name || '-'}
+                  </div>
+                </div>
 
-              {/* 3. BAWAH */}
-              <div className="w-full pt-1 border-t border-slate-200 flex flex-col gap-0.5" style={{ paddingLeft: `${leftMarginMm}px` }}>
-                <div className="font-mono font-bold text-slate-900" style={{ fontSize: `${dynamicCardTextSize}px` }}>
-                  <span className="font-semibold text-slate-500 text-[9px] mr-1">SN/LPN:</span>
-                  {item.lpn_serial_number || item.id_inventory}
+                {/* 2. TENGAH */}
+                <div className="py-2 my-auto flex items-center justify-center w-full">
+                  {qrDataUrl ? (
+                    <img 
+                      src={qrDataUrl} 
+                      alt="QR Code"
+                      className="w-20 h-20 aspect-square object-contain mx-auto"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 bg-slate-100 flex items-center justify-center text-slate-400 font-mono text-[10px]">
+                      QR Code
+                    </div>
+                  )}
                 </div>
-                <div className="font-mono font-bold text-slate-900" style={{ fontSize: `${dynamicCardTextSize}px` }}>
-                  <span className="font-semibold text-slate-500 text-[9px] mr-1">BATCH:</span>
-                  {item.batch || '-'}
-                </div>
-                <div className="font-mono font-bold text-slate-900" style={{ fontSize: `${dynamicCardTextSize}px` }}>
-                  <span className="font-semibold text-slate-500 text-[9px] mr-1">EXP DATE:</span>
-                  {item.expired_date || '-'}
+
+                {/* 3. BAWAH */}
+                <div className="w-full pt-1 border-t border-slate-200 flex flex-col gap-0.5" style={{ paddingLeft: `${leftMarginMm}px` }}>
+                  <div className="font-mono font-bold text-slate-900" style={{ fontSize: `${dynamicCardTextSize}px` }}>
+                    <span className="font-semibold text-slate-500 text-[9px] mr-1">SN/LPN:</span>
+                    {item.lpn_serial_number || item.id_inventory}
+                  </div>
+                  <div className="font-mono font-bold text-slate-900" style={{ fontSize: `${dynamicCardTextSize}px` }}>
+                    <span className="font-semibold text-slate-500 text-[9px] mr-1">BATCH:</span>
+                    {item.batch || '-'}
+                  </div>
+                  <div className="font-mono font-bold text-slate-900" style={{ fontSize: `${dynamicCardTextSize}px` }}>
+                    <span className="font-semibold text-slate-500 text-[9px] mr-1">EXP DATE:</span>
+                    {item.expired_date || '-'}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Modal Footer */}
