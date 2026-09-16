@@ -15,6 +15,7 @@ import {
   Clock,
   Filter,
   Eye,
+  EyeOff,
   Edit2,
   Trash2,
   Database,
@@ -189,6 +190,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [tujuanFilter, setTujuanFilter] = useState<string>('ALL');
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [itemNameFilter, setItemNameFilter] = useState<string>('');
+  const [showLocationColumn, setShowLocationColumn] = useState<boolean>(true);
+  const locationInputRef = useRef<HTMLInputElement>(null);
   const [sortField, setSortField] = useState<keyof CekFisikPemusnahanItem>('location');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -541,6 +544,19 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       setSortField(field);
       setSortOrder('asc');
     }
+  };
+
+  // Double-click pada cell lokasi untuk otomatis memfilter lokasi
+  const handleLocationDoubleClick = (loc: string | undefined | null) => {
+    if (!loc || loc === '-' || !loc.trim()) return;
+    const cleanLoc = loc.trim();
+    setLocationFilter(cleanLoc);
+    setCurrentPage(1);
+    if (locationInputRef.current) {
+      locationInputRef.current.focus();
+      locationInputRef.current.select();
+    }
+    showToast('Filter Lokasi', `Lokasi difilter: "${cleanLoc}"`, 'info');
   };
 
   // Pagination
@@ -2069,6 +2085,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           <div className="relative min-w-[140px] sm:w-44">
             <MapPin size={13} className={`absolute left-2.5 top-1/2 -translate-y-1/2 transition-colors ${isLocationFiltered ? 'text-rose-600' : 'text-slate-400'}`} />
             <input
+              ref={locationInputRef}
               type="text"
               list="cekfisik-location-suggestions"
               value={locationFilter}
@@ -2102,6 +2119,30 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
               </button>
             )}
           </div>
+
+          {/* Button Hide / Unhide Kolom Lokasi */}
+          <button
+            type="button"
+            onClick={() => setShowLocationColumn(prev => !prev)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs ${
+              showLocationColumn
+                ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400/50'
+            }`}
+            title={showLocationColumn ? 'Sembunyikan kolom Lokasi pada tabel' : 'Tampilkan kembali kolom Lokasi pada tabel'}
+          >
+            {showLocationColumn ? (
+              <>
+                <EyeOff size={13} className="text-slate-500" />
+                <span>Hide Lokasi</span>
+              </>
+            ) : (
+              <>
+                <Eye size={13} className="text-amber-700" />
+                <span>Unhide Lokasi</span>
+              </>
+            )}
+          </button>
 
           {/* Quick Filter: Status */}
           <select
@@ -2190,7 +2231,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     <span>STATUS</span>
                   </div>
                 </th>
-                {!isLocationFiltered && (
+                {showLocationColumn && (
                   <th
                     onClick={() => handleSortColumn('location')}
                     className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
@@ -2297,14 +2338,14 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             <tbody className="divide-y divide-slate-100 font-medium">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-8 text-center text-slate-400">
+                  <td colSpan={showLocationColumn ? 11 : 10} className="p-8 text-center text-slate-400">
                     <RefreshCw size={24} className="animate-spin mx-auto text-rose-600 mb-2" />
                     Memuat data cek fisik...
                   </td>
                 </tr>
               ) : paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={isLocationFiltered ? 10 : 11} className="p-8 text-center text-slate-400">
+                  <td colSpan={showLocationColumn ? 11 : 10} className="p-8 text-center text-slate-400">
                     <Boxes size={32} className="mx-auto text-slate-300 mb-2" />
                     Belum ada data cek fisik.
                   </td>
@@ -2351,10 +2392,17 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                         </select>
                       </td>
 
-                      {/* 2. LOCATION */}
-                      {!isLocationFiltered && (
-                        <td className="px-2.5 py-1 text-slate-700 whitespace-nowrap font-medium">
-                          {item.location || '-'}
+                      {/* 2. LOCATION (Double-click to filter) */}
+                      {showLocationColumn && (
+                        <td
+                          onDoubleClick={() => handleLocationDoubleClick(item.location)}
+                          className="px-2.5 py-1 text-slate-700 whitespace-nowrap font-medium cursor-pointer hover:bg-rose-50/80 hover:text-rose-700 hover:font-bold transition-all select-none group/loc"
+                          title="Double-klik untuk filter otomatis lokasi ini"
+                        >
+                          <div className="inline-flex items-center gap-1">
+                            <MapPin size={11} className="text-slate-400 group-hover/loc:text-rose-500 transition-colors" />
+                            <span>{item.location || '-'}</span>
+                          </div>
                         </td>
                       )}
 
