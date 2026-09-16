@@ -519,6 +519,8 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       }
       return true;
     }).sort((a, b) => {
+      // Jangan sort berdasarkan status agar baris tidak otomatis berpindah posisi saat status diupdate
+      if (!sortField || sortField === 'status') return 0;
       const valA = a[sortField] ?? '';
       const valB = b[sortField] ?? '';
       if (typeof valA === 'number' && typeof valB === 'number') {
@@ -528,9 +530,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         ? String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' })
         : String(valB).localeCompare(String(valA), undefined, { numeric: true, sensitivity: 'base' });
     });
-  }, [cekFisikList, categoryFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, locationFilter, itemNameFilter, searchQuery, sortField, sortOrder]);
+  }, [cekFisikList, categoryFilter, qcFilter, slocFilter, statusFilter, tujuanFilter, locationFilter, itemNameFilter, searchQuery, sortField, sortOrder, isLocationFiltered]);
 
   const handleSortColumn = (field: keyof CekFisikPemusnahanItem) => {
+    // Jangan izinkan sortir berdasarkan status
+    if (field === 'status') return;
     if (sortField === field) {
       setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -2179,17 +2183,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                   />
                 </th>
                 <th
-                  onClick={() => handleSortColumn('status')}
-                  className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
-                  title="Klik untuk sort Status"
+                  className="px-2.5 py-1.5 whitespace-nowrap text-center text-slate-300 font-bold"
+                  title="Status Cek Fisik (tidak disortir otomatis)"
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-center gap-1">
                     <span>STATUS</span>
-                    {sortField === 'status' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
-                    ) : (
-                      <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
-                    )}
                   </div>
                 </th>
                 {!isLocationFiltered && (
