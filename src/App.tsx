@@ -16,6 +16,7 @@ import {
   Layers, 
   LayoutGrid,
   ShieldCheck,
+  ShieldAlert,
   Mail
 } from 'lucide-react';
 
@@ -36,10 +37,11 @@ import { SupabaseConnectionModal } from './components/common/SupabaseConnectionM
 
 export default function App() {
   const { currentUser, isAdmin } = useAuth();
+  const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
 
   // Navigation: 'home' (Daftar Menu Utama) / 'module' (Halaman Detail Modul)
   const [currentView, setCurrentView] = useState<'home' | 'module'>('home');
-  const [activeToolId, setActiveToolId] = useState<ToolId>('ed-checker');
+  const [activeToolId, setActiveToolId] = useState<ToolId>('menu-b');
 
   // Broadcast intercom system
   const {
@@ -66,6 +68,10 @@ export default function App() {
   const currentTool = TOOLS_LIST.find((t) => t.id === activeToolId) || TOOLS_LIST[0];
 
   const handleOpenTool = (id: ToolId) => {
+    const targetTool = TOOLS_LIST.find((t) => t.id === id);
+    if (targetTool?.requiresAdmin && !isSuperAdmin) {
+      return;
+    }
     setActiveToolId(id);
     setCurrentView('module');
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -205,7 +211,21 @@ export default function App() {
               {/* Modul Content */}
               <main className="space-y-2 sm:space-y-2.5">
                 <div className="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs">
-                  {activeToolId === 'ed-checker' ? (
+                  {currentTool.requiresAdmin && !isSuperAdmin ? (
+                    <div className="p-8 text-center bg-white rounded-2xl">
+                      <ShieldAlert size={40} className="mx-auto text-rose-500 mb-2" />
+                      <h3 className="text-base font-bold text-slate-800">Akses Khusus Administrator</h3>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        Menu "{currentTool.title}" hanya dapat diakses oleh akun dengan hak akses Administrator.
+                      </p>
+                      <button
+                        onClick={handleBackToHome}
+                        className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs"
+                      >
+                        Kembali ke Menu Utama
+                      </button>
+                    </div>
+                  ) : activeToolId === 'ed-checker' ? (
                     <EdCheckerModule />
                   ) : activeToolId === 'menu-a' ? (
                     <DatabaseMasterModule />
@@ -246,7 +266,7 @@ export default function App() {
                 </div>
 
                 {/* Guide for ED Checker */}
-                {activeToolId === 'ed-checker' && (
+                {activeToolId === 'ed-checker' && isSuperAdmin && (
                   <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                     <div className="flex items-center gap-1.5 mb-2">
                       <BookOpen size={14} className="text-blue-900" />
