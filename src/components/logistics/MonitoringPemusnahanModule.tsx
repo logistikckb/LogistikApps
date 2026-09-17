@@ -679,7 +679,7 @@ export function MonitoringPemusnahanModule() {
             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-50 text-slate-500 hover:text-amber-800 border border-slate-200/80 transition-colors font-mono text-[11px] cursor-pointer group"
             title="Nilai sensitif disembunyikan. Klik untuk menampilkan seluruh angka."
           >
-            <EyeOff size={11} className="text-amber-600 group-hover:scale-110 transition-transform" />
+            <EyeOff size={11} className="text-amber-600" />
             <span className="font-bold tracking-wider">Rp ••••••••</span>
           </button>
         );
@@ -748,7 +748,7 @@ export function MonitoringPemusnahanModule() {
                 Monitoring Pemusnahan Barang
               </h2>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 Live Sheet
               </span>
             </div>
@@ -869,7 +869,7 @@ export function MonitoringPemusnahanModule() {
               Selesai: {progressAnalytics.selesaiCount} Batch ({progressAnalytics.selesaiPercentage}%)
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
               Dalam Proses: {progressAnalytics.prosesCount} Batch
             </span>
           </div>
@@ -889,13 +889,13 @@ export function MonitoringPemusnahanModule() {
           <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200 flex">
             {/* Selesai portion */}
             <div
-              className="bg-emerald-500 h-full rounded-l-full transition-all duration-700"
+              className="bg-emerald-500 h-full rounded-l-full"
               style={{ width: `${progressAnalytics.selesaiPercentage}%` }}
               title={`Selesai: ${progressAnalytics.selesaiPercentage}%`}
             />
             {/* Proses portion */}
             <div
-              className="bg-amber-400 h-full transition-all duration-700"
+              className="bg-amber-400 h-full"
               style={{
                 width: `${progressAnalytics.totalItems > 0 ? (progressAnalytics.prosesCount / progressAnalytics.totalItems) * 100 : 0}%`,
               }}
@@ -1056,7 +1056,7 @@ export function MonitoringPemusnahanModule() {
               className="flex items-center gap-1 px-1.5 text-[11px] font-bold text-slate-700 select-none"
               title="Freeze Pane aktif: Judul kolom selalu terkunci di atas saat scroll ke bawah"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               <span>Freeze Header:</span>
             </div>
             <button
@@ -1280,7 +1280,7 @@ export function MonitoringPemusnahanModule() {
                               <div className="flex items-center justify-between gap-2">
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${prog.badgeClass}`}>
                                   {prog.statusCategory === 'SELESAI' && <CheckCircle2 size={11} />}
-                                  {prog.statusCategory === 'PROSES' && <RefreshCw size={10} className="animate-spin text-amber-600" />}
+                                  {prog.statusCategory === 'PROSES' && <Clock size={11} className="text-amber-600" />}
                                   {prog.statusCategory === 'BATAL' && <AlertCircle size={11} />}
                                   <span>{prog.badgeText}</span>
                                 </span>
@@ -1293,7 +1293,7 @@ export function MonitoringPemusnahanModule() {
                               {/* Visual Progress Bar */}
                               <div className="w-full bg-slate-200/70 rounded-full h-2 overflow-hidden border border-slate-200/80">
                                 <div
-                                  className={`h-full rounded-full transition-all duration-500 ${prog.barColor}`}
+                                  className={`h-full rounded-full ${prog.barColor}`}
                                   style={{ width: `${prog.percentage}%` }}
                                 />
                               </div>
