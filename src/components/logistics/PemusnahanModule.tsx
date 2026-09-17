@@ -63,6 +63,7 @@ import { PemusnahanItem, DataBarang } from '../../types';
 import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 import { CekFisikPemusnahanModule } from './CekFisikPemusnahanModule';
+import { MonitoringPemusnahanModule } from './MonitoringPemusnahanModule';
 
 interface PemusnahanModuleProps {
   onNavigateToPenyiapan?: () => void;
@@ -73,8 +74,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
-  // Sub-Module Navigation (Cek Fisik vs Data Pemusnahan Final)
-  const [activeSubTab, setActiveSubTab] = useState<'cek_fisik' | 'pemusnahan_final'>('cek_fisik');
+  // Sub-Module Navigation (Cek Fisik vs Data Pemusnahan Final vs Monitoring)
+  const [activeSubTab, setActiveSubTab] = useState<'cek_fisik' | 'pemusnahan_final' | 'monitoring'>('cek_fisik');
 
   // Primary Data State
   const [pemusnahanList, setPemusnahanList] = useState<PemusnahanItem[]>([]);
@@ -1844,29 +1845,29 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     <div className="space-y-3 animate-fade-in text-slate-800">
       
       {/* ========================================================================= */}
-      {/* SUB-TAB SELECTOR: CEK FISIK vs DATA PEMUSNAHAN FINAL */}
+      {/* SUB-TAB SELECTOR: CEK FISIK vs DATA PEMUSNAHAN FINAL vs MONITORING */}
       {/* ========================================================================= */}
       <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
           {/* Tab 1: Cek Fisik (Penyiapan Pemusnahan) */}
           <button
             type="button"
             onClick={() => setActiveSubTab('cek_fisik')}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'cek_fisik'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
             }`}
           >
             <Boxes size={15} />
-            <span>Cek Fisik (Penyiapan Pemusnahan)</span>
+            <span>Cek Fisik</span>
           </button>
 
           {/* Tab 2: Data Pemusnahan Final (Disposal) */}
           <button
             type="button"
             onClick={() => setActiveSubTab('pemusnahan_final')}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'pemusnahan_final'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
@@ -1880,12 +1881,38 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
               {pemusnahanList.length}
             </span>
           </button>
+
+          {/* Tab 3: Monitoring Pemusnahan (Google Sheets) */}
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('monitoring')}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'monitoring'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70'
+            }`}
+          >
+            <FileSpreadsheet size={15} />
+            <span>Monitoring Pemusnahan</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeSubTab === 'monitoring' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-800'
+            }`}>
+              Sheet Live
+            </span>
+          </button>
         </div>
 
         {activeSubTab === 'pemusnahan_final' && (
           <div className="hidden sm:flex items-center gap-1 text-xs text-slate-500 font-medium pr-2">
             <span>Tabel:</span>
             <code className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-rose-700 font-bold">public.data_pemusnahan</code>
+          </div>
+        )}
+
+        {activeSubTab === 'monitoring' && (
+          <div className="hidden sm:flex items-center gap-1 text-xs text-slate-500 font-medium pr-2">
+            <span>Sumber:</span>
+            <code className="font-mono bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-bold">Google Sheets: MONITORING</code>
           </div>
         )}
       </div>
@@ -1896,6 +1923,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
           onNavigateToPemusnahanFinal={() => setActiveSubTab('pemusnahan_final')}
           onDataTransferred={() => fetchPemusnahanData()}
         />
+      ) : activeSubTab === 'monitoring' ? (
+        <MonitoringPemusnahanModule />
       ) : (
         <>
           {/* ========================================================================= */}
