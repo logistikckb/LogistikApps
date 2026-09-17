@@ -34,7 +34,10 @@ import {
   ClipboardList,
   CheckCircle2,
   AlertCircle,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  Scan,
+  QrCode
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InventoryItem, DataBarang } from '../../types';
@@ -48,6 +51,7 @@ import {
   InventoryBulkTransferModal, 
   TransferDestination 
 } from './inventory/InventoryBulkTransferModal';
+import { InventoryScannerModal } from './inventory/InventoryScannerModal';
 import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
 const INVENTORY_CACHE_KEY = 'ckb_inventory_data_cache_v1';
@@ -114,8 +118,13 @@ export function InventoryModule({
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [locationFilter, setLocationFilter] = useState<string>('ALL');
+  const [locationFilter, setLocationFilter] = useState<string>('');
   const [slocFilter, setSlocFilter] = useState<string>('ALL');
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const locationDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Scanner Modal State for Floor SN / LPN
+  const [showScannerModal, setShowScannerModal] = useState(false);
 
   // Inline Note Edit State in table
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -768,9 +777,11 @@ export function InventoryModule({
         }
       }
 
-      // 2. Location Filter
-      if (locationFilter !== 'ALL') {
-        if (item.location !== locationFilter) return false;
+      // 2. Location Filter (Mendukung ketik untuk mencari lokasi & filter langsung)
+      if (locationFilter && locationFilter !== 'ALL' && locationFilter.trim() !== '') {
+        const qLoc = locationFilter.toLowerCase().trim();
+        const itemLoc = (item.location || '').toLowerCase().trim();
+        if (!itemLoc.includes(qLoc)) return false;
       }
 
       // 3. SLoc Filter
@@ -778,12 +789,11 @@ export function InventoryModule({
         if (item.sloc !== slocFilter) return false;
       }
 
-      // 4. Text Search
+      // 4. Text Search (SKU, Nama Barang, Batch, LPN, Note - Tidak lagi mencakup lokasi karena sudah ada filter lokasi khusus)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchCode = (item.item_code || '').toLowerCase().includes(q);
         const matchName = (item.item_name || '').toLowerCase().includes(q);
-        const matchLoc = (item.location || '').toLowerCase().includes(q);
         const matchBatch = (item.batch || '').toLowerCase().includes(q);
         const matchStatus = (item.status || '').toLowerCase().includes(q);
         const matchId = (item.id_inventory || '').toLowerCase().includes(q);
@@ -791,7 +801,7 @@ export function InventoryModule({
         const matchTujuan = (item.tujuan || '').toLowerCase().includes(q);
         const matchLpn = (item.lpn_serial_number || '').toLowerCase().includes(q);
 
-        if (!matchCode && !matchName && !matchLoc && !matchBatch && !matchStatus && !matchId && !matchNote && !matchTujuan && !matchLpn) {
+        if (!matchCode && !matchName && !matchBatch && !matchStatus && !matchId && !matchNote && !matchTujuan && !matchLpn) {
           return false;
         }
       }
@@ -1005,6 +1015,26 @@ export function InventoryModule({
     return Array.from(new Set(inventoryList.map(i => i.location).filter(Boolean))).sort();
   }, [inventoryList]);
 
+  // Suggestions for Location typing search
+  const filteredLocationSuggestions = useMemo(() => {
+    if (!locationFilter || locationFilter === 'ALL' || !locationFilter.trim()) {
+      return uniqueLocations;
+    }
+    const q = locationFilter.toLowerCase().trim();
+    return uniqueLocations.filter(loc => loc.toLowerCase().includes(q));
+  }, [uniqueLocations, locationFilter]);
+
+  // Click outside listener for location dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(e.target as Node)) {
+        setIsLocationDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const uniqueSlocs = useMemo(() => {
     return Array.from(new Set(inventoryList.map(i => i.sloc).filter(Boolean))).sort();
   }, [inventoryList]);
@@ -1034,7 +1064,7 @@ export function InventoryModule({
   const hasActiveFilters = Boolean(
     searchQuery.trim() !== '' ||
     statusFilter !== 'ALL' ||
-    locationFilter !== 'ALL' ||
+    (locationFilter !== '' && locationFilter !== 'ALL') ||
     slocFilter !== 'ALL'
   );
 
@@ -1044,7 +1074,7 @@ export function InventoryModule({
   const handleClearAllFilters = () => {
     setSearchQuery('');
     setStatusFilter('ALL');
-    setLocationFilter('ALL');
+    setLocationFilter('');
     setSlocFilter('ALL');
     setSortField('location');
     setSortOrder('asc');
@@ -1082,37 +1112,38 @@ export function InventoryModule({
         </div>
 
         {/* Action Controls & Mode Switcher */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           
-          {/* Mode Switcher Buttons */}
-          <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => handleToggleViewMode('stock_opname')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'stock_opname'
-                  ? 'bg-white text-teal-900 shadow-2xs font-extrabold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Tampilkan hanya kolom: Location, Item Name, Last Qty, Qty Convert, Note dan Status Selector"
+          {/* Mode Switcher Dropdown (Stock Opname vs Standar) */}
+          <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-xl border border-slate-300 shadow-2xs transition-colors">
+            <span className="text-[11px] font-extrabold text-slate-600 shrink-0 flex items-center gap-1">
+              {viewMode === 'stock_opname' ? (
+                <ClipboardList size={13} className="text-teal-700" />
+              ) : (
+                <Layers size={13} className="text-indigo-600" />
+              )}
+              <span className="hidden sm:inline">Mode:</span>
+            </span>
+            <select
+              value={viewMode}
+              onChange={(e) => handleToggleViewMode(e.target.value as 'stock_opname' | 'standard')}
+              className="px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700 cursor-pointer shadow-2xs"
             >
-              <ClipboardList size={13} className={viewMode === 'stock_opname' ? 'text-teal-700' : 'text-slate-400'} />
-              <span>Stock Opname</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleViewMode('standard')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'standard'
-                  ? 'bg-white text-teal-900 shadow-2xs font-extrabold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Tampilkan semua kolom data inventory lengkap"
-            >
-              <Layers size={13} className={viewMode === 'standard' ? 'text-teal-700' : 'text-slate-400'} />
-              <span>Standar</span>
-            </button>
+              <option value="stock_opname">📋 Stock Opname</option>
+              <option value="standard">📑 Standar (Lengkap)</option>
+            </select>
           </div>
+
+          {/* Tombol Scan SN / LPN di Lantai Gudang */}
+          <button
+            type="button"
+            onClick={() => setShowScannerModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black text-xs shadow-xs transition-all cursor-pointer"
+            title="Scan barcode atau QR SN / LPN di lantai gudang untuk mengetahui lokasi dan SKU detail"
+          >
+            <Scan size={14} />
+            <span>Scan SN / LPN</span>
+          </button>
 
           {/* Refresh / Sync */}
           <button
@@ -1170,7 +1201,7 @@ export function InventoryModule({
       {/* ========================================================================= */}
       <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Main Search Input */}
+          {/* Main Search Input (Tanpa Lokasi karena lokasi punya filter khusus yang bisa diketik) */}
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -1180,40 +1211,141 @@ export function InventoryModule({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Cari Lokasi, SKU, Nama Barang, Batch, LPN, Note..."
-              className="w-full pl-9 pr-8 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+              placeholder="Cari SKU, Nama Barang, Batch, LPN, Note..."
+              className="w-full pl-9 pr-14 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
             />
-            {searchQuery && (
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors cursor-pointer"
+                  title="Hapus teks pencarian"
+                >
+                  <X size={12} />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setCurrentPage(1);
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded transition-colors cursor-pointer"
-                title="Hapus teks pencarian"
+                onClick={() => setShowScannerModal(true)}
+                className="p-1 text-teal-700 hover:bg-teal-50 rounded transition-colors cursor-pointer"
+                title="Scan barcode / LPN untuk mencari"
               >
-                <X size={12} />
+                <Scan size={13} />
               </button>
-            )}
+            </div>
           </div>
 
-          {/* Location Filter */}
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-bold text-slate-500 shrink-0">Lokasi:</span>
-            <select
-              value={locationFilter}
-              onChange={(e) => {
-                setLocationFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 focus:ring-2 focus:ring-teal-700 focus:outline-none max-w-[140px] truncate"
-            >
-              <option value="ALL">Semua Lokasi</option>
-              {uniqueLocations.map(loc => (
-                <option key={loc} value={loc}>{loc}</option>
-              ))}
-            </select>
+          {/* Location Filter: User Bisa Ketik untuk Mencari & Filter Lokasi */}
+          <div className="relative flex items-center gap-1" ref={locationDropdownRef}>
+            <span className="text-[11px] font-bold text-slate-500 shrink-0 flex items-center gap-0.5">
+              <MapPin size={12} className="text-indigo-600" />
+              <span>Lokasi:</span>
+            </span>
+            <div className="relative min-w-[145px] sm:min-w-[175px]">
+              <input
+                type="text"
+                value={locationFilter}
+                onChange={(e) => {
+                  setLocationFilter(e.target.value);
+                  setIsLocationDropdownOpen(true);
+                  setCurrentPage(1);
+                }}
+                onFocus={() => setIsLocationDropdownOpen(true)}
+                placeholder="Ketik cari lokasi..."
+                className="w-full pl-2.5 pr-7 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 shadow-2xs font-mono"
+              />
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
+                {locationFilter ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocationFilter('');
+                      setCurrentPage(1);
+                    }}
+                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                    title="Bersihkan filter lokasi"
+                  >
+                    <X size={11} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsLocationDropdownOpen(prev => !prev)}
+                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                    title="Buka daftar lokasi"
+                  >
+                    <ChevronDown size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Location Suggestion Dropdown */}
+              {isLocationDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1 z-30 w-56 max-h-56 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 py-1 text-xs">
+                  <div className="px-2.5 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
+                    <span>Pilih Lokasi ({filteredLocationSuggestions.length})</span>
+                    {locationFilter && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocationFilter('');
+                          setIsLocationDropdownOpen(false);
+                          setCurrentPage(1);
+                        }}
+                        className="text-indigo-600 hover:underline cursor-pointer font-bold"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocationFilter('');
+                      setIsLocationDropdownOpen(false);
+                      setCurrentPage(1);
+                    }}
+                    className={`w-full text-left px-2.5 py-1.5 flex items-center justify-between hover:bg-indigo-50 cursor-pointer font-bold ${
+                      !locationFilter ? 'text-indigo-700 bg-indigo-50/60' : 'text-slate-700'
+                    }`}
+                  >
+                    <span>Semua Lokasi</span>
+                    {!locationFilter && <Check size={12} className="text-indigo-600" />}
+                  </button>
+
+                  {filteredLocationSuggestions.map(loc => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => {
+                        setLocationFilter(loc);
+                        setIsLocationDropdownOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-2.5 py-1.5 flex items-center justify-between hover:bg-indigo-50 cursor-pointer font-mono ${
+                        locationFilter.toLowerCase() === loc.toLowerCase() ? 'text-indigo-700 bg-indigo-50/70 font-bold' : 'text-slate-700'
+                      }`}
+                    >
+                      <span className="truncate">{loc}</span>
+                      {locationFilter.toLowerCase() === loc.toLowerCase() && (
+                        <Check size={12} className="text-indigo-600 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+
+                  {filteredLocationSuggestions.length === 0 && (
+                    <div className="px-3 py-2 text-slate-400 text-[11px] italic text-center">
+                      "{locationFilter}" difilter sebagai teks pencarian lokasi
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* SLoc Filter - Desktop Only */}
@@ -1318,14 +1450,14 @@ export function InventoryModule({
               </span>
             )}
 
-            {locationFilter !== 'ALL' && (
+            {locationFilter && locationFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-900 text-[11px] font-bold border border-indigo-200">
                 <MapPin size={11} />
                 <span>Lokasi: {locationFilter}</span>
                 <button
                   type="button"
                   onClick={() => {
-                    setLocationFilter('ALL');
+                    setLocationFilter('');
                     setCurrentPage(1);
                   }}
                   className="hover:text-indigo-700 cursor-pointer ml-0.5"
@@ -2128,6 +2260,28 @@ export function InventoryModule({
             });
           }
           setSelectedIds([]);
+        }}
+      />
+
+      {/* MODAL SCANNER SN / LPN LANTAI GUDANG */}
+      <InventoryScannerModal
+        isOpen={showScannerModal}
+        onClose={() => setShowScannerModal(false)}
+        inventoryList={inventoryList}
+        onScanResult={(scannedText, metadata) => {
+          if (metadata?.lpn) {
+            setSearchQuery(metadata.lpn);
+          } else if (metadata?.sku) {
+            setSearchQuery(metadata.sku);
+          } else {
+            setSearchQuery(scannedText);
+          }
+          setCurrentPage(1);
+          showToast('Scan Diterapkan', `Mencari data untuk: "${metadata?.lpn || metadata?.sku || scannedText}"`, 'info');
+        }}
+        onOpenDetail={(item) => {
+          setDetailItem(item);
+          setShowDetailModal(true);
         }}
       />
 
