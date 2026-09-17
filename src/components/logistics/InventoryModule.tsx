@@ -489,7 +489,8 @@ export function InventoryModule({
   // Single Item Note Update (Optimistic UI + Supabase Sync)
   const handleUpdateNote = async (item: InventoryItem, newNote: string) => {
     const oldNote = item.note || '';
-    if (oldNote === newNote) {
+    const cleanNote = newNote.trim();
+    if (oldNote === cleanNote) {
       setEditingNoteId(null);
       return;
     }
@@ -498,7 +499,7 @@ export function InventoryModule({
     const nowIso = new Date().toISOString();
 
     setInventoryList(prev => {
-      const updated = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, note: newNote, updated_at: nowIso } : p);
+      const updated = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, note: cleanNote, updated_at: nowIso } : p);
       try {
         localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       } catch {}
@@ -510,7 +511,7 @@ export function InventoryModule({
       try {
         const { error } = await supabase
           .from('data_inventory')
-          .update({ note: newNote, updated_at: nowIso })
+          .update({ note: cleanNote, updated_at: nowIso })
           .in('id_inventory', targetIds);
 
         if (error) throw error;
@@ -1902,16 +1903,15 @@ export function InventoryModule({
 
                       {/* Note Column with Quick / Inline Edit */}
                       <td 
-                        className="px-2.5 py-1.5 max-w-xs min-w-[140px]" 
+                        className="px-2.5 py-1.5 max-w-xs min-w-[150px] cursor-pointer group/note" 
                         onClick={(e) => {
-                          if (viewMode === 'stock_opname') {
-                            e.stopPropagation();
-                            setEditingNoteId(row.id_inventory);
-                            setEditingNoteValue(row.note || '');
-                          }
+                          e.stopPropagation();
+                          setEditingNoteId(row.id_inventory);
+                          setEditingNoteValue(row.note || '');
                         }}
+                        title="Klik untuk edit catatan langsung"
                       >
-                        {viewMode === 'stock_opname' && editingNoteId === row.id_inventory ? (
+                        {editingNoteId === row.id_inventory ? (
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="text"
@@ -1920,27 +1920,57 @@ export function InventoryModule({
                               onChange={(e) => setEditingNoteValue(e.target.value)}
                               onBlur={() => handleUpdateNote(row, editingNoteValue)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleUpdateNote(row, editingNoteValue);
-                                if (e.key === 'Escape') setEditingNoteId(null);
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleUpdateNote(row, editingNoteValue);
+                                }
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setEditingNoteId(null);
+                                }
                               }}
-                              className="px-1.5 py-0.5 text-xs rounded border border-teal-400 bg-white font-medium text-slate-800 outline-none w-full shadow-2xs"
+                              className="px-2 py-1 text-xs rounded border border-teal-500 bg-white font-medium text-slate-800 outline-none w-full shadow-2xs focus:ring-1.5 focus:ring-teal-500"
                               placeholder="Tulis catatan..."
                             />
                             <button
                               type="button"
-                              onClick={() => handleUpdateNote(row, editingNoteValue)}
-                              className="p-1 rounded bg-teal-600 text-white hover:bg-teal-700 shrink-0"
-                              title="Simpan Catatan"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleUpdateNote(row, editingNoteValue);
+                              }}
+                              className="p-1 rounded bg-teal-700 text-white hover:bg-teal-800 shrink-0 cursor-pointer shadow-2xs transition-colors"
+                              title="Simpan Catatan (Enter)"
                             >
-                              <Check size={11} />
+                              <Check size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEditingNoteId(null);
+                              }}
+                              className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300 shrink-0 cursor-pointer shadow-2xs transition-colors"
+                              title="Batal (Esc)"
+                            >
+                              <X size={12} />
                             </button>
                           </div>
                         ) : (
                           <div 
-                            className={`truncate ${viewMode === 'stock_opname' ? 'hover:text-teal-700 hover:underline cursor-text text-slate-600' : 'text-slate-500'}`}
-                            title={row.note || (viewMode === 'stock_opname' ? 'Klik untuk tambah catatan' : '-')}
+                            className="flex items-center justify-between gap-1.5 py-0.5 px-1.5 rounded hover:bg-teal-50/80 border border-transparent hover:border-teal-300 transition-all"
                           >
-                            {row.note || (viewMode === 'stock_opname' ? <span className="text-slate-300 italic text-[11px]">+ Tambah Catatan</span> : '-')}
+                            <span 
+                              className={`truncate text-xs ${row.note ? 'text-slate-700 font-medium' : 'text-slate-400 italic text-[11px]'}`}
+                              title={row.note || 'Klik untuk tambah catatan'}
+                            >
+                              {row.note || '+ Tambah Catatan'}
+                            </span>
+                            <Edit2 
+                              size={11} 
+                              className="opacity-0 group-hover/note:opacity-100 text-teal-700 shrink-0 transition-opacity" 
+                            />
                           </div>
                         )}
                       </td>
