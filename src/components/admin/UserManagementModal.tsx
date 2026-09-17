@@ -697,7 +697,7 @@ export function UserManagementModal({ isOpen, onClose }: UserManagementModalProp
 
                   <div>
                     <label className="block text-xs font-black text-slate-700 uppercase mb-1">
-                      Email Google (Opsional)
+                      Email Akun (Opsional)
                     </label>
                     <input
                       type="email"

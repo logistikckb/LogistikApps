@@ -331,7 +331,7 @@ export function MonitoringPemusnahanModule() {
         text.includes('document-root')
       ) {
         setErrorType('RESTRICTED');
-        setErrorMessage('Google Spreadsheet masih berstatus privat / restricted.');
+        setErrorMessage('Spreadsheet masih berstatus privat / restricted.');
         return;
       }
 
@@ -349,7 +349,7 @@ export function MonitoringPemusnahanModule() {
           }
         }
         setErrorType('NETWORK');
-        setErrorMessage('Format data respon dari Google Sheets tidak dikenali.');
+        setErrorMessage('Format data respon dari Spreadsheet tidak dikenali.');
         return;
       }
 
@@ -433,7 +433,7 @@ export function MonitoringPemusnahanModule() {
       setRows(parsedRows);
       setLastUpdated(new Date());
     } catch (err: any) {
-      console.error('Error fetching Google Sheets monitoring data:', err);
+      console.error('Error fetching Spreadsheet monitoring data:', err);
       setErrorType('NETWORK');
       setErrorMessage(err.message || 'Terjadi kesalahan jaringan saat mengambil data.');
     } finally {
@@ -801,7 +801,7 @@ export function MonitoringPemusnahanModule() {
             onClick={() => fetchData(true)}
             disabled={isLoading || isRefreshing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-            title="Refresh Data dari Google Sheets"
+            title="Refresh Data dari Spreadsheet"
           >
             <RefreshCw size={14} className={isRefreshing ? 'animate-spin text-emerald-600' : ''} />
             <span>{isRefreshing ? 'Memuat...' : 'Refresh'}</span>
@@ -823,7 +823,7 @@ export function MonitoringPemusnahanModule() {
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs hover:shadow-xs transition-all"
-            title="Buka file Google Sheets langsung di Google Drive"
+            title="Buka file Spreadsheet langsung"
           >
             <ExternalLink size={14} />
             <span>Buka Sheet</span>
@@ -1034,7 +1034,7 @@ export function MonitoringPemusnahanModule() {
               type="button"
               onClick={() => setSortColumn(null)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold transition-all cursor-pointer"
-              title="Klik untuk mengembalikan urutan persis seperti di Google Spreadsheet"
+              title="Klik untuk mengembalikan urutan persis seperti di Spreadsheet"
             >
               <ArrowUpDown size={13} className="text-amber-700" />
               <span>Urutan: {sortColumn} ({sortDirection === 'asc' ? 'A-Z' : 'Z-A'})</span>
@@ -1043,7 +1043,7 @@ export function MonitoringPemusnahanModule() {
           ) : (
             <div
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold select-none"
-              title="Urutan baris tabel 100% mengikuti urutan baris di Google Spreadsheet"
+              title="Urutan baris tabel 100% mengikuti urutan baris di Spreadsheet"
             >
               <CheckCircle2 size={13} className="text-emerald-600" />
               <span>Urutan Asli Sesuai Spreadsheet</span>
@@ -1138,7 +1138,7 @@ export function MonitoringPemusnahanModule() {
         {isLoading ? (
           <div className="p-12 text-center space-y-3">
             <RefreshCw size={28} className="animate-spin text-emerald-600 mx-auto" />
-            <p className="text-xs font-bold text-slate-600">Mengambil data dari Google Sheets...</p>
+            <p className="text-xs font-bold text-slate-600">Mengambil data dari Spreadsheet...</p>
             <p className="text-[11px] text-slate-400">Sheet: {config.sheetName}</p>
           </div>
         ) : displayedHeaders.length === 0 || rows.length === 0 ? (
@@ -1148,7 +1148,7 @@ export function MonitoringPemusnahanModule() {
             </div>
             <p className="text-sm font-bold text-slate-700">Belum Ada Data di Sheet MONITORING</p>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Tabel di Google Sheets masih kosong atau kolom belum terdeteksi.
+              Tabel di Spreadsheet masih kosong atau kolom belum terdeteksi.
             </p>
             <div className="pt-2">
               <a
@@ -1158,7 +1158,7 @@ export function MonitoringPemusnahanModule() {
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all"
               >
                 <ExternalLink size={14} />
-                <span>Buka Google Sheets</span>
+                <span>Buka Spreadsheet</span>
               </a>
             </div>
           </div>
@@ -1372,7 +1372,7 @@ export function MonitoringPemusnahanModule() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Settings size={18} className="text-emerald-600" />
-                <h3 className="text-sm font-black text-slate-800">Pengaturan Google Sheets Monitoring</h3>
+                <h3 className="text-sm font-black text-slate-800">Pengaturan Spreadsheet Monitoring</h3>
               </div>
               <button
                 type="button"

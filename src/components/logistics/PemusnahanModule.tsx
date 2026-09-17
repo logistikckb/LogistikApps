@@ -1649,7 +1649,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   const handleExecuteGSheetSync = async () => {
     const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
     if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Google Apps Script atau Cloudflare Worker.', 'warning');
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Apps Script atau Cloudflare Worker.', 'warning');
       return;
     }
 
@@ -1660,7 +1660,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
     const itemsToSync = filteredPemusnahan.length > 0 ? filteredPemusnahan : pemusnahanList;
     if (itemsToSync.length === 0) {
-      showToast('Data Kosong', 'Tidak ada data pemusnahan untuk dikirim ke Google Sheets.', 'warning');
+      showToast('Data Kosong', 'Tidak ada data pemusnahan untuk dikirim ke Spreadsheet.', 'warning');
       return;
     }
 
@@ -1786,7 +1786,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
             executionMode = 'no-cors';
             responseJson = {
               status: 'success',
-              message: `Data ${itemsToSync.length} baris pemusnahan berhasil dikirim ke Google Apps Script Webhook.`
+              message: `Data ${itemsToSync.length} baris pemusnahan berhasil dikirim ke Webhook Apps Script.`
             };
           } catch (noCorsErr: any) {
             throw directErr;
@@ -1804,8 +1804,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
 
       const successMsg = executionMode === 'no-cors'
-        ? `Berhasil mengirim ${updatedCount} baris data ke Google Apps Script (Sheet: "${gSheetConfig.sheetName || 'pemusnahan'}").`
-        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Google Sheet "${gSheetConfig.sheetName || 'pemusnahan'}"!`);
+        ? `Berhasil mengirim ${updatedCount} baris data ke Apps Script (Sheet: "${gSheetConfig.sheetName || 'pemusnahan'}").`
+        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Spreadsheet "${gSheetConfig.sheetName || 'pemusnahan'}"!`);
 
       setGSheetSyncResult({
         success: true,
@@ -1815,12 +1815,12 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         timestamp: new Date().toLocaleTimeString('id-ID')
       });
 
-      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data pemusnahan ke Google Sheets!`, 'success');
+      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data pemusnahan ke Spreadsheet!`, 'success');
     } catch (err: any) {
       console.error('Pemusnahan GSheet sync error:', err);
       const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
       const guidance = isGoogleUrl
-        ? 'Pastikan Deployment Web App di Google Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
+        ? 'Pastikan Deployment Web App di Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
         : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
 
       setGSheetSyncResult({
@@ -1829,7 +1829,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         timestamp: new Date().toLocaleTimeString('id-ID')
       });
 
-      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Google Sheets.', 'danger');
+      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Spreadsheet.', 'danger');
     } finally {
       setIsSyncingGSheet(false);
     }
@@ -1912,7 +1912,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         {activeSubTab === 'monitoring' && (
           <div className="hidden sm:flex items-center gap-1 text-xs text-slate-500 font-medium pr-2">
             <span>Sumber:</span>
-            <code className="font-mono bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-bold">Google Sheets: MONITORING</code>
+            <code className="font-mono bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-bold">Spreadsheet: MONITORING</code>
           </div>
         )}
       </div>
@@ -1974,15 +1974,15 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
             <span>Ekspor Excel</span>
           </button>
 
-          {/* Tombol Sinkron ke Google Sheets / Cloudflare Worker */}
+          {/* Tombol Sinkron ke Spreadsheet / Cloudflare Worker */}
           <button
             type="button"
             onClick={() => setShowGSheetModal(true)}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-            title="Kirim dan sinkronkan data pemusnahan langsung ke Google Sheets"
+            title="Kirim dan sinkronkan data pemusnahan langsung ke Spreadsheet"
           >
             <Share2 size={13} />
-            <span>Sync Google Sheets</span>
+            <span>Sync Spreadsheet</span>
           </button>
         </div>
 
@@ -3222,7 +3222,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm sm:text-base leading-tight m-0 text-white flex items-center gap-2">
-                    <span>Sinkronisasi Google Sheets</span>
+                    <span>Sinkronisasi Spreadsheet</span>
                     {isConfigFromSupabase && (
                       <span className="px-2 py-0.5 bg-emerald-800/80 text-emerald-200 text-[10px] font-bold rounded-full border border-emerald-400/40">
                         Cloud Synchronized
@@ -3230,7 +3230,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                     )}
                   </h3>
                   <p className="text-[11px] text-emerald-100 mt-0.5 m-0">
-                    Ekspor & sinkronkan data pemusnahan barang ke lembar kerja Google Sheets
+                    Ekspor & sinkronkan data pemusnahan barang ke lembar kerja Spreadsheet
                   </p>
                 </div>
               </div>
@@ -3341,13 +3341,13 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
                         type="url"
                         value={gSheetConfig.webhookUrl}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
-                        placeholder="https://script.google.com/... atau https://worker.dev/..."
+                        placeholder="https://.../exec atau https://worker.dev/..."
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
                       <Globe size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1 m-0">
-                      URL Web App Deployment dari Google Apps Script atau Cloudflare Worker.
+                      URL Web App Deployment dari Apps Script atau Cloudflare Worker.
                     </p>
                   </div>
 
@@ -3498,7 +3498,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
                           >
-                            <span>Buka Google Spreadsheet</span>
+                            <span>Buka Spreadsheet</span>
                             <ExternalLink size={12} />
                           </a>
                         </div>
@@ -3533,7 +3533,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                 ) : (
                   <>
                     <Share2 size={14} />
-                    <span>Kirim Sekarang ke Google Sheets</span>
+                    <span>Kirim Sekarang ke Spreadsheet</span>
                   </>
                 )}
               </button>

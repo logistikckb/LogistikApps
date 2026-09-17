@@ -719,7 +719,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
   const handleExecuteGSheetSync = async () => {
     const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
     if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Google Apps Script atau Cloudflare Worker.', 'warning');
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Apps Script atau Cloudflare Worker.', 'warning');
       return;
     }
 
@@ -730,7 +730,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
     const itemsToSync = filteredReco.length > 0 ? filteredReco : recoList;
     if (itemsToSync.length === 0) {
-      showToast('Data Kosong', 'Tidak ada data reco untuk dikirim ke Google Sheets.', 'warning');
+      showToast('Data Kosong', 'Tidak ada data reco untuk dikirim ke Spreadsheet.', 'warning');
       return;
     }
 
@@ -856,7 +856,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
             executionMode = 'no-cors';
             responseJson = {
               status: 'success',
-              message: `Data ${itemsToSync.length} baris reco berhasil dikirim ke Google Apps Script Webhook.`
+              message: `Data ${itemsToSync.length} baris reco berhasil dikirim ke Apps Script Webhook.`
             };
           } catch (noCorsErr: any) {
             throw directErr;
@@ -867,7 +867,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       }
 
       if (syncSucceeded) {
-        const msg = responseJson?.message || `${itemsToSync.length} baris data Reco berhasil dikirim ke Google Sheets! (${executionMode.toUpperCase()} mode)`;
+        const msg = responseJson?.message || `${itemsToSync.length} baris data Reco berhasil dikirim ke Spreadsheet! (${executionMode.toUpperCase()} mode)`;
         setGSheetSyncResult({
           success: true,
           message: msg,
@@ -878,8 +878,8 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
         showToast('Sinkronisasi Berhasil', msg, 'success');
       }
     } catch (err: any) {
-      console.error('Error syncing to Google Sheets:', err);
-      const errMsg = err?.message || 'Gagal mengirim data ke Webhook Google Sheets.';
+      console.error('Error syncing to Spreadsheet:', err);
+      const errMsg = err?.message || 'Gagal mengirim data ke Webhook Spreadsheet.';
       setGSheetSyncResult({
         success: false,
         message: errMsg
@@ -1607,10 +1607,10 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
               type="button"
               onClick={() => setShowGSheetModal(true)}
               className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer whitespace-nowrap"
-              title="Kirim / Sinkronisasi Data Reco ke Google Sheets Spreadsheet via Webhook"
+              title="Kirim / Sinkronisasi Data Reco ke Spreadsheet via Webhook"
             >
               <Share2 size={13} />
-              <span>Sync Google Sheets</span>
+              <span>Sync Spreadsheet</span>
             </button>
 
             {/* Hidden Input File for Excel Upload */}
@@ -2771,9 +2771,9 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-black tracking-tight m-0 uppercase">
-                    Sinkronisasi ke Google Sheets
+                    Sinkronisasi ke Spreadsheet
                   </h3>
-                  <p className="text-[11px] text-emerald-200 m-0">Kirim Data Reco via Google Apps Script Webhook</p>
+                  <p className="text-[11px] text-emerald-200 m-0">Kirim Data Reco via Apps Script Webhook</p>
                 </div>
               </div>
               <button
@@ -2808,17 +2808,17 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
                 {/* Webhook URL Input */}
                 <div>
                   <label className="block text-slate-700 font-bold text-xs mb-1">
-                    Google Apps Script Webhook URL <span className="text-rose-500">*</span>
+                    Apps Script Webhook URL <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="url"
                     value={gSheetConfig.webhookUrl}
                     onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
-                    placeholder="https://script.google.com/macros/s/.../exec"
+                    placeholder="https://.../exec atau https://worker.dev/..."
                     className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                   />
                   <p className="text-[10px] text-slate-500 mt-1 m-0">
-                    URL deployment Web App dari Google Apps Script dengan akses <em>Anyone</em>.
+                    URL deployment Web App dari Apps Script dengan akses <em>Anyone</em>.
                   </p>
                 </div>
 
@@ -2917,7 +2917,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
                           >
-                            <span>Buka Google Spreadsheet</span>
+                            <span>Buka Spreadsheet</span>
                             <ExternalLink size={12} />
                           </a>
                         </div>
@@ -2952,7 +2952,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
                 ) : (
                   <>
                     <Share2 size={14} />
-                    <span>Kirim Sekarang ke Google Sheets</span>
+                    <span>Kirim Sekarang ke Spreadsheet</span>
                   </>
                 )}
               </button>

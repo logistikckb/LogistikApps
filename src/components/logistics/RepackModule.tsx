@@ -1110,7 +1110,7 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
   const handleExecuteGSheetSync = async () => {
     const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
     if (!rawUrl) {
-      showToast('URL Kosong', 'Harap isi URL Webhook Google Sheet / Apps Script.', 'warning');
+      showToast('URL Kosong', 'Harap isi URL Webhook Spreadsheet / Apps Script.', 'warning');
       return;
     }
 
@@ -1211,12 +1211,12 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
 
       setGSheetSyncResult({
         success: true,
-        message: `Berhasil sinkronisasi ${updatedCount} data repack ke Google Sheet "${gSheetConfig.sheetName}"!`,
+        message: `Berhasil sinkronisasi ${updatedCount} data repack ke Spreadsheet "${gSheetConfig.sheetName}"!`,
         spreadsheetUrl: sheetUrl,
         updatedRows: updatedCount,
         timestamp: new Date().toLocaleTimeString('id-ID')
       });
-      showToast('Sinkronisasi Sukses', `Berhasil mengirim ${updatedCount} baris data ke Google Sheets.`, 'success');
+      showToast('Sinkronisasi Sukses', `Berhasil mengirim ${updatedCount} baris data ke Spreadsheet.`, 'success');
     } catch (err: any) {
       // Fallback no-cors
       try {
@@ -1228,15 +1228,15 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
         });
         setGSheetSyncResult({
           success: true,
-          message: `Berhasil mengirim ${itemsToSync.length} baris data ke Google Apps Script.`,
+          message: `Berhasil mengirim ${itemsToSync.length} baris data ke Apps Script.`,
           updatedRows: itemsToSync.length,
           timestamp: new Date().toLocaleTimeString('id-ID')
         });
-        showToast('Sinkronisasi Terkirim', 'Data berhasil dikirim ke Google Apps Script.', 'success');
+        showToast('Sinkronisasi Terkirim', 'Data berhasil dikirim ke Apps Script.', 'success');
       } catch (subErr: any) {
         setGSheetSyncResult({
           success: false,
-          message: err?.message || 'Gagal menghubungi Webhook Google Sheet.'
+          message: err?.message || 'Gagal menghubungi Webhook Spreadsheet.'
         });
         showToast('Gagal Sinkronisasi', err?.message || 'Koneksi ke webhook gagal.', 'danger');
       }
@@ -1374,10 +1374,10 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
             <button
               onClick={() => setShowGSheetModal(true)}
               className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Sinkronisasi dengan Google Sheet via Webhook"
+              title="Sinkronisasi dengan Spreadsheet via Webhook"
             >
               <Share2 size={13} />
-              <span>Sync Google Sheets</span>
+              <span>Sync Spreadsheet</span>
             </button>
           </div>
 
@@ -2236,8 +2236,8 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
                   <Share2 size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800 m-0">Sinkronisasi Google Sheets</h3>
-                  <p className="text-xs text-slate-500 m-0">Kirim data Repack ke Google Spreadsheet</p>
+                  <h3 className="text-base font-bold text-slate-800 m-0">Sinkronisasi Spreadsheet</h3>
+                  <p className="text-xs text-slate-500 m-0">Kirim data Repack ke Spreadsheet</p>
                 </div>
               </div>
               <button
@@ -2250,12 +2250,12 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
 
             <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">URL Webhook Google Apps Script / Worker:</label>
+                <label className="block font-bold text-slate-700 mb-1">URL Webhook Apps Script / Worker:</label>
                 <input
                   type="url"
                   value={gSheetConfig.webhookUrl}
                   onChange={(e) => setGSheetConfig(p => ({ ...p, webhookUrl: e.target.value }))}
-                  placeholder="https://script.google.com/macros/s/.../exec"
+                  placeholder="https://.../exec atau https://worker.dev/..."
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-mono text-[11px]"
                 />
               </div>
@@ -2305,7 +2305,7 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 mt-2 text-emerald-700 font-bold underline"
                     >
-                      Buka Google Sheet <ExternalLink size={11} />
+                      Buka Spreadsheet <ExternalLink size={11} />
                     </a>
                   )}
                 </div>

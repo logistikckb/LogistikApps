@@ -3659,7 +3659,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   const handleExecuteGSheetSync = async () => {
     const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
     if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Google Apps Script atau Cloudflare Worker.', 'warning');
+      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Apps Script atau Cloudflare Worker.', 'warning');
       return;
     }
 
@@ -3670,7 +3670,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
     const itemsToSync = filteredPenyiapan.length > 0 ? filteredPenyiapan : penyiapanList;
     if (itemsToSync.length === 0) {
-      showToast('Data Kosong', 'Tidak ada data penyiapan untuk dikirim ke Google Sheets.', 'warning');
+      showToast('Data Kosong', 'Tidak ada data penyiapan untuk dikirim ke Spreadsheet.', 'warning');
       return;
     }
 
@@ -3796,7 +3796,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             executionMode = 'no-cors';
             responseJson = {
               status: 'success',
-              message: `Data ${itemsToSync.length} baris penyiapan berhasil dikirim ke Google Apps Script Webhook.`
+              message: `Data ${itemsToSync.length} baris penyiapan berhasil dikirim ke Apps Script Webhook.`
             };
           } catch (noCorsErr: any) {
             throw directErr;
@@ -3814,8 +3814,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
 
       const successMsg = executionMode === 'no-cors'
-        ? `Berhasil mengirim ${updatedCount} baris data ke Google Apps Script (Sheet: "${gSheetConfig.sheetName || 'Penyiapan'}").`
-        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Google Sheet "${gSheetConfig.sheetName || 'Penyiapan'}"!`);
+        ? `Berhasil mengirim ${updatedCount} baris data ke Apps Script (Sheet: "${gSheetConfig.sheetName || 'Penyiapan'}").`
+        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Spreadsheet "${gSheetConfig.sheetName || 'Penyiapan'}"!`);
 
       setGSheetSyncResult({
         success: true,
@@ -3825,19 +3825,19 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         timestamp: new Date().toLocaleTimeString('id-ID')
       });
 
-      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data penyiapan ke Google Sheets!`, 'success');
+      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data penyiapan ke Spreadsheet!`, 'success');
     } catch (err: any) {
       console.error('Penyiapan GSheet sync error:', err);
       const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
       const guidance = isGoogleUrl
-        ? 'Pastikan Deployment Web App di Google Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
+        ? 'Pastikan Deployment Web App di Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
         : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
 
       setGSheetSyncResult({
         success: false,
         message: `${err?.message || 'Gagal menghubungi Webhook'}. ${guidance}`
       });
-      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Google Sheets', 'danger');
+      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Spreadsheet', 'danger');
     } finally {
       setIsSyncingGSheet(false);
     }
@@ -3902,15 +3902,15 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             <span className="hidden sm:inline">Export Excel</span>
           </button>
 
-          {/* Tombol Sinkron ke Google Sheets */}
+          {/* Tombol Sinkron ke Spreadsheet */}
           <button
             type="button"
             onClick={() => setShowGSheetModal(true)}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-black shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-            title="Kirim dan sinkronkan data penyiapan ke Google Sheets (Sheet: Penyiapan)"
+            title="Kirim dan sinkronkan data penyiapan ke Spreadsheet (Sheet: Penyiapan)"
           >
             <Share2 size={13} />
-            <span>Sync Google Sheets</span>
+            <span>Sync Spreadsheet</span>
           </button>
         </div>
 
@@ -6391,9 +6391,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <Share2 size={20} className="text-emerald-300" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base leading-tight">Sinkronisasi ke Google Sheets</h3>
+                  <h3 className="font-extrabold text-base leading-tight">Sinkronisasi ke Spreadsheet</h3>
                   <p className="text-xs text-emerald-200 leading-tight">
-                    Kirim data Penyiapan ke Google Spreadsheet via Webhook / Cloudflare Worker
+                    Kirim data Penyiapan ke Spreadsheet via Webhook / Cloudflare Worker
                   </p>
                 </div>
               </div>
@@ -6511,13 +6511,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         type="url"
                         value={gSheetConfig.webhookUrl}
                         onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
-                        placeholder="https://script.google.com/... atau https://worker.dev/..."
+                        placeholder="https://... atau https://worker.dev/..."
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
                       />
                       <Globe size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1 m-0">
-                      URL Web App Deployment dari Google Apps Script atau Cloudflare Worker.
+                      URL Web App Deployment dari Apps Script atau Cloudflare Worker.
                     </p>
                   </div>
 
@@ -6665,7 +6665,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
                           >
-                            <span>Buka Google Spreadsheet</span>
+                            <span>Buka Spreadsheet</span>
                             <ExternalLink size={12} />
                           </a>
                         </div>
@@ -6695,7 +6695,7 @@ CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) W
                 {isSyncingGSheet ? (
                   <>
                     <RefreshCw size={14} className="animate-spin" />
-                    <span>Sedang Mengirim ke Google Sheet...</span>
+                    <span>Sedang Mengirim ke Spreadsheet...</span>
                   </>
                 ) : (
                   <>

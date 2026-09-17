@@ -13,8 +13,6 @@ import {
   ShieldCheck, 
   MapPin, 
   LogOut, 
-  UserCheck, 
-  ShieldAlert,
   Database,
   Users,
   Sparkles,
@@ -231,25 +229,10 @@ export function Hero() {
           </div>
 
           <div className="flex-1 min-w-0 text-center sm:text-left flex flex-col items-center sm:items-start w-full justify-center">
-            <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+            <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start mb-2">
               <h1 className="font-extrabold text-slate-800 m-0 text-sm sm:text-base tracking-tight uppercase">
                 {greeting}, {currentUser ? currentUser.nama.split(' ')[0] : 'Rekan'}!
               </h1>
-              {isAdmin ? (
-                <span className="bg-red-50 text-red-700 border border-red-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
-                  <ShieldAlert size={11} /> Super Admin
-                </span>
-              ) : (
-                <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold py-0.5 px-2 uppercase rounded-full flex items-center gap-1">
-                  <UserCheck size={11} /> Pelaksana
-                </span>
-              )}
-            </div>
-            
-            <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap mt-0.5 mb-2 text-xs text-slate-600">
-              <span className="font-bold text-slate-800">{currentUser?.nama || 'Pengguna'}</span>
-              <span>•</span>
-              <span className="text-[11px] text-slate-500 font-mono">@{currentUser?.username || 'user'}</span>
             </div>
 
             {/* Action Bar */}
