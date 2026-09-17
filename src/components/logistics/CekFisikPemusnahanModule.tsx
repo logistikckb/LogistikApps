@@ -191,6 +191,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [itemNameFilter, setItemNameFilter] = useState<string>('');
   const [showLocationColumn, setShowLocationColumn] = useState<boolean>(true);
+  const [showLpnColumn, setShowLpnColumn] = useState<boolean>(true);
   const locationInputRef = useRef<HTMLInputElement>(null);
   const [sortField, setSortField] = useState<keyof CekFisikPemusnahanItem>('location');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -1076,7 +1077,12 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     source: ['source', 'sumber', 'asal', 'sourcelocation', 'sumberbarang', 'asalbarang', 'source_asal', 'sumber_asal', 'asal_barang'],
     user_input: ['userinput', 'user_input', 'operator', 'pembuat', 'admin', 'user', 'inputby', 'dibuatoleh', 'created_by', 'input_by'],
     category: ['category', 'kategori', 'kelompok', 'group', 'jenis', 'kategoribarang', 'kategori_barang'],
-    lpn_serial_number: ['lpnserialnumber', 'lpn_serial_number', 'lpn', 'serialnumber', 'serial_number', 'serial', 'lpnserial', 'sn', 'noseri', 'lpnserialno', 'licenseplate', 'pallet_id', 'palletid'],
+    lpn_serial_number: [
+      'snlpn', 'lpnsn', 'sn_lpn', 'lpn_sn', 'lpnserialnumber', 'lpn_serial_number',
+      'lpn', 'serialnumber', 'serial_number', 'serial', 'lpnserial', 'sn', 'snnumber',
+      'noseri', 'nosn', 'nomorseri', 'lpnserialno', 'licenseplate', 'pallet_id', 'palletid',
+      'pallet', 'snserial', 'snlpnserial', 'lpnsnnumber'
+    ],
     note: ['note', 'catatan', 'keterangan', 'remark', 'perbedaandata', 'ket', 'remarks', 'memo'],
     tanggal_update: ['tanggalupdate', 'tanggal_update', 'tglupdate', 'tgl_update', 'updateddate', 'updateat', 'lastupdate', 'updated_at'],
     created_at: ['createdat', 'created_at', 'tglbuat', 'tanggaldibuat', 'tanggal_buat'],
@@ -1094,6 +1100,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     // Urutan prioritas untuk matching
     const priorityFields: (keyof CekFisikPemusnahanItem)[] = [
       'id_cek_fisik',
+      'lpn_serial_number',
       'item_code',
       'item_name',
       'category',
@@ -1156,6 +1163,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           if (field === 'first_qty' && (h.includes('last') || h.includes('akhir') || h.includes('conv') || h.includes('pcs') || h.includes('konversi'))) return false;
           if (field === 'status' && (h.includes('qc') || h.includes('tally'))) return false;
           if (field === 'tujuan' && (h.includes('code') || h.includes('dest'))) return false;
+          if (field === 'lpn_serial_number' && (h.includes('item') || h.includes('batch') || h.includes('location') || h.includes('dest') || h.includes('tujuan') || h.includes('sloc') || h.includes('date'))) return false;
 
           return h.startsWith(s) || h.includes(s);
         });
@@ -1292,7 +1300,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
 
     const firstRowNormalized = parsedMatrix[0].map(c => normalizeKey(c));
     const isFirstRowHeader = firstRowNormalized.some(h =>
-      ['itemcode', 'sku', 'kodebarang', 'kode_barang', 'itemname', 'namabarang', 'nama_barang', 'lastqty', 'qty', 'status', 'nobatch', 'batch', 'location', 'lokasi', 'uom', 'satuan', 'kategori', 'category', 'destinationcode', 'kodedestinasi', 'tujuan', 'sloc', 'qccode', 'kodeqc'].includes(h)
+      ['itemcode', 'sku', 'kodebarang', 'kode_barang', 'itemname', 'namabarang', 'nama_barang', 'lastqty', 'qty', 'status', 'nobatch', 'batch', 'location', 'lokasi', 'uom', 'satuan', 'kategori', 'category', 'destinationcode', 'kodedestinasi', 'tujuan', 'sloc', 'qccode', 'kodeqc', 'lpn', 'sn', 'snlpn', 'lpnsn', 'serialnumber', 'lpnserialnumber', 'noseri'].includes(h)
     );
 
     let dataRows: string[][];
@@ -1818,6 +1826,22 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
           const batchVal = getVal('batch');
           const expDateVal = parseDateToIso(getVal('expired_date'));
 
+          // Fallback if lpn_serial_number is not picked up by header mapping
+          let lpnVal = getVal('lpn_serial_number');
+          if (!lpnVal) {
+            const lpnSynonymKeys = ['lpn_serial_number', 'snlpn', 'lpnsn', 'lpn', 'sn', 'serialnumber', 'serial_number', 'serial', 'noseri', 'palletid', 'pallet'];
+            for (const k of keys) {
+              const normK = normalizeKey(k);
+              if (lpnSynonymKeys.includes(normK)) {
+                const v = String(row[k] || '').trim();
+                if (v && v !== '-' && v.toLowerCase() !== 'null' && v.toLowerCase() !== 'undefined') {
+                  lpnVal = v;
+                  break;
+                }
+              }
+            }
+          }
+
           const lastQtyNum = Number(getVal('last_qty').replace(/[^0-9.-]/g, '')) || 0;
           const firstQtyNum = Number(getVal('first_qty').replace(/[^0-9.-]/g, '')) || lastQtyNum;
           const qtyConvNum = Number(getVal('qty_convert').replace(/[^0-9.-]/g, '')) || 0;
@@ -1838,7 +1862,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             uom: getVal('uom') || matchedMaster?.uom || '',
             qty_convert: qtyConvNum,
             uom_convert: getVal('uom_convert') || '',
-            lpn_serial_number: getVal('lpn_serial_number') || '',
+            lpn_serial_number: lpnVal || '',
             batch: batchVal,
             vendor_batch: getVal('vendor_batch') || '',
             sloc: getVal('sloc') || '',
@@ -2144,6 +2168,30 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             )}
           </button>
 
+          {/* Button Hide / Unhide Kolom SN/LPN */}
+          <button
+            type="button"
+            onClick={() => setShowLpnColumn(prev => !prev)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs ${
+              showLpnColumn
+                ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400/50'
+            }`}
+            title={showLpnColumn ? 'Sembunyikan kolom SN/LPN pada tabel' : 'Tampilkan kembali kolom SN/LPN pada tabel'}
+          >
+            {showLpnColumn ? (
+              <>
+                <EyeOff size={13} className="text-slate-500" />
+                <span>Hide SN/LPN</span>
+              </>
+            ) : (
+              <>
+                <Eye size={13} className="text-amber-700" />
+                <span>Unhide SN/LPN</span>
+              </>
+            )}
+          </button>
+
           {/* Quick Filter: Status */}
           <select
             value={statusFilter}
@@ -2289,6 +2337,22 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                     )}
                   </div>
                 </th>
+                {showLpnColumn && (
+                  <th
+                    onClick={() => handleSortColumn('lpn_serial_number')}
+                    className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
+                    title="Klik untuk sort SN / LPN"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>SN / LPN</span>
+                      {sortField === 'lpn_serial_number' ? (
+                        sortOrder === 'asc' ? <ArrowUp size={12} className="text-rose-400" /> : <ArrowDown size={12} className="text-rose-400" />
+                      ) : (
+                        <ArrowUpDown size={11} className="text-slate-500 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+                )}
                 <th
                   onClick={() => handleSortColumn('batch')}
                   className="px-2.5 py-1.5 whitespace-nowrap cursor-pointer hover:bg-slate-700 transition-colors"
@@ -2338,14 +2402,14 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             <tbody className="divide-y divide-slate-100 font-medium">
               {isLoading ? (
                 <tr>
-                  <td colSpan={showLocationColumn ? 11 : 10} className="p-8 text-center text-slate-400">
+                  <td colSpan={10 + (showLocationColumn ? 1 : 0) + (showLpnColumn ? 1 : 0)} className="p-8 text-center text-slate-400">
                     <RefreshCw size={24} className="animate-spin mx-auto text-rose-600 mb-2" />
                     Memuat data cek fisik...
                   </td>
                 </tr>
               ) : paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={showLocationColumn ? 11 : 10} className="p-8 text-center text-slate-400">
+                  <td colSpan={10 + (showLocationColumn ? 1 : 0) + (showLpnColumn ? 1 : 0)} className="p-8 text-center text-slate-400">
                     <Boxes size={32} className="mx-auto text-slate-300 mb-2" />
                     Belum ada data cek fisik.
                   </td>
@@ -2420,6 +2484,19 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                       <td className="px-2.5 py-1 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
                         {item.qty_convert ?? 0} <span className="text-[10px] font-normal text-slate-500">{item.uom_convert || 'PCS'}</span>
                       </td>
+
+                      {/* SN / LPN */}
+                      {showLpnColumn && (
+                        <td className="px-2.5 py-1 font-mono text-slate-700 whitespace-nowrap" title={item.lpn_serial_number || '-'}>
+                          {item.lpn_serial_number ? (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold border border-slate-200">
+                              {item.lpn_serial_number}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
+                      )}
 
                       {/* 6. BATCH */}
                       <td className="px-2.5 py-1 font-mono text-slate-700 whitespace-nowrap">
@@ -2856,6 +2933,17 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 </div>
 
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">SN / LPN (Serial Number):</label>
+                  <input
+                    type="text"
+                    value={formData.lpn_serial_number || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lpn_serial_number: e.target.value }))}
+                    placeholder="Contoh: LPN-001 / SN-12345..."
+                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1.5 focus:ring-rose-500 font-mono"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">SLOC:</label>
                   <input
                     type="text"
@@ -2973,6 +3061,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 <div><span className="text-slate-500">Tujuan:</span> <span className="font-bold">{selectedItem.tujuan}</span></div>
                 <div><span className="text-slate-500">SKU:</span> <span className="font-mono font-bold">{selectedItem.item_code}</span></div>
                 <div><span className="text-slate-500">Nama:</span> <span className="font-bold">{selectedItem.item_name}</span></div>
+                <div><span className="text-slate-500">SN / LPN:</span> <span className="font-mono font-bold text-slate-800">{selectedItem.lpn_serial_number || '-'}</span></div>
                 <div><span className="text-slate-500">Batch:</span> <span className="font-mono">{selectedItem.batch}</span></div>
                 <div><span className="text-slate-500">Expired:</span> <span className="font-mono">{selectedItem.expired_date}</span></div>
                 <div><span className="text-slate-500">Qty Awal:</span> <span className="font-mono">{selectedItem.first_qty} {selectedItem.uom}</span></div>
@@ -3273,6 +3362,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                           <th className="p-2 text-right min-w-[80px]">LAST QTY</th>
                           <th className="p-2 text-center min-w-[60px]">UOM</th>
                           <th className="p-2 text-right min-w-[90px]">QTY CONVERT</th>
+                          <th className="p-2 min-w-[120px]">SN / LPN</th>
                           <th className="p-2 min-w-[110px]">BATCH</th>
                           <th className="p-2 min-w-[120px]">EXPIRED DATE</th>
                           <th className="p-2 min-w-[150px]">NOTE</th>
@@ -3373,6 +3463,17 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                                 value={row.qty_convert}
                                 onChange={(e) => handleUpdatePastedRow(idx, 'qty_convert', Number(e.target.value))}
                                 className="w-full px-2 py-1 rounded border border-slate-200 text-right font-mono font-semibold"
+                              />
+                            </td>
+
+                            {/* SN / LPN */}
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                value={row.lpn_serial_number || ''}
+                                onChange={(e) => handleUpdatePastedRow(idx, 'lpn_serial_number', e.target.value)}
+                                placeholder="SN/LPN..."
+                                className="w-full px-2 py-1 rounded border border-slate-200 font-mono text-slate-800 focus:ring-1 focus:ring-rose-500 focus:outline-none"
                               />
                             </td>
 
@@ -3689,6 +3790,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                           <th className="p-2 text-right">LAST QTY</th>
                           <th className="p-2 text-center">UOM</th>
                           <th className="p-2 text-right">QTY CONVERT</th>
+                          <th className="p-2">SN / LPN</th>
                           <th className="p-2">BATCH</th>
                           <th className="p-2">EXPIRED DATE</th>
                           <th className="p-2">NOTE</th>
@@ -3718,6 +3820,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                             <td className="px-2 py-1 text-right font-mono font-bold text-rose-600">{row.last_qty}</td>
                             <td className="px-2 py-1 text-center">{row.uom}</td>
                             <td className="px-2 py-1 text-right font-mono">{row.qty_convert}</td>
+                            <td className="px-2 py-1 font-mono text-slate-700 font-semibold">{row.lpn_serial_number || '-'}</td>
                             <td className="px-2 py-1 font-mono">{row.batch}</td>
                             <td className="px-2 py-1 font-mono">{row.expired_date}</td>
                             <td className="px-2 py-1 text-slate-500">{row.note || '-'}</td>
