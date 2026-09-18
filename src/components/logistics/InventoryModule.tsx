@@ -51,6 +51,7 @@ import {
   InventoryBulkTransferModal, 
   TransferDestination 
 } from './inventory/InventoryBulkTransferModal';
+import { InventoryBulkLocationModal } from './inventory/InventoryBulkLocationModal';
 import { InventoryScannerModal } from './inventory/InventoryScannerModal';
 import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
@@ -138,9 +139,11 @@ export function InventoryModule({
   const [pageSize, setPageSize] = useState<number | 'ALL'>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Multi-Selection State for Bulk Transfer
+  // Multi-Selection State for Bulk Transfer & Bulk Location Update
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBulkTransferModal, setShowBulkTransferModal] = useState(false);
+  const [showBulkLocationModal, setShowBulkLocationModal] = useState(false);
+  const [bulkLocationSourceLoc, setBulkLocationSourceLoc] = useState<string>('');
 
   // Modals
   const [showFormModal, setShowFormModal] = useState(false);
@@ -454,45 +457,198 @@ export function InventoryModule({
   };
 
   // Single Item Status Update (Optimistic UI + Supabase Sync)
+  // When updated in Stock Opname mode (or Standard mode), automatically propagates to ALL matching items
+  // in Standard (lengkap) mode based on Location and Item Code / Item Name
   const handleUpdateStatus = async (item: InventoryItem, newStatus: string) => {
-    const oldStatus = item.status || '';
-    if (oldStatus === newStatus) return;
+    const formattedStatus = (() => {
+      const clean = (newStatus || '').trim();
+      if (!clean) return '';
+      const lower = clean.toLowerCase();
+      if (lower === 'ada') return 'Ada';
+      if (lower === 'tidak') return 'Tidak';
+      if (lower === 'beda') return 'Beda';
+      return clean;
+    })();
 
-    const targetIds = item.child_ids && item.child_ids.length > 0 ? item.child_ids : [item.id_inventory];
+    const targetLoc = (item.location || '').trim().toUpperCase();
+    const targetCode = (item.item_code || '').trim().toUpperCase();
+    const targetName = (item.item_name || '').trim().toUpperCase();
+
+    // 1. Kumpulkan semua target id_inventory yang cocok di inventoryList (mode standard/lengkap)
+    const matchingIds = new Set<string>();
+    if (item.child_ids && Array.isArray(item.child_ids)) {
+      item.child_ids.forEach(id => matchingIds.add(id));
+    }
+    if (item.id_inventory) {
+      matchingIds.add(item.id_inventory);
+    }
+
+    // Selalu pindai inventoryList untuk mencocokkan berdasarkan Location dan Item (Code / Name)
+    inventoryList.forEach(p => {
+      const pLoc = (p.location || '').trim().toUpperCase();
+      const isLocMatch = targetLoc ? pLoc === targetLoc : true;
+      if (isLocMatch) {
+        const pCode = (p.item_code || '').trim().toUpperCase();
+        const pName = (p.item_name || '').trim().toUpperCase();
+        const codeMatch = Boolean(targetCode && pCode && targetCode === pCode);
+        const nameMatch = Boolean(targetName && pName && targetName === pName);
+        if (codeMatch || nameMatch) {
+          matchingIds.add(p.id_inventory);
+        }
+      }
+    });
+
+    const targetIds = Array.from(matchingIds);
+    if (targetIds.length === 0) return;
+
+    // Periksa apakah memang ada data yang perlu diupdate
+    const needsUpdate = inventoryList.some(p => matchingIds.has(p.id_inventory) && (p.status || '') !== formattedStatus);
+    if (!needsUpdate && (item.status || '') === formattedStatus) return;
+
     const nowIso = new Date().toISOString();
 
-    // 1. Optimistic Local State Update
+    // Simpan status lama untuk rollback jika terjadi kesalahan di database cloud
+    const previousStatusMap = new Map<string, string>();
+    inventoryList.forEach(p => {
+      if (matchingIds.has(p.id_inventory)) {
+        previousStatusMap.set(p.id_inventory, p.status || '');
+      }
+    });
+
+    // 2. Optimistic Local State Update (Langsung update semua baris terkait di mode standard)
     setInventoryList(prev => {
-      const updated = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, status: newStatus, updated_at: nowIso } : p);
+      const updated = prev.map(p => {
+        if (matchingIds.has(p.id_inventory)) {
+          return { ...p, status: formattedStatus, updated_at: nowIso };
+        }
+        return p;
+      });
       try {
         localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       } catch {}
       return updated;
     });
 
-    // 2. Cloud Supabase Sync
+    // 3. Cloud Supabase Sync
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase
-          .from('data_inventory')
-          .update({ status: newStatus, updated_at: nowIso })
-          .in('id_inventory', targetIds);
+        const chunkSize = 50;
+        for (let i = 0; i < targetIds.length; i += chunkSize) {
+          const chunk = targetIds.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('data_inventory')
+            .update({ status: formattedStatus, updated_at: nowIso })
+            .in('id_inventory', chunk);
 
-        if (error) throw error;
-        // Silent on success to keep workflow fast and distraction-free
+          if (error) throw error;
+        }
+
+        // Sinkronisasi keamanan ganda ke Supabase jika location dan item_code ada
+        if (targetLoc && targetCode) {
+          await supabase
+            .from('data_inventory')
+            .update({ status: formattedStatus, updated_at: nowIso })
+            .ilike('location', targetLoc)
+            .ilike('item_code', targetCode);
+        }
       } catch (err: any) {
         console.error('Failed to update inventory status:', err);
         showToast('Gagal Simpan Status', err.message || 'Terjadi kesalahan saat mengupdate status di database.', 'error');
         // Rollback state on error
         setInventoryList(prev => {
-          const reverted = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, status: oldStatus } : p);
+          const reverted = prev.map(p => {
+            if (previousStatusMap.has(p.id_inventory)) {
+              return { ...p, status: previousStatusMap.get(p.id_inventory) || '' };
+            }
+            return p;
+          });
           try {
             localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(reverted));
           } catch {}
           return reverted;
         });
+        return;
       }
     }
+
+    showToast(
+      'Status Diperbarui',
+      `Status "${formattedStatus || 'Kosong'}" diterapkan untuk ${item.item_name || item.item_code} di lokasi ${item.location || '-'} (${targetIds.length} data di mode standar ikut terupdate).`,
+      'success'
+    );
+  };
+
+  // Bulk Status Update untuk baris yang dicentang
+  const handleBulkUpdateStatus = async (newStatus: string) => {
+    if (selectedIds.length === 0) return;
+    const formattedStatus = (() => {
+      const clean = (newStatus || '').trim();
+      if (!clean) return '';
+      const lower = clean.toLowerCase();
+      if (lower === 'ada') return 'Ada';
+      if (lower === 'tidak') return 'Tidak';
+      if (lower === 'beda') return 'Beda';
+      return clean;
+    })();
+
+    const nowIso = new Date().toISOString();
+    const matchingIds = new Set<string>(selectedIds);
+
+    // Kumpulkan baris terpilih dan cari juga pasangan location + item di inventoryList
+    const selectedItems = inventoryList.filter(i => selectedIds.includes(i.id_inventory));
+    selectedItems.forEach(item => {
+      const targetLoc = (item.location || '').trim().toUpperCase();
+      const targetCode = (item.item_code || '').trim().toUpperCase();
+      const targetName = (item.item_name || '').trim().toUpperCase();
+      if (targetLoc && (targetCode || targetName)) {
+        inventoryList.forEach(p => {
+          const pLoc = (p.location || '').trim().toUpperCase();
+          if (pLoc === targetLoc) {
+            const pCode = (p.item_code || '').trim().toUpperCase();
+            const pName = (p.item_name || '').trim().toUpperCase();
+            if ((targetCode && pCode === targetCode) || (targetName && pName === targetName)) {
+              matchingIds.add(p.id_inventory);
+            }
+          }
+        });
+      }
+    });
+
+    const targetIds = Array.from(matchingIds);
+
+    // Local optimistic update
+    setInventoryList(prev => {
+      const updated = prev.map(p => matchingIds.has(p.id_inventory) ? { ...p, status: formattedStatus, updated_at: nowIso } : p);
+      try {
+        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // Supabase update
+    if (isSupabaseConfigured && targetIds.length > 0) {
+      try {
+        const chunkSize = 50;
+        for (let i = 0; i < targetIds.length; i += chunkSize) {
+          const chunk = targetIds.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('data_inventory')
+            .update({ status: formattedStatus, updated_at: nowIso })
+            .in('id_inventory', chunk);
+          if (error) throw error;
+        }
+      } catch (err: any) {
+        console.error('Bulk update status error:', err);
+        showToast('Gagal Update Status Massal', err.message || 'Terjadi kesalahan sistem.', 'error');
+        return;
+      }
+    }
+
+    showToast(
+      'Status Massal Diperbarui',
+      `Berhasil mengupdate status ${targetIds.length} data inventory menjadi "${formattedStatus || 'Kosong'}".`,
+      'success'
+    );
   };
 
   // Single Item Note Update (Optimistic UI + Supabase Sync)
@@ -712,8 +868,14 @@ export function InventoryModule({
     return Array.from(groupMap.values()).map(g => {
       let resolvedStatus = '';
       if (g.statuses.length > 0) {
-        const uniqueStatuses = Array.from(new Set(g.statuses));
-        resolvedStatus = uniqueStatuses.length === 1 && g.statuses.length === g.child_ids.length ? uniqueStatuses[0] : g.statuses[0];
+        const uniqueStatuses = Array.from(new Set(g.statuses.map(s => s.toLowerCase().trim())));
+        if (uniqueStatuses.length === 1) {
+          const raw = g.statuses[0].trim();
+          const lower = raw.toLowerCase();
+          resolvedStatus = lower === 'ada' ? 'Ada' : lower === 'tidak' ? 'Tidak' : lower === 'beda' ? 'Beda' : raw;
+        } else {
+          resolvedStatus = 'Beda';
+        }
       }
 
       return {
@@ -1145,6 +1307,20 @@ export function InventoryModule({
             <span>Scan SN / LPN</span>
           </button>
 
+          {/* Tombol Update Massal Lokasi */}
+          <button
+            type="button"
+            onClick={() => {
+              setBulkLocationSourceLoc(locationFilter && locationFilter !== 'ALL' ? locationFilter : '');
+              setShowBulkLocationModal(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 active:bg-indigo-900 text-white font-black text-xs shadow-xs transition-all cursor-pointer"
+            title="Buka sistem update massal lokasi gudang (pilih baris, relokasi rak, atau scan LPN)"
+          >
+            <MapPin size={14} />
+            <span>Update Massal Lokasi</span>
+          </button>
+
           {/* Refresh / Sync */}
           <button
             type="button"
@@ -1457,6 +1633,17 @@ export function InventoryModule({
                 <button
                   type="button"
                   onClick={() => {
+                    setBulkLocationSourceLoc(locationFilter);
+                    setShowBulkLocationModal(true);
+                  }}
+                  className="ml-1 text-[10px] text-indigo-700 underline font-extrabold hover:text-indigo-900 cursor-pointer bg-indigo-100/70 px-1 rounded"
+                  title={`Pindahkan semua item di lokasi ${locationFilter}`}
+                >
+                  Pindah Rak Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setLocationFilter('');
                     setCurrentPage(1);
                   }}
@@ -1556,6 +1743,49 @@ export function InventoryModule({
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+              {/* Quick Bulk Status Set Buttons */}
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 px-1">Status:</span>
+                <button
+                  type="button"
+                  onClick={() => handleBulkUpdateStatus('Ada')}
+                  className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] shadow-2xs transition-all cursor-pointer"
+                  title="Terapkan status 'Ada' untuk semua data terpilih"
+                >
+                  Ada
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkUpdateStatus('Beda')}
+                  className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] shadow-2xs transition-all cursor-pointer"
+                  title="Terapkan status 'Beda' untuk semua data terpilih"
+                >
+                  Beda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkUpdateStatus('Tidak')}
+                  className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] shadow-2xs transition-all cursor-pointer"
+                  title="Terapkan status 'Tidak' untuk semua data terpilih"
+                >
+                  Tidak
+                </button>
+              </div>
+
+              {/* Update Lokasi Massal Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkLocationSourceLoc('');
+                  setShowBulkLocationModal(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-indigo-700 hover:bg-indigo-800 active:bg-indigo-900 text-white text-xs font-black shadow-2xs transition-all cursor-pointer flex items-center gap-1"
+                title="Buka dialog update massal lokasi untuk baris terpilih"
+              >
+                <MapPin size={12} />
+                <span>Update Lokasi ({selectedSummary.selectedCount})</span>
+              </button>
+
               {/* Pindah Data Massal Button */}
               <button
                 type="button"
@@ -1959,7 +2189,7 @@ export function InventoryModule({
                         onClick={(e) => e.stopPropagation()}
                       >
                         <select
-                          value={row.status || ''}
+                          value={isAda ? 'Ada' : isBeda ? 'Beda' : isTidak ? 'Tidak' : (row.status || '')}
                           onChange={(e) => handleUpdateStatus(row, e.target.value)}
                           className={`px-1.5 py-1 rounded text-[10px] font-bold border outline-none cursor-pointer text-center appearance-none w-full shadow-2xs transition-all ${
                             isAda ? 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-1 ring-emerald-400/50' :
@@ -1967,6 +2197,7 @@ export function InventoryModule({
                             isTidak ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400/50' :
                             'bg-slate-100 text-slate-700 border-slate-300 hover:border-slate-400'
                           }`}
+                          title={`Ubah status (otomatis memperbarui seluruh data di lokasi ${row.location || ''} pada mode standar/lengkap)`}
                         >
                           <option value="">- Status -</option>
                           <option value="Ada">Ada</option>
@@ -2259,6 +2490,32 @@ export function InventoryModule({
               return updated;
             });
           }
+          setSelectedIds([]);
+        }}
+      />
+
+      {/* MODAL UPDATE MASSAL LOKASI INVENTORY */}
+      <InventoryBulkLocationModal
+        isOpen={showBulkLocationModal}
+        onClose={() => {
+          setShowBulkLocationModal(false);
+          setBulkLocationSourceLoc('');
+        }}
+        inventoryList={inventoryList}
+        selectedIds={selectedIds}
+        initialSourceLocation={bulkLocationSourceLoc}
+        currentUser={currentUser}
+        showToast={showToast}
+        onUpdateSuccess={async (updatedItems, newLocation) => {
+          setInventoryList(prev => {
+            const mapUpdated = new Map(updatedItems.map(i => [i.id_inventory, i]));
+            const updated = prev.map(i => mapUpdated.has(i.id_inventory) ? mapUpdated.get(i.id_inventory)! : i);
+            try {
+              localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+          // Remove updated items from selectedIds if needed
           setSelectedIds([]);
         }}
       />
