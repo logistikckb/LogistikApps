@@ -37,7 +37,8 @@ import {
   RotateCcw,
   ChevronDown,
   Scan,
-  QrCode
+  QrCode,
+  ExternalLink
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InventoryItem, DataBarang } from '../../types';
@@ -54,6 +55,8 @@ import {
 import { InventoryBulkLocationModal } from './inventory/InventoryBulkLocationModal';
 import { InventoryScannerModal } from './inventory/InventoryScannerModal';
 import { InventoryGSheetModal } from './inventory/InventoryGSheetModal';
+import { SpreadsheetLinkModal } from './inventory/SpreadsheetLinkModal';
+import { MenuPinAuthModal } from '../admin/MenuPinAuthModal';
 import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
 const INVENTORY_CACHE_KEY = 'ckb_inventory_data_cache_v1';
@@ -153,6 +156,8 @@ export function InventoryModule({
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showGSheetModal, setShowGSheetModal] = useState(false);
+  const [showSpreadsheetLinkModal, setShowSpreadsheetLinkModal] = useState(false);
+  const [showSpreadsheetPinModal, setShowSpreadsheetPinModal] = useState(false);
 
   // Column Visibility: Hide / Unhide Kolom Location
   const [showLocationColumn, setShowLocationColumn] = useState<boolean>(() => {
@@ -1344,6 +1349,17 @@ export function InventoryModule({
           >
             <FileSpreadsheet size={13} className="text-teal-700" />
             <span>Upload Spreadsheet</span>
+          </button>
+
+          {/* Buka Link Spreadsheet (dengan PIN 399339) */}
+          <button
+            type="button"
+            onClick={() => setShowSpreadsheetPinModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
+            title="Buka file Google Spreadsheet (Memerlukan PIN 399339)"
+          >
+            <ExternalLink size={13} className="text-emerald-700" />
+            <span>Buka Link Spreadsheet</span>
           </button>
 
           {/* Export Excel - Desktop Only */}
@@ -2564,6 +2580,27 @@ export function InventoryModule({
         currentUser={currentUser}
         isSuperAdmin={isSuperAdmin}
         showToast={showToast}
+      />
+
+      {/* MODAL LIHAT & BUKA LINK SPREADSHEET (SETELAH PIN 399339) */}
+      <SpreadsheetLinkModal
+        isOpen={showSpreadsheetLinkModal}
+        onClose={() => setShowSpreadsheetLinkModal(false)}
+        showToast={showToast}
+        defaultSheetName=" StockOpname"
+      />
+
+      {/* MODAL VERIFIKASI PIN 399339 UNTUK BUKA SPREADSHEET */}
+      <MenuPinAuthModal
+        isOpen={showSpreadsheetPinModal}
+        onClose={() => setShowSpreadsheetPinModal(false)}
+        onSuccess={() => {
+          setShowSpreadsheetPinModal(false);
+          setShowSpreadsheetLinkModal(true);
+          showToast('PIN Terverifikasi', 'Akses link Google Spreadsheet dibuka.', 'success');
+        }}
+        title="Verifikasi PIN Spreadsheet"
+        description="Masukkan PIN keamanan 399339 untuk membuka link Google Spreadsheet."
       />
 
     </div>

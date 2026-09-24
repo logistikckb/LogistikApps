@@ -7,6 +7,8 @@ const SETTING_KEY = 'hidden_menu_ids';
 const LOCAL_STORAGE_KEY = `ckb_app_setting_${SETTING_KEY}`;
 const REALTIME_CHANNEL_NAME = 'menu_visibility_realtime_sync';
 
+export const MENU_VISIBILITY_PIN = '399339';
+
 export function useMenuVisibility() {
   const { currentUser, isAdmin } = useAuth();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';

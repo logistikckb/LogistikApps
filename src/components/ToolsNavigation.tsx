@@ -11,11 +11,14 @@ import {
   Package,
   Eye,
   EyeOff,
-  Settings2
+  Settings2,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useMenuVisibility } from '../hooks/useMenuVisibility';
 import { MenuVisibilityModal } from './admin/MenuVisibilityModal';
+import { MenuPinAuthModal } from './admin/MenuPinAuthModal';
 import { useNotification } from '../context/NotificationContext';
 
 export type ToolId = 
@@ -227,6 +230,29 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   const [showVisibilityModal, setShowVisibilityModal] = useState(false);
   const [showHiddenInGrid, setShowHiddenInGrid] = useState(false);
 
+  // Keamanan PIN khusus untuk fitur Hide / Unhide (PIN: 399339)
+  const [isPinVerified, setIsPinVerified] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const requirePinForAction = (action: () => void) => {
+    if (isPinVerified) {
+      action();
+    } else {
+      setPendingAction(() => action);
+      setShowPinModal(true);
+    }
+  };
+
+  const handlePinSuccess = () => {
+    setIsPinVerified(true);
+    showToast('PIN Terverifikasi', 'Akses kelola visibilitas menu diaktifkan.', 'success');
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
   // Filter tools:
   // 1. Check requiresAdmin
   // 2. Check hidden status
@@ -282,13 +308,31 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
 
             <button
               type="button"
-              onClick={() => setShowVisibilityModal(true)}
+              onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/90 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
-              title="Atur Hide / Unhide menu untuk seluruh perangkat tim"
+              title="Atur Hide / Unhide menu untuk seluruh perangkat tim (Memerlukan PIN 399339)"
             >
-              <Settings2 size={13} className="text-indigo-600" />
+              {isPinVerified ? (
+                <Unlock size={12} className="text-emerald-600" />
+              ) : (
+                <Lock size={12} className="text-amber-600" />
+              )}
               <span>Atur Menu (Hide/Unhide)</span>
             </button>
+
+            {isPinVerified && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPinVerified(false);
+                  showToast('Akses Dikunci', 'PIN diperlukan kembali untuk mengubah menu.', 'info');
+                }}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 cursor-pointer transition-colors"
+                title="Kunci kembali akses pengaturan menu"
+              >
+                <Lock size={12} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -304,8 +348,8 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
           {isSuperAdmin && (
             <button
               type="button"
-              onClick={() => setShowVisibilityModal(true)}
-              className="mt-3 px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs"
+              onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
+              className="mt-3 px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs cursor-pointer shadow-sm"
             >
               Atur Menu Sekarang
             </button>
@@ -379,10 +423,10 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleMenuVisibility(tool.id);
+                      requirePinForAction(() => toggleMenuVisibility(tool.id));
                     }}
                     className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110 z-10"
-                    title={`Klik untuk Unhide "${tool.title}" di semua perangkat`}
+                    title={`Klik untuk Unhide "${tool.title}" di semua perangkat (Perlu PIN 399339)`}
                   >
                     <Eye size={12} />
                   </button>
@@ -398,12 +442,27 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
         <MenuVisibilityModal
           isOpen={showVisibilityModal}
           onClose={() => setShowVisibilityModal(false)}
+          onLock={() => setIsPinVerified(false)}
           hiddenMenuIds={hiddenMenuIds}
           onToggleVisibility={toggleMenuVisibility}
           onUnhideAll={unhideAllMenus}
           isSyncing={isSyncing}
           lastSyncTime={lastSyncTime}
           showToast={showToast}
+        />
+      )}
+
+      {/* Modal Verifikasi PIN Khusus Hide/Unhide (PIN 399339) */}
+      {isSuperAdmin && (
+        <MenuPinAuthModal
+          isOpen={showPinModal}
+          onClose={() => {
+            setShowPinModal(false);
+            setPendingAction(null);
+          }}
+          onSuccess={handlePinSuccess}
+          title="Verifikasi PIN Menu"
+          description="Masukkan PIN keamanan 399339 untuk melakukan Hide / Unhide menu di semua perangkat."
         />
       )}
     </div>

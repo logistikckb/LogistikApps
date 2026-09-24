@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { InventoryItem } from '../../../types';
 import { getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../../supabase';
+import { MenuPinAuthModal } from '../../admin/MenuPinAuthModal';
+import { SpreadsheetLinkModal } from './SpreadsheetLinkModal';
 
 export const INVENTORY_STOCK_OPNAME_HEADERS = [
   'Tujuan',
@@ -125,6 +127,9 @@ export function InventoryGSheetModal({
     updatedRows?: number;
     timestamp?: string;
   } | null>(null);
+
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [showSpreadsheetLinkModal, setShowSpreadsheetLinkModal] = useState(false);
 
   // Load configuration from Supabase if available
   useEffect(() => {
@@ -383,13 +388,25 @@ export function InventoryGSheetModal({
               <p className="text-xs text-slate-500 m-0">Sinkronisasi data Inventory ke sheet tujuan StockOpname</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 p-2 rounded-full cursor-pointer transition-colors"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowPinModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+              title="Buka file Google Spreadsheet (Memerlukan PIN 399339)"
+            >
+              <ExternalLink size={13} className="text-emerald-700" />
+              <span className="hidden sm:inline">Buka Link Spreadsheet</span>
+              <span className="sm:hidden">Link Sheet</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 p-2 rounded-full cursor-pointer transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Content */}
@@ -648,15 +665,14 @@ export function InventoryGSheetModal({
               </div>
               <p className="m-0 text-xs">{syncResult.message}</p>
               {syncResult.spreadsheetUrl && (
-                <a
-                  href={syncResult.spreadsheetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-2 text-emerald-700 font-extrabold hover:underline"
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(true)}
+                  className="inline-flex items-center gap-1 mt-2 text-emerald-700 font-extrabold hover:underline cursor-pointer bg-transparent border-0 p-0 text-xs"
                 >
                   <span>Buka Google Spreadsheet</span>
                   <ExternalLink size={12} />
-                </a>
+                </button>
               )}
             </div>
           )}
@@ -698,6 +714,28 @@ export function InventoryGSheetModal({
         </div>
 
       </div>
+
+      {/* Modal Lihat & Buka Link Spreadsheet (setelah PIN 399339) */}
+      <SpreadsheetLinkModal
+        isOpen={showSpreadsheetLinkModal}
+        onClose={() => setShowSpreadsheetLinkModal(false)}
+        showToast={showToast}
+        defaultSpreadsheetId={gSheetConfig.spreadsheetId}
+        defaultSheetName=" StockOpname"
+      />
+
+      {/* Modal Verifikasi PIN 399339 */}
+      <MenuPinAuthModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onSuccess={() => {
+          setShowPinModal(false);
+          setShowSpreadsheetLinkModal(true);
+          showToast('PIN Terverifikasi', 'Akses link Google Spreadsheet dibuka.', 'success');
+        }}
+        title="Verifikasi PIN Spreadsheet"
+        description="Masukkan PIN keamanan 399339 untuk membuka link Google Spreadsheet."
+      />
     </div>,
     document.body
   ) : null;
