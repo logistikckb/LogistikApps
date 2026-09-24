@@ -64,29 +64,17 @@ export function InventoryGSheetModal({
   isSuperAdmin,
   showToast
 }: InventoryGSheetModalProps) {
-  // Default month generator (e.g., "September 2026")
-  const getDefaultMonth = () => {
-    try {
-      const now = new Date();
-      return now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    } catch {
-      return 'September 2026';
-    }
-  };
+  const MONTH_NAMES = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
-  const getQuickMonthOptions = () => {
-    const options: string[] = [];
-    const now = new Date();
-    for (let i = -1; i <= 3; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const label = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-      options.push(label);
-    }
-    return options;
-  };
-
-  // State Pilihan Tujuan / Bulan Stock Opname
-  const [selectedMonth, setSelectedMonth] = useState<string>(getDefaultMonth);
+  const now = new Date();
+  const [selectedMonthName, setSelectedMonthName] = useState<string>(MONTH_NAMES[now.getMonth()]);
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`
+  );
   const [useOriginalTujuanIfSet, setUseOriginalTujuanIfSet] = useState(false);
   const [dataScope, setDataScope] = useState<'filtered' | 'all'>('filtered');
 
@@ -365,7 +353,15 @@ export function InventoryGSheetModal({
     }
   };
 
-  const quickMonths = getQuickMonthOptions();
+  const handleMonthChange = (newMonth: string) => {
+    setSelectedMonthName(newMonth);
+    setSelectedMonth(`${newMonth} ${selectedYear}`);
+  };
+
+  const handleYearChange = (newYear: number) => {
+    setSelectedYear(newYear);
+    setSelectedMonth(`${selectedMonthName} ${newYear}`);
+  };
 
   return typeof document !== 'undefined' ? createPortal(
     <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
@@ -417,36 +413,48 @@ export function InventoryGSheetModal({
               Nilai ini akan mengisi kolom <strong>Tujuan</strong> di urutan paling awal pada sheet Spreadsheet untuk setiap baris data yang diunggah.
             </p>
 
-            {/* Quick Chips Selection */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] font-bold text-slate-500 mr-1">Pilihan Cepat:</span>
-              {quickMonths.map((month) => {
-                const isSelected = selectedMonth === month;
-                return (
-                  <button
-                    key={month}
-                    type="button"
-                    onClick={() => setSelectedMonth(month)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      isSelected
-                        ? 'bg-teal-700 text-white shadow-2xs'
-                        : 'bg-white text-slate-700 border border-slate-200 hover:border-teal-400 hover:bg-teal-50/50'
-                    }`}
-                  >
-                    {isSelected && <Check size={11} className="stroke-[3]" />}
-                    <span>{month}</span>
-                  </button>
-                );
-              })}
+            {/* Pemilihan Dinamis Bulan & Tahun (Mendukung 2026, 2027, 2028, dst.) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Pilih Bulan:
+                </label>
+                <select
+                  value={selectedMonthName}
+                  onChange={(e) => handleMonthChange(e.target.value)}
+                  className="w-full bg-white border border-teal-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                >
+                  {MONTH_NAMES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Tahun (Ketik Bebas):
+                </label>
+                <input
+                  type="number"
+                  min="2020"
+                  max="2050"
+                  value={selectedYear}
+                  onChange={(e) => handleYearChange(parseInt(e.target.value, 10) || selectedYear)}
+                  className="w-full bg-white border border-teal-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              </div>
             </div>
 
-            {/* Custom Input */}
+            {/* Nilai Teks Tujuan Hasil Gabungan (Bisa Diedit Manual) */}
             <div className="pt-1">
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Teks Kolom Tujuan yang Akan Dikirim:
+              </label>
               <input
                 type="text"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                placeholder="Ketik nama bulan atau periode, contoh: September 2026..."
+                placeholder="Contoh: September 2026, Januari 2027, SO 2027..."
                 className="w-full bg-white border border-teal-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
               />
             </div>
@@ -466,38 +474,9 @@ export function InventoryGSheetModal({
           {/* SECTION 2: SHEET TAB & MODE */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="font-bold text-slate-700">
-                  Nama Sheet Tab: <span className="text-rose-500">*</span>
-                </label>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-400">Pilihan:</span>
-                  <button
-                    type="button"
-                    onClick={() => setGSheetConfig(p => ({ ...p, sheetName: ' StockOpname' }))}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                      gSheetConfig.sheetName === ' StockOpname'
-                        ? 'bg-teal-700 text-white shadow-2xs'
-                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                    }`}
-                    title="Dengan spasi di depan: ' StockOpname'"
-                  >
-                    " StockOpname"
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGSheetConfig(p => ({ ...p, sheetName: 'StockOpname' }))}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                      gSheetConfig.sheetName === 'StockOpname'
-                        ? 'bg-teal-700 text-white shadow-2xs'
-                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                    }`}
-                    title="Tanpa spasi di depan: 'StockOpname'"
-                  >
-                    "StockOpname"
-                  </button>
-                </div>
-              </div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Nama Sheet Tab: <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 value={gSheetConfig.sheetName}
@@ -506,7 +485,7 @@ export function InventoryGSheetModal({
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-700 font-mono"
               />
               <span className="text-[10px] text-teal-700 font-semibold mt-1 block">
-                ✓ Otomatis terpasang ke sheet: <strong>"{gSheetConfig.sheetName}"</strong>
+                ✓ Otomatis ke sheet: <strong>"{gSheetConfig.sheetName}"</strong>
               </span>
             </div>
 
