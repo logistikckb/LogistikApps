@@ -13,12 +13,15 @@ import {
   EyeOff,
   Settings2,
   Lock,
-  Unlock
+  Unlock,
+  FileSpreadsheet,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useMenuVisibility } from '../hooks/useMenuVisibility';
 import { MenuVisibilityModal } from './admin/MenuVisibilityModal';
 import { MenuPinAuthModal } from './admin/MenuPinAuthModal';
+import { SpreadsheetLinkModal } from './common/SpreadsheetLinkModal';
 import { useNotification } from '../context/NotificationContext';
 
 export type ToolId = 
@@ -228,9 +231,10 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   } = useMenuVisibility();
 
   const [showVisibilityModal, setShowVisibilityModal] = useState(false);
+  const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
   const [showHiddenInGrid, setShowHiddenInGrid] = useState(false);
 
-  // Keamanan PIN khusus untuk fitur Hide / Unhide (PIN: 399339)
+  // Keamanan PIN khusus untuk fitur Hide / Unhide dan Buka Spreadsheet (PIN: 399339)
   const [isPinVerified, setIsPinVerified] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -246,7 +250,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
 
   const handlePinSuccess = () => {
     setIsPinVerified(true);
-    showToast('PIN Terverifikasi', 'Akses kelola visibilitas menu diaktifkan.', 'success');
+    showToast('PIN Terverifikasi', 'Akses fitur keamanan dibuka.', 'success');
     if (pendingAction) {
       pendingAction();
       setPendingAction(null);
@@ -285,56 +289,70 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
           </span>
         </div>
 
-        {isSuperAdmin && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {hiddenCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowHiddenInGrid(prev => !prev)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  showHiddenInGrid 
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300' 
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
-                }`}
-                title={showHiddenInGrid ? 'Sembunyikan menu nonaktif dari grid' : 'Tampilkan menu yang sedang di-hide di grid ini'}
-              >
-                <EyeOff size={12} className="text-rose-600" />
-                <span>{hiddenCount} Menu Dihide</span>
-                <span className="text-[9px] underline ml-0.5">
-                  ({showHiddenInGrid ? 'Tampil di Grid' : 'Lihat'})
-                </span>
-              </button>
-            )}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Tombol Buka Spreadsheet yang Dipakai untuk Sinkron Data (PIN 399339) */}
+          <button
+            type="button"
+            onClick={() => requirePinForAction(() => setShowSpreadsheetModal(true))}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs active:scale-95"
+            title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN 399339)"
+          >
+            <FileSpreadsheet size={13} className="text-emerald-700" />
+            <span>Buka Spreadsheet Sinkron</span>
+            <ExternalLink size={10} className="text-emerald-600" />
+          </button>
 
-            <button
-              type="button"
-              onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/90 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
-              title="Atur Hide / Unhide menu untuk seluruh perangkat tim (Memerlukan PIN 399339)"
-            >
-              {isPinVerified ? (
-                <Unlock size={12} className="text-emerald-600" />
-              ) : (
-                <Lock size={12} className="text-amber-600" />
+          {isSuperAdmin && (
+            <>
+              {hiddenCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowHiddenInGrid(prev => !prev)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    showHiddenInGrid 
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}
+                  title={showHiddenInGrid ? 'Sembunyikan menu nonaktif dari grid' : 'Tampilkan menu yang sedang di-hide di grid ini'}
+                >
+                  <EyeOff size={12} className="text-rose-600" />
+                  <span>{hiddenCount} Menu Dihide</span>
+                  <span className="text-[9px] underline ml-0.5">
+                    ({showHiddenInGrid ? 'Tampil di Grid' : 'Lihat'})
+                  </span>
+                </button>
               )}
-              <span>Atur Menu (Hide/Unhide)</span>
-            </button>
 
-            {isPinVerified && (
               <button
                 type="button"
-                onClick={() => {
-                  setIsPinVerified(false);
-                  showToast('Akses Dikunci', 'PIN diperlukan kembali untuk mengubah menu.', 'info');
-                }}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 cursor-pointer transition-colors"
-                title="Kunci kembali akses pengaturan menu"
+                onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/90 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                title="Atur Hide / Unhide menu untuk seluruh perangkat tim (Memerlukan PIN 399339)"
               >
-                <Lock size={12} />
+                {isPinVerified ? (
+                  <Unlock size={12} className="text-emerald-600" />
+                ) : (
+                  <Lock size={12} className="text-amber-600" />
+                )}
+                <span>Atur Menu (Hide/Unhide)</span>
               </button>
-            )}
-          </div>
-        )}
+
+              {isPinVerified && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPinVerified(false);
+                    showToast('Akses Dikunci', 'PIN diperlukan kembali untuk mengubah menu atau spreadsheet.', 'info');
+                  }}
+                  className="p-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 cursor-pointer transition-colors"
+                  title="Kunci kembali akses pengaturan menu"
+                >
+                  <Lock size={12} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Grid of Menus */}
@@ -452,19 +470,24 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
         />
       )}
 
-      {/* Modal Verifikasi PIN Khusus Hide/Unhide (PIN 399339) */}
-      {isSuperAdmin && (
-        <MenuPinAuthModal
-          isOpen={showPinModal}
-          onClose={() => {
-            setShowPinModal(false);
-            setPendingAction(null);
-          }}
-          onSuccess={handlePinSuccess}
-          title="Verifikasi PIN Menu"
-          description="Masukkan PIN keamanan 399339 untuk melakukan Hide / Unhide menu di semua perangkat."
-        />
-      )}
+      {/* Modal Buka Link Google Spreadsheet Sinkron Data */}
+      <SpreadsheetLinkModal
+        isOpen={showSpreadsheetModal}
+        onClose={() => setShowSpreadsheetModal(false)}
+        showToast={showToast}
+      />
+
+      {/* Modal Verifikasi PIN Khusus Hide/Unhide & Buka Spreadsheet (PIN 399339) */}
+      <MenuPinAuthModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingAction(null);
+        }}
+        onSuccess={handlePinSuccess}
+        title="Verifikasi PIN Keamanan"
+        description="Masukkan PIN keamanan 399339 untuk melanjutkan akses."
+      />
     </div>
   );
 }

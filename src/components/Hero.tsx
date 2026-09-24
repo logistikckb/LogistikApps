@@ -5,16 +5,22 @@ import {
   LogOut, 
   Sparkles,
   UserCog,
-  KeyRound
+  KeyRound,
+  FileSpreadsheet,
+  ExternalLink
 } from 'lucide-react';
 import { InstallPwaButton } from './common/InstallPwaButton';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
 import { AvatarPickerModal } from './profile/AvatarPickerModal';
 import { ChangePinModal } from './profile/ChangePinModal';
 import { UserManagementModal } from './admin/UserManagementModal';
+import { SpreadsheetLinkModal } from './common/SpreadsheetLinkModal';
+import { MenuPinAuthModal } from './admin/MenuPinAuthModal';
+import { useNotification } from '../context/NotificationContext';
 
 export function Hero() {
   const { currentUser, logout, isAdmin } = useAuth();
+  const { showToast } = useNotification();
 
   const [time, setTime] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -24,6 +30,8 @@ export function Hero() {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
+  const [showSpreadsheetPinModal, setShowSpreadsheetPinModal] = useState(false);
 
   useEffect(() => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -76,6 +84,26 @@ export function Hero() {
           onClose={() => setShowUserManagement(false)}
         />
       )}
+
+      {/* Modal Link Google Spreadsheet Sinkron Data */}
+      <SpreadsheetLinkModal
+        isOpen={showSpreadsheetModal}
+        onClose={() => setShowSpreadsheetModal(false)}
+        showToast={showToast}
+      />
+
+      {/* Modal Verifikasi PIN 399339 untuk Buka Spreadsheet */}
+      <MenuPinAuthModal
+        isOpen={showSpreadsheetPinModal}
+        onClose={() => setShowSpreadsheetPinModal(false)}
+        onSuccess={() => {
+          setShowSpreadsheetPinModal(false);
+          setShowSpreadsheetModal(true);
+          showToast('PIN Terverifikasi', 'Akses link Google Spreadsheet dibuka.', 'success');
+        }}
+        title="Verifikasi PIN Spreadsheet"
+        description="Masukkan PIN keamanan 399339 untuk membuka Google Spreadsheet yang dipakai untuk sinkron data."
+      />
 
       {/* Main Header Box (Polos - Minimalism Lite) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row items-stretch justify-between overflow-hidden">
@@ -140,6 +168,17 @@ export function Hero() {
                   <span>Kelola User</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowSpreadsheetPinModal(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-colors shadow-2xs cursor-pointer active:scale-95"
+                title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN 399339)"
+              >
+                <FileSpreadsheet size={13} className="text-emerald-700" />
+                <span>Buka Spreadsheet</span>
+                <ExternalLink size={10} className="text-emerald-600" />
+              </button>
 
               <button
                 type="button"
