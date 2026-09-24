@@ -48,10 +48,16 @@ function doPost(e) {
       return createJsonResponse({ status: 'error', message: 'Spreadsheet tidak ditemukan.' }, 404);
     }
 
-    var targetSheetName = payload.sheetName || 'Incoming';
+    var targetSheetName = payload.sheetName || ' StockOpname';
     var sheet = spreadsheet.getSheetByName(targetSheetName);
 
-    // Jika sheet belum ada, buat sheet baru
+    // Jika belum ketemu, coba variasi dengan atau tanpa spasi di depan (misal: " StockOpname" vs "StockOpname")
+    if (!sheet) {
+      sheet = spreadsheet.getSheetByName(targetSheetName.trim()) ||
+              spreadsheet.getSheetByName(' ' + targetSheetName.trim());
+    }
+
+    // Jika sheet memang belum ada, buat sheet baru dengan nama targetSheetName
     if (!sheet) {
       sheet = spreadsheet.insertSheet(targetSheetName);
     }
@@ -94,6 +100,38 @@ function doPost(e) {
           'Tanggal Update',
           'Status',
           'Catatan / Note'
+        ];
+      } else if (
+        sheetLower.indexOf('stockopname') !== -1 || 
+        sheetLower.indexOf('stock opname') !== -1 || 
+        modLower.indexOf('inventory') !== -1 || 
+        actLower.indexOf('inventory') !== -1 ||
+        modLower.indexOf('stockopname') !== -1
+      ) {
+        headers = [
+          'Tujuan',
+          'Item Code',
+          'Item Name',
+          'Category',
+          'Location',
+          'Location Type',
+          'First Qty',
+          'Last Qty',
+          'Uom',
+          'Qty Convert',
+          'Uom Convert',
+          'LPN/Serial Number',
+          'Batch',
+          'Vendor Batch',
+          'SLOC',
+          'Expired Date',
+          'Destination Code',
+          'QC Code',
+          'User Tally',
+          'Shelf Life',
+          'Source',
+          'Status',
+          'Note'
         ];
       }
     }

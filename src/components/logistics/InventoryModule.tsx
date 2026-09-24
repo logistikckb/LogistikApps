@@ -53,6 +53,7 @@ import {
 } from './inventory/InventoryBulkTransferModal';
 import { InventoryBulkLocationModal } from './inventory/InventoryBulkLocationModal';
 import { InventoryScannerModal } from './inventory/InventoryScannerModal';
+import { InventoryGSheetModal } from './inventory/InventoryGSheetModal';
 import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
 const INVENTORY_CACHE_KEY = 'ckb_inventory_data_cache_v1';
@@ -151,6 +152,7 @@ export function InventoryModule({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showGSheetModal, setShowGSheetModal] = useState(false);
 
   // Column Visibility: Hide / Unhide Kolom Location
   const [showLocationColumn, setShowLocationColumn] = useState<boolean>(() => {
@@ -1331,6 +1333,17 @@ export function InventoryModule({
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-teal-700' : 'text-slate-500'} />
             <span className="hidden sm:inline">Sinkron</span>
+          </button>
+
+          {/* Upload ke Google Spreadsheet (Sheet: StockOpname) */}
+          <button
+            type="button"
+            onClick={() => setShowGSheetModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-teal-200 bg-teal-50/80 hover:bg-teal-100 text-teal-800 font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
+            title="Upload data inventory ke Google Spreadsheet (Sheet: StockOpname)"
+          >
+            <FileSpreadsheet size={13} className="text-teal-700" />
+            <span>Upload Spreadsheet</span>
           </button>
 
           {/* Export Excel - Desktop Only */}
@@ -2540,6 +2553,17 @@ export function InventoryModule({
           setDetailItem(item);
           setShowDetailModal(true);
         }}
+      />
+
+      {/* MODAL UPLOAD KE GOOGLE SPREADSHEET (SHEET: STOCKOPNAME) */}
+      <InventoryGSheetModal
+        isOpen={showGSheetModal}
+        onClose={() => setShowGSheetModal(false)}
+        inventoryList={inventoryList}
+        filteredList={filteredData}
+        currentUser={currentUser}
+        isSuperAdmin={isSuperAdmin}
+        showToast={showToast}
       />
 
     </div>
