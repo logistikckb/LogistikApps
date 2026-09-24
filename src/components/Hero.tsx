@@ -27,6 +27,10 @@ import { AvatarPickerModal } from './profile/AvatarPickerModal';
 import { ChangePinModal } from './profile/ChangePinModal';
 import { UserManagementModal } from './admin/UserManagementModal';
 import { SupabaseConnectionModal } from './common/SupabaseConnectionModal';
+import { MenuVisibilityModal } from './admin/MenuVisibilityModal';
+import { useMenuVisibility } from '../hooks/useMenuVisibility';
+import { useNotification } from '../context/NotificationContext';
+import { EyeOff } from 'lucide-react';
 
 export function Hero() {
   const { currentUser, logout, isAdmin } = useAuth();
@@ -44,6 +48,16 @@ export function Hero() {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showMenuVisibilityModal, setShowMenuVisibilityModal] = useState(false);
+
+  const { showToast } = useNotification();
+  const {
+    hiddenMenuIds,
+    toggleMenuVisibility,
+    unhideAllMenus,
+    isSyncing,
+    lastSyncTime
+  } = useMenuVisibility();
 
   useEffect(() => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -102,6 +116,20 @@ export function Hero() {
         <SupabaseConnectionModal
           isOpen={showDbModal}
           onClose={() => setShowDbModal(false)}
+        />
+      )}
+
+      {/* Modal Pengaturan Visibilitas Menu Global (Khusus Admin) */}
+      {isAdmin && showMenuVisibilityModal && (
+        <MenuVisibilityModal
+          isOpen={showMenuVisibilityModal}
+          onClose={() => setShowMenuVisibilityModal(false)}
+          hiddenMenuIds={hiddenMenuIds}
+          onToggleVisibility={toggleMenuVisibility}
+          onUnhideAll={unhideAllMenus}
+          isSyncing={isSyncing}
+          lastSyncTime={lastSyncTime}
+          showToast={showToast}
         />
       )}
 
@@ -278,6 +306,18 @@ export function Hero() {
                 >
                   <UserCog size={13} />
                   <span>Kelola User</span>
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowMenuVisibilityModal(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 text-xs font-semibold transition-colors shadow-2xs cursor-pointer active:scale-95"
+                  title="Atur Hide / Unhide menu untuk seluruh perangkat tim"
+                >
+                  <EyeOff size={13} className="text-indigo-600" />
+                  <span>Atur Menu</span>
                 </button>
               )}
 

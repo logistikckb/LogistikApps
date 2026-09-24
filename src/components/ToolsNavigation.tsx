@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   CalendarCheck2, 
   Sparkles,
@@ -8,9 +8,15 @@ import {
   QrCode,
   Flame,
   ClipboardList,
-  Package
+  Package,
+  Eye,
+  EyeOff,
+  Settings2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useMenuVisibility } from '../hooks/useMenuVisibility';
+import { MenuVisibilityModal } from './admin/MenuVisibilityModal';
+import { useNotification } from '../context/NotificationContext';
 
 export type ToolId = 
   | 'ed-checker' 
@@ -208,59 +214,198 @@ interface ToolsGridMenuProps {
 export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   const { currentUser, isAdmin } = useAuth();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
+  const { showToast } = useNotification();
 
-  // Filter tools: Menu A (Database Master) only appears for SuperAdmin
+  const {
+    hiddenMenuIds,
+    toggleMenuVisibility,
+    unhideAllMenus,
+    isSyncing,
+    lastSyncTime
+  } = useMenuVisibility();
+
+  const [showVisibilityModal, setShowVisibilityModal] = useState(false);
+  const [showHiddenInGrid, setShowHiddenInGrid] = useState(false);
+
+  // Filter tools:
+  // 1. Check requiresAdmin
+  // 2. Check hidden status
   const visibleTools = TOOLS_LIST.filter(tool => {
-    if (tool.requiresAdmin) {
-      return isSuperAdmin;
+    if (tool.requiresAdmin && !isSuperAdmin) {
+      return false;
+    }
+    const isHidden = hiddenMenuIds.includes(tool.id);
+    if (isHidden) {
+      // Non-admin can NEVER see hidden tools
+      if (!isSuperAdmin) return false;
+      // Admin can view if toggle is turned on
+      return showHiddenInGrid;
     }
     return true;
   });
 
+  const hiddenCount = hiddenMenuIds.length;
+
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-2.5">
-      {visibleTools.map((tool) => {
-        const Icon = tool.icon;
+    <div className="space-y-2.5">
+      {/* Top Header / Bar for Menu Management (Admin Only) */}
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-extrabold text-slate-800 tracking-tight">
+            Menu Operasional
+          </span>
+          <span className="text-[11px] text-slate-400 font-medium">
+            ({visibleTools.length} modul aktif)
+          </span>
+        </div>
 
-        return (
-          <button
-            key={tool.id}
-            type="button"
-            onClick={() => onOpenTool(tool.id)}
-            className="p-2.5 sm:p-3 rounded-xl transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer border bg-white hover:bg-slate-50 active:bg-blue-50/40 border-slate-200/90 hover:border-slate-300 shadow-2xs group select-none min-h-[88px] sm:min-h-[96px]"
-          >
-            {/* Ready Indicator dot for active tool */}
-            {tool.isReady && (
-              <span 
-                className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" 
-                title="Modul Aktif"
-              />
-            )}
-
-            {/* Super Admin Badge on top left if tool requires admin */}
-            {tool.requiresAdmin && (
-              <span 
-                className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[8px] font-bold uppercase tracking-wider"
-                title="Khusus Super Admin"
+        {isSuperAdmin && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowHiddenInGrid(prev => !prev)}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  showHiddenInGrid 
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                }`}
+                title={showHiddenInGrid ? 'Sembunyikan menu nonaktif dari grid' : 'Tampilkan menu yang sedang di-hide di grid ini'}
               >
-                ADMIN
-              </span>
+                <EyeOff size={12} className="text-rose-600" />
+                <span>{hiddenCount} Menu Dihide</span>
+                <span className="text-[9px] underline ml-0.5">
+                  ({showHiddenInGrid ? 'Tampil di Grid' : 'Lihat'})
+                </span>
+              </button>
             )}
 
-            {/* Icon Container with Light Pastel Fill */}
-            <div 
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${tool.colorBg} flex items-center justify-center group-hover:scale-105 transition-transform shrink-0`}
+            <button
+              type="button"
+              onClick={() => setShowVisibilityModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/90 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+              title="Atur Hide / Unhide menu untuk seluruh perangkat tim"
             >
-              <Icon size={18} className="sm:size-[19px]" />
-            </div>
+              <Settings2 size={13} className="text-indigo-600" />
+              <span>Atur Menu (Hide/Unhide)</span>
+            </button>
+          </div>
+        )}
+      </div>
 
-            {/* Nama Menu di Bawah Icon */}
-            <span className="mt-1.5 text-xs font-semibold text-slate-800 group-hover:text-blue-900 leading-tight tracking-tight text-center line-clamp-2 w-full">
-              {tool.title}
-            </span>
-          </button>
-        );
-      })}
+      {/* Grid of Menus */}
+      {visibleTools.length === 0 ? (
+        <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+          <EyeOff size={28} className="mx-auto mb-2 text-slate-300" />
+          <p className="text-xs font-bold text-slate-700 m-0">Tidak ada menu yang ditampilkan saat ini.</p>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {isSuperAdmin ? 'Semua menu sedang disembunyikan. Silakan buka menu Atur Menu untuk mengaktifkan kembali.' : 'Silakan hubungi Administrator untuk mengaktifkan akses menu.'}
+          </p>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowVisibilityModal(true)}
+              className="mt-3 px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs"
+            >
+              Atur Menu Sekarang
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-2.5">
+          {visibleTools.map((tool) => {
+            const Icon = tool.icon;
+            const isHidden = hiddenMenuIds.includes(tool.id);
+
+            return (
+              <div key={tool.id} className="relative group">
+                <button
+                  type="button"
+                  onClick={() => onOpenTool(tool.id)}
+                  className={`w-full p-2.5 sm:p-3 rounded-xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer border shadow-2xs select-none min-h-[88px] sm:min-h-[96px] ${
+                    isHidden
+                      ? 'bg-rose-50/40 border-dashed border-rose-300 opacity-70 hover:opacity-100 hover:bg-rose-50'
+                      : 'bg-white hover:bg-slate-50 active:bg-blue-50/40 border-slate-200/90 hover:border-slate-300'
+                  }`}
+                >
+                  {/* Ready Indicator dot for active tool */}
+                  {tool.isReady && !isHidden && (
+                    <span 
+                      className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" 
+                      title="Modul Aktif"
+                    />
+                  )}
+
+                  {/* Super Admin Badge on top left if tool requires admin */}
+                  {tool.requiresAdmin && !isHidden && (
+                    <span 
+                      className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[8px] font-bold uppercase tracking-wider"
+                      title="Khusus Super Admin"
+                    >
+                      ADMIN
+                    </span>
+                  )}
+
+                  {/* Hidden Indicator Badge */}
+                  {isHidden && (
+                    <span 
+                      className="absolute top-1.5 left-1.5 px-1.5 py-0.2 rounded-md bg-rose-100 border border-rose-300 text-rose-800 text-[8px] font-extrabold uppercase tracking-wider flex items-center gap-0.5"
+                      title="Disembunyikan di semua perangkat user"
+                    >
+                      <EyeOff size={8} /> HIDE
+                    </span>
+                  )}
+
+                  {/* Icon Container with Light Pastel Fill */}
+                  <div 
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${tool.colorBg} flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 ${
+                      isHidden ? 'grayscale-40 opacity-70' : ''
+                    }`}
+                  >
+                    <Icon size={18} className="sm:size-[19px]" />
+                  </div>
+
+                  {/* Nama Menu di Bawah Icon */}
+                  <span className={`mt-1.5 text-xs font-semibold leading-tight tracking-tight text-center line-clamp-2 w-full ${
+                    isHidden ? 'text-slate-500' : 'text-slate-800 group-hover:text-blue-900'
+                  }`}>
+                    {tool.title}
+                  </span>
+                </button>
+
+                {/* Quick Unhide button for Admin when hovering on hidden menu */}
+                {isSuperAdmin && isHidden && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMenuVisibility(tool.id);
+                    }}
+                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110 z-10"
+                    title={`Klik untuk Unhide "${tool.title}" di semua perangkat`}
+                  >
+                    <Eye size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal Pengaturan Visibilitas Menu (Admin Only) */}
+      {isSuperAdmin && (
+        <MenuVisibilityModal
+          isOpen={showVisibilityModal}
+          onClose={() => setShowVisibilityModal(false)}
+          hiddenMenuIds={hiddenMenuIds}
+          onToggleVisibility={toggleMenuVisibility}
+          onUnhideAll={unhideAllMenus}
+          isSyncing={isSyncing}
+          lastSyncTime={lastSyncTime}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 }
