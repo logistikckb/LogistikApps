@@ -1351,12 +1351,12 @@ export function InventoryModule({
             <span>Upload Spreadsheet</span>
           </button>
 
-          {/* Buka Link Spreadsheet (dengan PIN 399339) */}
+          {/* Buka Link Spreadsheet (dengan PIN Keamanan) */}
           <button
             type="button"
             onClick={() => setShowSpreadsheetPinModal(true)}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
-            title="Buka file Google Spreadsheet (Memerlukan PIN 399339)"
+            title="Buka file Google Spreadsheet (Memerlukan PIN Keamanan)"
           >
             <ExternalLink size={13} className="text-emerald-700" />
             <span>Buka Link Spreadsheet</span>
@@ -2582,7 +2582,7 @@ export function InventoryModule({
         showToast={showToast}
       />
 
-      {/* MODAL LIHAT & BUKA LINK SPREADSHEET (SETELAH PIN 399339) */}
+      {/* MODAL LIHAT & BUKA LINK SPREADSHEET (SETELAH VERIFIKASI PIN) */}
       <SpreadsheetLinkModal
         isOpen={showSpreadsheetLinkModal}
         onClose={() => setShowSpreadsheetLinkModal(false)}
@@ -2590,7 +2590,7 @@ export function InventoryModule({
         defaultSheetName=" StockOpname"
       />
 
-      {/* MODAL VERIFIKASI PIN 399339 UNTUK BUKA SPREADSHEET */}
+      {/* MODAL VERIFIKASI PIN KEAMANAN UNTUK BUKA SPREADSHEET */}
       <MenuPinAuthModal
         isOpen={showSpreadsheetPinModal}
         onClose={() => setShowSpreadsheetPinModal(false)}
@@ -2600,7 +2600,7 @@ export function InventoryModule({
           showToast('PIN Terverifikasi', 'Akses link Google Spreadsheet dibuka.', 'success');
         }}
         title="Verifikasi PIN Spreadsheet"
-        description="Masukkan PIN keamanan 399339 untuk membuka link Google Spreadsheet."
+        description="Masukkan PIN keamanan untuk membuka link Google Spreadsheet."
       />
 
     </div>

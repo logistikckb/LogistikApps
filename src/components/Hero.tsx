@@ -102,7 +102,7 @@ export function Hero() {
         showToast={showToast}
       />
 
-      {/* Modal Verifikasi PIN 399339 untuk Buka Spreadsheet */}
+      {/* Modal Verifikasi PIN Keamanan untuk Buka Spreadsheet */}
       <MenuPinAuthModal
         isOpen={showSpreadsheetPinModal}
         onClose={() => setShowSpreadsheetPinModal(false)}
@@ -112,7 +112,7 @@ export function Hero() {
           showToast('PIN Terverifikasi', 'Akses link Google Spreadsheet dibuka.', 'success');
         }}
         title="Verifikasi PIN Spreadsheet"
-        description="Masukkan PIN keamanan 399339 untuk membuka Google Spreadsheet yang dipakai untuk sinkron data."
+        description="Masukkan PIN keamanan untuk membuka Google Spreadsheet yang dipakai untuk sinkron data."
       />
 
       {/* Main Header Box (Polos - Minimalism Lite) */}
@@ -183,7 +183,7 @@ export function Hero() {
                 type="button"
                 onClick={() => setShowSpreadsheetPinModal(true)}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-colors shadow-2xs cursor-pointer active:scale-95"
-                title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN 399339)"
+                title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN Keamanan)"
               >
                 <FileSpreadsheet size={13} className="text-emerald-700" />
                 <span>Buka Spreadsheet</span>

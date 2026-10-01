@@ -254,7 +254,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
   const [showHiddenInGrid, setShowHiddenInGrid] = useState(false);
 
-  // Keamanan PIN khusus untuk fitur Hide / Unhide dan Buka Spreadsheet (PIN: 399339)
+  // Keamanan PIN khusus untuk fitur Hide / Unhide dan Buka Spreadsheet
   const [isPinVerified, setIsPinVerified] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -310,12 +310,12 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Tombol Buka Spreadsheet yang Dipakai untuk Sinkron Data (PIN 399339) */}
+          {/* Tombol Buka Spreadsheet yang Dipakai untuk Sinkron Data */}
           <button
             type="button"
             onClick={() => requirePinForAction(() => setShowSpreadsheetModal(true))}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs active:scale-95"
-            title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN 399339)"
+            title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN Keamanan)"
           >
             <FileSpreadsheet size={13} className="text-emerald-700" />
             <span>Buka Spreadsheet Sinkron</span>
@@ -347,7 +347,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
                 type="button"
                 onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/90 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
-                title="Atur Hide / Unhide menu untuk seluruh perangkat tim (Memerlukan PIN 399339)"
+                title="Atur Hide / Unhide menu untuk seluruh perangkat tim (Memerlukan PIN Keamanan)"
               >
                 {isPinVerified ? (
                   <Unlock size={12} className="text-emerald-600" />
@@ -464,7 +464,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
                       requirePinForAction(() => toggleMenuVisibility(tool.id));
                     }}
                     className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110 z-10"
-                    title={`Klik untuk Unhide "${tool.title}" di semua perangkat (Perlu PIN 399339)`}
+                    title={`Klik untuk Unhide "${tool.title}" di semua perangkat (Perlu PIN Keamanan)`}
                   >
                     <Eye size={12} />
                   </button>
@@ -497,7 +497,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
         showToast={showToast}
       />
 
-      {/* Modal Verifikasi PIN Khusus Hide/Unhide & Buka Spreadsheet (PIN 399339) */}
+      {/* Modal Verifikasi PIN Khusus Hide/Unhide & Buka Spreadsheet */}
       <MenuPinAuthModal
         isOpen={showPinModal}
         onClose={() => {
@@ -506,7 +506,7 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
         }}
         onSuccess={handlePinSuccess}
         title="Verifikasi PIN Keamanan"
-        description="Masukkan PIN keamanan 399339 untuk melanjutkan akses."
+        description="Masukkan PIN keamanan untuk melanjutkan akses."
       />
     </div>
   );
