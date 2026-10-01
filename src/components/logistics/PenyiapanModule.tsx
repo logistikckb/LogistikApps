@@ -60,7 +60,9 @@ import {
   ClipboardPaste,
   Globe,
   Settings,
-  ExternalLink
+  ExternalLink,
+  CloudUpload,
+  Server
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
@@ -542,125 +544,6 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
   }, [loadMasterBarangLocally]);
 
-  // Fetch data_penyiapan from Supabase (Optimized with background stale-while-revalidate)
-  const fetchPenyiapanData = useCallback(async (silent = false) => {
-    setPenyiapanList(prev => {
-      // Only set blocking isLoading if there is no data in memory
-      if (!silent && prev.length === 0) {
-        setIsLoading(true);
-      }
-      return prev;
-    });
-    setLastSupabaseError(null);
-
-    if (!isSupabaseConfigured) {
-      setIsLoading(false);
-      setIsRefreshing(false);
-      return;
-    }
-
-    try {
-      const data = await fetchAllRowsFromSupabase<PenyiapanItem>('data_penyiapan', {
-        orderBy: 'created_at',
-        ascending: true
-      });
-
-      if (Array.isArray(data)) {
-        setPenyiapanList(data);
-
-        // Async write to localStorage so UI never drops frames
-        setTimeout(() => {
-          try {
-            if (data.length > 0) {
-              localStorage.setItem('penyiapan_cache_v1', JSON.stringify(data));
-            } else {
-              localStorage.removeItem('penyiapan_cache_v1');
-            }
-          } catch {}
-        }, 50);
-      }
-    } catch (err: any) {
-      console.error('Unexpected error fetching data_penyiapan:', err);
-      setLastSupabaseError(err?.message || 'Gagal terhubung ke tabel data_penyiapan');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  // Initial Load & Realtime Sync
-  useEffect(() => {
-    // 1. Initial live revalidation (silent background refresh if cache was already loaded)
-    fetchMasterData();
-    fetchPenyiapanData(penyiapanList.length > 0);
-
-    // Supabase Realtime channel (in-place updates to guarantee sync across devices)
-    if (isSupabaseConfigured) {
-      const channel = supabase
-        .channel('penyiapan_realtime_channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_penyiapan' }, (payload: any) => {
-          // If currently performing bulk import, suppress realtime updates to avoid screen flickering & high load
-          if (isImportingRef.current) return;
-          
-          if (payload.eventType === 'UPDATE' && payload.new && payload.new.id_penyiapan) {
-            const updated = payload.new as PenyiapanItem;
-            setPenyiapanList(prev =>
-              prev.map(p => (p.id_penyiapan === updated.id_penyiapan ? { ...p, ...updated } : p))
-            );
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old?.id_penyiapan;
-            if (deletedId) {
-              setPenyiapanList(prev => prev.filter(p => p.id_penyiapan !== deletedId));
-            } else {
-              // Jika payload.old tidak memuat id_penyiapan secara lengkap, fetch ulang dari Supabase
-              fetchPenyiapanData(true);
-            }
-          } else if (payload.eventType === 'INSERT' && payload.new && payload.new.id_penyiapan) {
-            const newItem = payload.new as PenyiapanItem;
-            setPenyiapanList(prev => {
-              const exists = prev.some(p => p.id_penyiapan === newItem.id_penyiapan);
-              if (exists) {
-                return prev.map(p => (p.id_penyiapan === newItem.id_penyiapan ? { ...p, ...newItem } : p));
-              }
-              return [...prev, newItem];
-            });
-          } else {
-            // Fallback silent refresh
-            fetchPenyiapanData(true);
-          }
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [fetchMasterData, fetchPenyiapanData]);
-
-  // Save to local storage whenever penyiapanList changes (debounced to avoid UI lag)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        if (penyiapanList.length > 0) {
-          localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
-        } else {
-          localStorage.removeItem('penyiapan_cache_v1');
-        }
-      } catch {}
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [penyiapanList]);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    // Background refresh: table remains visible and interactive
-    fetchPenyiapanData(true);
-    if (barangList.length === 0) {
-      fetchMasterData();
-    }
-    showToast('Sinkronisasi Data', 'Memperbarui data penyiapan di latar belakang...', 'info');
-  };
-
   // Helper ID generator
   const generatePenyiapanId = () => {
     const today = new Date();
@@ -859,6 +742,162 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
 
     return { successCount: totalSuccess, error: totalSuccess === cleanItems.length ? null : lastErr };
+  };
+
+  // Fetch data_penyiapan from Supabase (Optimized with background stale-while-revalidate & cross-device auto-sync)
+  const fetchPenyiapanData = useCallback(async (silent = false) => {
+    setPenyiapanList(prev => {
+      // Only set blocking isLoading if there is no data in memory
+      if (!silent && prev.length === 0) {
+        setIsLoading(true);
+      }
+      return prev;
+    });
+    setLastSupabaseError(null);
+
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
+    try {
+      const data = await fetchAllRowsFromSupabase<PenyiapanItem>('data_penyiapan', {
+        orderBy: 'created_at',
+        ascending: true
+      });
+
+      if (Array.isArray(data)) {
+        let finalData = data;
+
+        // Auto-reconciliation: Jika perangkat ini memiliki data lokal yang belum sempat tersimpan di server Supabase
+        // (misalnya dibuat saat koneksi Supabase terputus), kita upload otomatis agar tidak hilang dan muncul di perangkat lain
+        try {
+          const cachedStr = localStorage.getItem('penyiapan_cache_v1');
+          if (cachedStr) {
+            const cachedItems: PenyiapanItem[] = JSON.parse(cachedStr);
+            if (Array.isArray(cachedItems) && cachedItems.length > 0) {
+              const serverMap = new Map(data.map(item => [String(item.id_penyiapan || '').trim().toLowerCase(), item]));
+              
+              const deletedIdsStr = localStorage.getItem('ckb_penyiapan_deleted_ids') || '[]';
+              const deletedIds = new Set(JSON.parse(deletedIdsStr).map((id: string) => String(id || '').trim().toLowerCase()));
+
+              const unsyncedLocal = cachedItems.filter(local => {
+                const id = String(local.id_penyiapan || '').trim().toLowerCase();
+                return id && !serverMap.has(id) && !deletedIds.has(id);
+              });
+
+              if (unsyncedLocal.length > 0) {
+                console.log(`[PenyiapanModule] Menyinkronkan ${unsyncedLocal.length} data lokal yang belum ada di server Supabase...`);
+                safeBatchUpsertPenyiapan(unsyncedLocal, 50).then(({ successCount }) => {
+                  if (successCount > 0) {
+                    showToast('Sinkronisasi Otomatis', `${successCount} data penyiapan lokal berhasil disinkronkan ke server Supabase agar tampil di semua perangkat!`, 'success');
+                  }
+                }).catch(err => {
+                  console.warn('Gagal auto-sync local items:', err);
+                });
+
+                finalData = [...data, ...unsyncedLocal];
+              }
+            }
+          }
+        } catch (reconcileErr) {
+          console.warn('Error reconciling local cache with Supabase:', reconcileErr);
+        }
+
+        setPenyiapanList(finalData);
+
+        // Async write to localStorage so UI never drops frames
+        setTimeout(() => {
+          try {
+            if (finalData.length > 0) {
+              localStorage.setItem('penyiapan_cache_v1', JSON.stringify(finalData));
+            } else {
+              localStorage.removeItem('penyiapan_cache_v1');
+            }
+          } catch {}
+        }, 50);
+      }
+    } catch (err: any) {
+      console.error('Unexpected error fetching data_penyiapan:', err);
+      setLastSupabaseError(err?.message || 'Gagal terhubung ke tabel data_penyiapan');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [showToast]);
+
+  // Initial Load & Realtime Sync
+  useEffect(() => {
+    // 1. Initial live revalidation (silent background refresh if cache was already loaded)
+    fetchMasterData();
+    fetchPenyiapanData(penyiapanList.length > 0);
+
+    // Supabase Realtime channel (in-place updates to guarantee sync across devices)
+    if (isSupabaseConfigured) {
+      const channel = supabase
+        .channel('penyiapan_realtime_channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_penyiapan' }, (payload: any) => {
+          // If currently performing bulk import, suppress realtime updates to avoid screen flickering & high load
+          if (isImportingRef.current) return;
+          
+          if (payload.eventType === 'UPDATE' && payload.new && payload.new.id_penyiapan) {
+            const updated = payload.new as PenyiapanItem;
+            setPenyiapanList(prev =>
+              prev.map(p => (p.id_penyiapan === updated.id_penyiapan ? { ...p, ...updated } : p))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id_penyiapan;
+            if (deletedId) {
+              setPenyiapanList(prev => prev.filter(p => p.id_penyiapan !== deletedId));
+            } else {
+              // Jika payload.old tidak memuat id_penyiapan secara lengkap, fetch ulang dari Supabase
+              fetchPenyiapanData(true);
+            }
+          } else if (payload.eventType === 'INSERT' && payload.new && payload.new.id_penyiapan) {
+            const newItem = payload.new as PenyiapanItem;
+            setPenyiapanList(prev => {
+              const exists = prev.some(p => p.id_penyiapan === newItem.id_penyiapan);
+              if (exists) {
+                return prev.map(p => (p.id_penyiapan === newItem.id_penyiapan ? { ...p, ...newItem } : p));
+              }
+              return [...prev, newItem];
+            });
+          } else {
+            // Fallback silent refresh
+            fetchPenyiapanData(true);
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [fetchMasterData, fetchPenyiapanData]);
+
+  // Save to local storage whenever penyiapanList changes (debounced to avoid UI lag)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        if (penyiapanList.length > 0) {
+          localStorage.setItem('penyiapan_cache_v1', JSON.stringify(penyiapanList));
+        } else {
+          localStorage.removeItem('penyiapan_cache_v1');
+        }
+      } catch {}
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [penyiapanList]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    // Background refresh: table remains visible and interactive
+    fetchPenyiapanData(true);
+    if (barangList.length === 0) {
+      fetchMasterData();
+    }
+    showToast('Sinkronisasi Data', 'Memperbarui data penyiapan dari server Supabase...', 'info');
   };
 
   // Voice handler for Search
@@ -1752,6 +1791,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     if (!selectedItem) return;
     const idToDelete = selectedItem.id_penyiapan;
 
+    // Catat ID yang dihapus agar tidak direkonsiliasi ulang dari cache lokal
+    try {
+      const deletedIdsStr = localStorage.getItem('ckb_penyiapan_deleted_ids') || '[]';
+      const deletedIds = JSON.parse(deletedIdsStr);
+      if (!deletedIds.includes(idToDelete)) {
+        deletedIds.push(idToDelete);
+        localStorage.setItem('ckb_penyiapan_deleted_ids', JSON.stringify(deletedIds.slice(-500)));
+      }
+    } catch {}
+
     setPenyiapanList(prev => prev.filter(item => item.id_penyiapan !== idToDelete));
     setShowDeleteModal(false);
     showToast('Terhapus', `Data penyiapan ${idToDelete} berhasil dihapus`, 'info');
@@ -1941,15 +1990,26 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
 
     const oldStatus = item.status;
+    const nowIso = new Date().toISOString();
     
     // Optimistic UI update
-    setPenyiapanList(prev => prev.map(p => p.id_penyiapan === item.id_penyiapan ? { ...p, status: newStatus } : p));
+    setPenyiapanList(prev => prev.map(p => p.id_penyiapan === item.id_penyiapan ? { ...p, status: newStatus, updated_at: nowIso } : p));
+
+    // Update local cache
+    try {
+      const currentCache = localStorage.getItem('penyiapan_cache_v1');
+      if (currentCache) {
+        const parsed = JSON.parse(currentCache);
+        const nextCache = parsed.map((p: PenyiapanItem) => p.id_penyiapan === item.id_penyiapan ? { ...p, status: newStatus, updated_at: nowIso } : p);
+        localStorage.setItem('penyiapan_cache_v1', JSON.stringify(nextCache));
+      }
+    } catch {}
 
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase
           .from('data_penyiapan')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .update({ status: newStatus, updated_at: nowIso })
           .eq('id_penyiapan', item.id_penyiapan);
 
         if (error) {
@@ -1957,7 +2017,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         }
       } catch (err: any) {
         console.error('Failed to update status', err);
-        showToast('Error', 'Gagal mengubah status', 'danger');
+        showToast('Error', 'Gagal mengubah status di server Supabase', 'danger');
         // Revert on failure
         setPenyiapanList(prev => prev.map(p => p.id_penyiapan === item.id_penyiapan ? { ...p, status: oldStatus } : p));
       }
@@ -2117,8 +2177,18 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     
     // Update local state optimistically
     setPenyiapanList(prev =>
-      prev.map(item => (selectedIds.includes(item.id_penyiapan) ? { ...item, status: newStatus } : item))
+      prev.map(item => (selectedIds.includes(item.id_penyiapan) ? { ...item, status: newStatus, updated_at: nowIso } : item))
     );
+
+    // Update local cache
+    try {
+      const currentCache = localStorage.getItem('penyiapan_cache_v1');
+      if (currentCache) {
+        const parsed = JSON.parse(currentCache);
+        const nextCache = parsed.map((p: PenyiapanItem) => selectedIds.includes(p.id_penyiapan) ? { ...p, status: newStatus, updated_at: nowIso } : p);
+        localStorage.setItem('penyiapan_cache_v1', JSON.stringify(nextCache));
+      }
+    } catch {}
 
     if (isSupabaseConfigured) {
       try {
@@ -2338,6 +2408,16 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       onConfirm: async () => {
         const idsToDelete = [...selectedIds];
         const idSet = new Set(idsToDelete);
+
+        // Catat ID yang dihapus agar tidak direkonsiliasi ulang dari cache lokal
+        try {
+          const deletedIdsStr = localStorage.getItem('ckb_penyiapan_deleted_ids') || '[]';
+          const deletedIds = JSON.parse(deletedIdsStr);
+          idsToDelete.forEach(id => {
+            if (!deletedIds.includes(id)) deletedIds.push(id);
+          });
+          localStorage.setItem('ckb_penyiapan_deleted_ids', JSON.stringify(deletedIds.slice(-500)));
+        } catch {}
 
         setPenyiapanList(prev => prev.filter(item => !idSet.has(item.id_penyiapan)));
         setSelectedIds([]);
@@ -3891,12 +3971,36 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
         {/* Right Side: Refresh & Sync Database */}
         <div className="flex items-center gap-1.5">
+          {/* Supabase Cloud Status Indicator */}
+          {isSupabaseConfigured ? (
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold" title="Database Cloud Supabase Terhubung Aktif - Sinkron Otomatis Antar Perangkat">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Supabase Cloud Sync</span>
+            </div>
+          ) : (
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold" title="Mode Database Lokal Offline">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>Mode Lokal</span>
+            </div>
+          )}
+
+          {/* Tombol Push Semua Data ke Supabase */}
+          <button
+            onClick={handlePushAllToSupabase}
+            disabled={isPushing || !isSupabaseConfigured}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border border-blue-200 text-blue-800 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+            title="Kirim dan sinkronkan seluruh data penyiapan saat ini ke Server Database Supabase"
+          >
+            <CloudUpload size={13} className={isPushing ? 'animate-bounce' : ''} />
+            <span className="hidden sm:inline">{isPushing ? 'Menyinkronkan...' : 'Sinkron ke Cloud'}</span>
+          </button>
+
           {/* Refresh Live */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer disabled:opacity-50"
-            title="Refresh Data"
+            title="Refresh Data dari Server"
           >
             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
           </button>

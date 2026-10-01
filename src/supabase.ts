@@ -126,15 +126,14 @@ function getResolvedSharedBroadcastKey(): string {
   return '';
 }
 
-// Mode Database: Prioritaskan / gunakan database Spreadsheet saja sesuai instruksi user:
-// "jangan pakai supabase, gunakan database spreadsheet saja"
-export const isDatabaseSpreadsheetOnly = true;
+const resolvedUrl = getResolvedUrl();
+const resolvedKey = getResolvedKey();
 
-// Supabase dinonaktifkan agar tidak mencoba request ke schema cache atau tabel PostgreSQL yang tidak ada
-export const isSupabaseConfigured = false;
-
-export const supabaseUrl = 'Mode Database: Google Spreadsheet';
-export const supabaseAnonKey = 'Spreadsheet Database Mode (Active)';
+// Supabase aktif jika URL dan Anon Key tersedia (dari env vars atau localStorage)
+export const isSupabaseConfigured = Boolean(resolvedUrl && resolvedKey);
+export const supabaseUrl = resolvedUrl || 'https://placeholder.supabase.co';
+export const supabaseAnonKey = resolvedKey || '';
+export const isDatabaseSpreadsheetOnly = !isSupabaseConfigured;
 
 function createSafeDummyQueryBuilder() {
   const dummyResult = { data: [], error: null, count: 0 };
@@ -160,27 +159,39 @@ function createSafeDummyQueryBuilder() {
   return builder;
 }
 
-export const supabase: SupabaseClient = {
-  from: () => createSafeDummyQueryBuilder(),
-  channel: () => ({
-    on: function() { return this; },
-    subscribe: () => ({ unsubscribe: () => {} }),
-  }),
-  removeChannel: () => {},
-  removeAllChannels: () => {},
-  getChannels: () => [],
-  auth: {
-    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    signOut: () => Promise.resolve({ error: null }),
-  },
-} as any;
+export const supabase: SupabaseClient = isSupabaseConfigured
+  ? createClient(resolvedUrl, resolvedKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : ({
+      from: () => createSafeDummyQueryBuilder(),
+      channel: () => ({
+        on: function() { return this; },
+        subscribe: () => ({ unsubscribe: () => {} }),
+      }),
+      removeChannel: () => {},
+      removeAllChannels: () => {},
+      getChannels: () => [],
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+        signOut: () => Promise.resolve({ error: null }),
+      },
+    } as any);
 
-// Shared Broadcast Bridge Client (dinonaktifkan dalam mode spreadsheet murni)
-export const isSharedBroadcastConfigured = false;
-export const sharedBroadcastUrl = '';
-export const sharedBroadcastAnonKey = '';
-export const sharedBroadcastSupabase: SupabaseClient | null = null;
+// Shared Broadcast Bridge Client
+const resolvedSharedBroadcastUrl = getResolvedSharedBroadcastUrl();
+const resolvedSharedBroadcastKey = getResolvedSharedBroadcastKey();
+
+export const isSharedBroadcastConfigured = Boolean(resolvedSharedBroadcastUrl && resolvedSharedBroadcastKey);
+export const sharedBroadcastUrl = resolvedSharedBroadcastUrl;
+export const sharedBroadcastAnonKey = resolvedSharedBroadcastKey;
+export const sharedBroadcastSupabase: SupabaseClient | null = isSharedBroadcastConfigured
+  ? createClient(resolvedSharedBroadcastUrl, resolvedSharedBroadcastKey)
+  : null;
 
 export interface ConnectionTestResult {
   connected: boolean;
@@ -199,13 +210,65 @@ export interface ConnectionTestResult {
  * Tes koneksi komprehensif ke Server Cloud dan modul data
  */
 export async function testSupabaseConnection(): Promise<ConnectionTestResult> {
-  return {
-    connected: true,
-    url: 'Google Spreadsheet (Database Utama)',
-    tables: { users: true, broadcasts: true, links: true, todos: true },
-    details: 'Aplikasi beroperasi dalam Mode Database Google Spreadsheet & Penyimpanan Lokal. Supabase dinonaktifkan sesuai instruksi.',
-    latencyMs: 1
+  const startTime = Date.now();
+  const currentUrl = getResolvedUrl();
+  const currentKey = getResolvedKey();
+
+  if (!currentUrl || !currentKey || !isSupabaseConfigured) {
+    return {
+      connected: false,
+      url: currentUrl || 'Belum Terhubung',
+      tables: { users: false, broadcasts: false, links: false, todos: false },
+      details: 'Kredensial Server Database Supabase belum dikonfigurasi. Aplikasi beroperasi dalam mode lokal offline.',
+    };
+  }
+
+  const result: ConnectionTestResult = {
+    connected: false,
+    url: currentUrl,
+    tables: { users: false, broadcasts: false, links: false, todos: false },
+    details: '',
   };
+
+  try {
+    // 1. Test users table
+    const { error: userErr } = await supabase.from('users').select('id').limit(1);
+    if (!userErr) result.tables.users = true;
+
+    // 2. Test broadcast table
+    const { error: bErr } = await supabase.from('broadcast').select('id').limit(1);
+    if (!bErr) {
+      result.tables.broadcasts = true;
+    } else {
+      const { error: bErr2 } = await supabase.from('broadcasts').select('id').limit(1);
+      if (!bErr2) result.tables.broadcasts = true;
+    }
+
+    // 3. Test links table
+    const { error: linkErr } = await supabase.from('links').select('id').limit(1);
+    if (!linkErr) result.tables.links = true;
+
+    // 4. Test todos table
+    const { error: todoErr } = await supabase.from('todos').select('id').limit(1);
+    if (!todoErr) result.tables.todos = true;
+
+    // 5. Test data_penyiapan table
+    const { error: penyiapanErr } = await supabase.from('data_penyiapan').select('id_penyiapan').limit(1);
+
+    result.latencyMs = Date.now() - startTime;
+    result.connected = !userErr || !bErr || !penyiapanErr || !linkErr || !todoErr;
+
+    if (result.connected) {
+      result.details = `Server Cloud Supabase Terhubung Aktif (${result.latencyMs}ms). Data otomatis sinkron secara realtime di semua perangkat.`;
+    } else {
+      result.details = `Koneksi ke server gagal: ${userErr?.message || penyiapanErr?.message || 'Periksa URL dan Key'}`;
+    }
+  } catch (err: any) {
+    result.connected = false;
+    result.details = `Status server: ${err.message || err}`;
+  }
+
+  return result;
 }
 
 export function saveCustomSupabaseCredentials(url: string, key: string): void {
