@@ -70,6 +70,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { PenyiapanItem, DataBarang } from '../../types';
 import { getEdIsoDateString } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
+import { syncDataToSpreadsheet, validateWebhookUrl } from '../../services/spreadsheetSyncService';
 
 // Reusable high-speed Collator for Indonesian text & numeric comparison
 const idCollator = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' });
@@ -78,6 +79,7 @@ const idCollator = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'bas
 export interface DestinationOption {
   id: string;
   name: string;
+  sheetName: string;
   tableName: string;
   idPrefix: string;
   idField: string;
@@ -103,6 +105,7 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
   {
     id: 'pemusnahan',
     name: 'Pemusnahan',
+    sheetName: 'Pemusnahan',
     tableName: 'data_pemusnahan',
     idPrefix: 'PMS-',
     idField: 'id_pemusnahan',
@@ -116,7 +119,7 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     defaultCategory: '',
     sourceStatusDefault: 'Terkirim ke Pemusnahan',
     cacheKey: 'pemusnahan_cache_v1',
-    description: 'Tabel: public.data_pemusnahan - Karantina limbah / scrap / expired barang',
+    description: 'Sheet: Pemusnahan - Karantina limbah / scrap / expired barang',
     colorClass: 'from-rose-600 to-red-700',
     badgeBg: 'bg-rose-100',
     badgeText: 'text-rose-900 border-rose-300',
@@ -126,6 +129,7 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
   {
     id: 'reco',
     name: 'Reco',
+    sheetName: 'Reco',
     tableName: 'data_reco',
     idPrefix: 'REC-',
     idField: 'id_reco',
@@ -139,7 +143,7 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     defaultCategory: 'Finished Good',
     sourceStatusDefault: 'Terkirim ke Reco',
     cacheKey: 'reco_cache_v1',
-    description: 'Tabel: public.data_reco - Permintaan Barang (Reco)',
+    description: 'Sheet: Reco - Permintaan Barang (Reco)',
     colorClass: 'from-purple-600 to-indigo-800',
     badgeBg: 'bg-purple-100',
     badgeText: 'text-purple-900 border-purple-300',
@@ -149,6 +153,7 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
   {
     id: 'repack',
     name: 'Repack',
+    sheetName: 'Repack',
     tableName: 'data_repack',
     idPrefix: 'RPK-',
     idField: 'id_repack',
@@ -162,12 +167,36 @@ export const BULK_DESTINATIONS: DestinationOption[] = [
     defaultCategory: 'Repack',
     sourceStatusDefault: 'Terkirim ke Repack',
     cacheKey: 'repack_cache_v1',
-    description: 'Tabel: public.data_repack - Repacking / Bundling Produk',
+    description: 'Sheet: Repack - Repacking / Bundling Produk',
     colorClass: 'from-amber-600 to-orange-700',
     badgeBg: 'bg-amber-100',
     badgeText: 'text-amber-900 border-amber-300',
     borderColor: 'border-amber-500',
     appModuleId: 'repack'
+  },
+  {
+    id: 'picking',
+    name: 'Picking',
+    sheetName: 'Picking',
+    tableName: 'data_picking',
+    idPrefix: 'PCK-',
+    idField: 'id_picking',
+    defaultSloc: 'SL02',
+    defaultLocation: 'WH-PICKING-01',
+    defaultLocationType: 'Floor',
+    defaultQcCode: 'QC-PASS',
+    defaultDestinationCode: 'DST-PICK',
+    defaultStatus: 'Ready',
+    defaultTujuan: 'Picking Outbound',
+    defaultCategory: 'Finished Good',
+    sourceStatusDefault: 'Terkirim ke Picking',
+    cacheKey: 'picking_cache_v1',
+    description: 'Sheet: Picking - Transaksi Picking Outbound',
+    colorClass: 'from-indigo-600 to-blue-700',
+    badgeBg: 'bg-indigo-100',
+    badgeText: 'text-indigo-900 border-indigo-300',
+    borderColor: 'border-indigo-500',
+    appModuleId: 'picking'
   }
 ];
 
@@ -177,10 +206,11 @@ interface PenyiapanModuleProps {
   onNavigateToReco?: () => void;
   onNavigateToInventory?: () => void;
   onNavigateToRepack?: () => void;
+  onNavigateToPicking?: () => void;
   onNavigateToModule?: (moduleId: string) => void;
 }
 
-export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToInventory, onNavigateToRepack, onNavigateToModule }: PenyiapanModuleProps = {}) {
+export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, onNavigateToReco, onNavigateToInventory, onNavigateToRepack, onNavigateToPicking, onNavigateToModule }: PenyiapanModuleProps = {}) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
@@ -2193,38 +2223,49 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     });
 
     try {
-      // 1. Batch upsert into Supabase target table
+      // 1. Batch upsert into Supabase target table (jika Supabase aktif)
       if (isSupabaseConfigured) {
-        const chunks = chunkArray(targetPayloads, 50);
-        let processed = 0;
-        for (const chunk of chunks) {
-          const { error } = await supabase
-            .from(targetConfig.tableName)
-            .upsert(chunk as any, { onConflict: targetConfig.idField });
+        try {
+          const chunks = chunkArray(targetPayloads, 50);
+          let processed = 0;
+          for (const chunk of chunks) {
+            const { error } = await supabase
+              .from(targetConfig.tableName)
+              .upsert(chunk as any, { onConflict: targetConfig.idField });
 
-          if (error) {
-            console.warn(`Batch upsert error on ${targetConfig.tableName}, trying single item fallback:`, error);
-            for (const single of chunk) {
-              await supabase
-                .from(targetConfig.tableName)
-                .upsert([single] as any, { onConflict: targetConfig.idField });
+            if (error) {
+              console.warn(`Batch upsert error on ${targetConfig.tableName}, trying single item fallback:`, error);
+              for (const single of chunk) {
+                try {
+                  await supabase
+                    .from(targetConfig.tableName)
+                    .upsert([single] as any, { onConflict: targetConfig.idField });
+                } catch {
+                  // Fallback safe ignore
+                }
+              }
             }
+            processed += chunk.length;
+            setBulkTransferProgress({
+              current: processed,
+              total: targetPayloads.length,
+              percentage: Math.round((processed / targetPayloads.length) * 100)
+            });
           }
-          processed += chunk.length;
-          setBulkTransferProgress({
-            current: processed,
-            total: targetPayloads.length,
-            percentage: Math.round((processed / targetPayloads.length) * 100)
-          });
+        } catch (supabaseErr) {
+          console.warn('Supabase bulk upsert bypassed:', supabaseErr);
         }
       }
 
-      // 2. Update local storage cache for destination table
+      // 2. Update local storage cache for destination table (Database Spreadsheet / Local Cache)
       try {
         const cachedTarget = localStorage.getItem(targetConfig.cacheKey);
         const targetList = cachedTarget ? JSON.parse(cachedTarget) : [];
         const mergedTargetList = [...targetPayloads, ...targetList.filter((x: any) => !targetPayloads.some(p => p[targetConfig.idField] === x[targetConfig.idField]))];
         localStorage.setItem(targetConfig.cacheKey, JSON.stringify(mergedTargetList));
+        if (targetConfig.id === 'picking') {
+          localStorage.setItem('picking_spreadsheet_db', JSON.stringify(mergedTargetList));
+        }
       } catch (e) {
         console.warn('Error updating local target cache:', e);
       }
@@ -3657,14 +3698,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
   };
 
   const handleExecuteGSheetSync = async () => {
-    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
-    if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Apps Script atau Cloudflare Worker.', 'warning');
-      return;
-    }
-
-    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
-      showToast('Format URL Tidak Valid', 'URL Webhook harus diawali dengan https:// atau http://', 'warning');
+    const { valid, cleanUrl, extractedSpreadsheetId, warning } = validateWebhookUrl(gSheetConfig.webhookUrl || '');
+    if (!valid) {
+      showToast('Perhatian', warning || 'URL Webhook Google Apps Script belum diisi.', 'warning');
       return;
     }
 
@@ -3740,7 +3776,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         action: 'sync_penyiapan',
         mode: gSheetConfig.mode || 'overwrite',
         sheetName: gSheetConfig.sheetName || 'Penyiapan',
-        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
+        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || extractedSpreadsheetId || '',
         secretToken: gSheetConfig.secretToken || '',
         timestamp: new Date().toISOString(),
         totalRows: itemsToSync.length,
@@ -3749,95 +3785,34 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         data: itemsToSync
       };
 
-      handleSaveGSheetConfig(gSheetConfig);
+      handleSaveGSheetConfig({
+        ...gSheetConfig,
+        webhookUrl: cleanUrl,
+        spreadsheetId: gSheetConfig.spreadsheetId || extractedSpreadsheetId || ''
+      });
 
-      const isDirectGoogleScript = rawUrl.includes('script.google.com');
-      let responseJson: any = null;
-      let syncSucceeded = false;
-      let executionMode: 'cors' | 'no-cors' = 'cors';
-
-      try {
-        const res = await fetch(rawUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          try {
-            responseJson = await res.json();
-          } catch {
-            responseJson = { status: 'success' };
-          }
-          syncSucceeded = true;
-          executionMode = 'cors';
-        } else {
-          let errMsg = `HTTP Error ${res.status}`;
-          try {
-            const errBody = await res.json();
-            if (errBody.message) errMsg = errBody.message;
-          } catch {}
-          throw new Error(errMsg);
-        }
-      } catch (directErr: any) {
-        if (isDirectGoogleScript || directErr?.message?.includes('Failed to fetch') || directErr?.name === 'TypeError') {
-          try {
-            await fetch(rawUrl, {
-              method: 'POST',
-              mode: 'no-cors',
-              headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
-              },
-              body: JSON.stringify(payload)
-            });
-            syncSucceeded = true;
-            executionMode = 'no-cors';
-            responseJson = {
-              status: 'success',
-              message: `Data ${itemsToSync.length} baris penyiapan berhasil dikirim ke Apps Script Webhook.`
-            };
-          } catch (noCorsErr: any) {
-            throw directErr;
-          }
-        } else {
-          throw directErr;
-        }
-      }
-
-      if (!syncSucceeded) {
-        throw new Error('Gagal mengirim data ke Webhook tujuan.');
-      }
-
-      const updatedCount = responseJson?.updatedRows || itemsToSync.length;
-      const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
-
-      const successMsg = executionMode === 'no-cors'
-        ? `Berhasil mengirim ${updatedCount} baris data ke Apps Script (Sheet: "${gSheetConfig.sheetName || 'Penyiapan'}").`
-        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Spreadsheet "${gSheetConfig.sheetName || 'Penyiapan'}"!`);
+      const result = await syncDataToSpreadsheet(
+        { ...gSheetConfig, webhookUrl: cleanUrl },
+        payload
+      );
 
       setGSheetSyncResult({
         success: true,
-        message: successMsg,
-        spreadsheetUrl: sheetUrl,
-        updatedRows: updatedCount,
-        timestamp: new Date().toLocaleTimeString('id-ID')
+        message: result.message,
+        spreadsheetUrl: result.spreadsheetUrl,
+        updatedRows: result.updatedRows ?? itemsToSync.length,
+        timestamp: result.timestamp || new Date().toLocaleTimeString('id-ID')
       });
 
-      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data penyiapan ke Spreadsheet!`, 'success');
+      showToast('Sinkronisasi Berhasil', result.message, 'success');
     } catch (err: any) {
       console.error('Penyiapan GSheet sync error:', err);
-      const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
-      const guidance = isGoogleUrl
-        ? 'Pastikan Deployment Web App di Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
-        : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
-
+      const errMsg = err?.message || 'Gagal mengirim data ke Spreadsheet.';
       setGSheetSyncResult({
         success: false,
-        message: `${err?.message || 'Gagal menghubungi Webhook'}. ${guidance}`
+        message: errMsg
       });
-      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Spreadsheet', 'danger');
+      showToast('Gagal Sinkronisasi', errMsg, 'danger');
     } finally {
       setIsSyncingGSheet(false);
     }
@@ -6120,7 +6095,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                             </div>
                             <div>
                               <div className="font-black text-slate-800 text-xs leading-tight">{dest.name}</div>
-                              <span className="font-mono text-[9px] text-slate-400">{dest.tableName}</span>
+                              <span className="font-mono text-[9px] text-slate-500 font-semibold">Sheet: {dest.sheetName || dest.name}</span>
                             </div>
                           </div>
 

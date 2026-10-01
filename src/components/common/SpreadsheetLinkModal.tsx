@@ -16,11 +16,24 @@ import {
   PackageCheck,
   Flame,
   Boxes,
-  RotateCcw
+  RotateCcw,
+  Code2,
+  CheckCircle2,
+  XCircle,
+  Activity
 } from 'lucide-react';
 import { getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../supabase';
+import { 
+  APPS_SCRIPT_TEMPLATE, 
+  DEFAULT_LOGISTIK_SPREADSHEET_ID,
+  getGlobalSpreadsheetConfig,
+  saveGlobalSpreadsheetConfig,
+  testSpreadsheetWebhook,
+  validateWebhookUrl,
+  WebhookTestResult
+} from '../../services/spreadsheetSyncService';
 
-export const DEFAULT_LOGISTIK_SPREADSHEET_ID = '1n1AMHYOU-NFxpc8CyJCd8g0OCcAHR2lbLK77Awzy420';
+export { DEFAULT_LOGISTIK_SPREADSHEET_ID };
 
 export interface SpreadsheetLinkModalProps {
   isOpen: boolean;
@@ -32,7 +45,8 @@ export interface SpreadsheetLinkModalProps {
 
 const SYNCED_SHEETS = [
   { name: 'Incoming', label: 'Kedatangan (Inbound)', icon: Truck, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-  { name: 'Penyiapan', label: 'Penyiapan & Picking', icon: PackageCheck, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  { name: 'Penyiapan', label: 'Penyiapan Outbound', icon: PackageCheck, color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  { name: 'Picking', label: 'Picking Outbound', icon: PackageCheck, color: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
   { name: 'StockOpname', label: 'Stok Inventory', icon: Layers, color: 'text-teal-700 bg-teal-50 border-teal-200' },
   { name: 'Pemusnahan', label: 'Pemusnahan / BS', icon: Flame, color: 'text-rose-700 bg-rose-50 border-rose-200' },
   { name: 'Repack', label: 'Repacking Barang', icon: Boxes, color: 'text-purple-700 bg-purple-50 border-purple-200' },
@@ -46,39 +60,19 @@ export function SpreadsheetLinkModal({
   defaultSpreadsheetId = '',
   defaultSheetName = ''
 }: SpreadsheetLinkModalProps) {
-  const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
-
-  const getSavedSpreadsheetId = (): string => {
-    const storageKeys = [
-      'LOGISTIK_GSHEET_WEBHOOK_CONFIG',
-      'INVENTORY_GSHEET_WEBHOOK_CONFIG',
-      'PENYIAPAN_GSHEET_WEBHOOK_CONFIG',
-      'PEMUSNAHAN_GSHEET_WEBHOOK_CONFIG',
-      'REPACK_GSHEET_WEBHOOK_CONFIG',
-      'RECO_GSHEET_WEBHOOK_CONFIG'
-    ];
-
-    for (const key of storageKeys) {
-      try {
-        const item = localStorage.getItem(key);
-        if (item) {
-          const parsed = JSON.parse(item);
-          if (parsed.spreadsheetId && typeof parsed.spreadsheetId === 'string' && parsed.spreadsheetId.trim()) {
-            return parsed.spreadsheetId.trim();
-          }
-        }
-      } catch {}
-    }
-
-    return defaultSpreadsheetId || defaultEnvSpreadsheetId || DEFAULT_LOGISTIK_SPREADSHEET_ID;
-  };
-
-  const [spreadsheetId, setSpreadsheetId] = useState<string>(getSavedSpreadsheetId);
+  const globalConf = getGlobalSpreadsheetConfig();
+  const [spreadsheetId, setSpreadsheetId] = useState<string>(() => defaultSpreadsheetId || globalConf.spreadsheetId || DEFAULT_LOGISTIK_SPREADSHEET_ID);
+  const [webhookUrl, setWebhookUrl] = useState<string>(() => globalConf.webhookUrl || '');
   const [selectedSheet, setSelectedSheet] = useState<string>(defaultSheetName || 'StockOpname');
   const [copied, setCopied] = useState(false);
+  const [showAppsScript, setShowAppsScript] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [tempId, setTempId] = useState('');
+  const [tempWebhookUrl, setTempWebhookUrl] = useState('');
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [testResult, setTestResult] = useState<WebhookTestResult | null>(null);
 
   // Sinkronisasi data dari Supabase jika ada
   useEffect(() => {
@@ -92,6 +86,10 @@ export function SpreadsheetLinkModal({
           if (id && typeof id === 'string' && id.trim()) {
             setSpreadsheetId(id.trim());
           }
+          const url = general?.webhookUrl || specific?.webhookUrl;
+          if (url && typeof url === 'string' && url.trim()) {
+            setWebhookUrl(url.trim());
+          }
         }
       } catch (e) {
         console.warn('Gagal memuat setting cloud spreadsheet:', e);
@@ -99,13 +97,16 @@ export function SpreadsheetLinkModal({
     }
 
     if (isOpen) {
-      setSpreadsheetId(getSavedSpreadsheetId());
+      const conf = getGlobalSpreadsheetConfig();
+      setSpreadsheetId(defaultSpreadsheetId || conf.spreadsheetId || DEFAULT_LOGISTIK_SPREADSHEET_ID);
+      setWebhookUrl(conf.webhookUrl || '');
       loadConfig();
       setIsEditing(false);
       setCopied(false);
+      setTestResult(null);
     }
     return () => { isMounted = false; };
-  }, [isOpen]);
+  }, [isOpen, defaultSpreadsheetId]);
 
   if (!isOpen) return null;
 
@@ -133,60 +134,84 @@ export function SpreadsheetLinkModal({
 
   const handleStartEdit = () => {
     setTempId(spreadsheetId);
+    setTempWebhookUrl(webhookUrl);
     setIsEditing(true);
   };
 
-  const handleSaveId = async () => {
+  const handleSaveConfig = async () => {
     let clean = tempId.trim();
-    // Ekstrak ID jika user memasukkan full URL
     const match = clean.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
     if (match && match[1]) {
       clean = match[1];
     }
 
     if (!clean) {
-      showToast('ID Wajib Diisi', 'Silakan masukkan Spreadsheet ID atau URL yang valid.', 'warning');
-      return;
+      clean = DEFAULT_LOGISTIK_SPREADSHEET_ID;
+    }
+
+    const { cleanUrl, warning, valid } = validateWebhookUrl(tempWebhookUrl);
+    if (tempWebhookUrl.trim() && !valid && warning) {
+      showToast('Perhatian Webhook', warning, 'warning');
     }
 
     setIsSaving(true);
     try {
+      const finalUrl = valid ? cleanUrl : tempWebhookUrl.trim();
       setSpreadsheetId(clean);
+      setWebhookUrl(finalUrl);
 
-      // Simpan ke seluruh storage config
-      const updateStorage = (key: string) => {
-        try {
-          const cur = JSON.parse(localStorage.getItem(key) || '{}');
-          localStorage.setItem(key, JSON.stringify({ ...cur, spreadsheetId: clean }));
-        } catch {}
-      };
-      
-      updateStorage('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
-      updateStorage('INVENTORY_GSHEET_WEBHOOK_CONFIG');
-      updateStorage('PENYIAPAN_GSHEET_WEBHOOK_CONFIG');
-      updateStorage('PEMUSNAHAN_GSHEET_WEBHOOK_CONFIG');
-      updateStorage('REPACK_GSHEET_WEBHOOK_CONFIG');
-      updateStorage('RECO_GSHEET_WEBHOOK_CONFIG');
+      // Simpan global ke seluruh modul
+      saveGlobalSpreadsheetConfig({
+        spreadsheetId: clean,
+        webhookUrl: finalUrl
+      });
 
-      // Simpan ke Supabase Cloud Setting agar seluruh perangkat otomatis tersinkron
+      // Simpan ke Supabase Cloud Setting
       const curGeneral = await getAppSettingFromSupabase('gsheet_sync_config', {});
       await saveAppSettingToSupabase('gsheet_sync_config', {
         ...curGeneral,
-        spreadsheetId: clean
+        spreadsheetId: clean,
+        webhookUrl: finalUrl
       });
 
-      const curInventory = await getAppSettingFromSupabase('gsheet_sync_config_inventory', {});
-      await saveAppSettingToSupabase('gsheet_sync_config_inventory', {
-        ...curInventory,
-        spreadsheetId: clean
-      });
-
-      showToast('Tersimpan', 'ID Spreadsheet sinkron data berhasil diperbarui & disinkronkan ke seluruh perangkat.', 'success');
+      showToast('Tersimpan', 'Pengaturan Spreadsheet & Webhook berhasil diperbarui di seluruh modul!', 'success');
       setIsEditing(false);
+      setTestResult(null);
     } catch (err: any) {
       showToast('Gagal Menyimpan', err?.message || 'Terjadi kesalahan.', 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!webhookUrl || !webhookUrl.trim()) {
+      showToast('URL Kosong', 'Silakan isi URL Webhook Apps Script terlebih dahulu.', 'warning');
+      return;
+    }
+
+    setIsTestingWebhook(true);
+    setTestResult(null);
+    try {
+      const res = await testSpreadsheetWebhook({
+        webhookUrl: webhookUrl.trim(),
+        spreadsheetId: spreadsheetId.trim()
+      });
+      setTestResult(res);
+      if (res.success) {
+        showToast('Koneksi Webhook Sukses', res.message, 'success');
+      } else {
+        showToast('Koneksi Webhook Bermasalah', res.message, 'error');
+      }
+    } catch (err: any) {
+      const errMsg = err?.message || 'Gagal menghubungi Webhook';
+      setTestResult({
+        success: false,
+        message: errMsg
+      });
+      showToast('Uji Webhook Gagal', errMsg, 'error');
+    } finally {
+      setIsTestingWebhook(false);
     }
   };
 
@@ -242,7 +267,7 @@ export function SpreadsheetLinkModal({
             ) : (
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 mb-3 text-xs text-amber-800 flex items-center gap-2">
                 <AlertCircle size={15} className="shrink-0 text-amber-600" />
-                <span>Spreadsheet ID belum disetting. Silakan klik <strong>Ubah ID / URL</strong> di bawah.</span>
+                <span>Spreadsheet ID belum disetting. Silakan klik <strong>Ubah Pengaturan</strong> di bawah.</span>
               </div>
             )}
 
@@ -271,6 +296,68 @@ export function SpreadsheetLinkModal({
                 <span>{copied ? 'Tersalin!' : 'Salin Link'}</span>
               </button>
             </div>
+          </div>
+
+          {/* Webhook Connection & Test Status Box */}
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Activity size={13} className="text-blue-600" /> Status Webhook Google Apps Script
+              </span>
+              <button
+                type="button"
+                onClick={handleTestWebhook}
+                disabled={isTestingWebhook || !webhookUrl}
+                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 border border-blue-200"
+              >
+                {isTestingWebhook ? (
+                  <>
+                    <RefreshCw size={11} className="animate-spin" />
+                    <span>Menguji...</span>
+                  </>
+                ) : (
+                  <>
+                    <Activity size={11} />
+                    <span>Uji Koneksi Webhook</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {webhookUrl ? (
+              <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/80 font-mono text-[10px] text-slate-600 truncate" title={webhookUrl}>
+                {webhookUrl}
+              </div>
+            ) : (
+              <div className="p-2 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px] flex items-center gap-2">
+                <AlertCircle size={13} className="text-amber-600 shrink-0" />
+                <span>URL Webhook belum diisi. Data tidak dapat masuk ke Spreadsheet otomatis tanpa Webhook.</span>
+              </div>
+            )}
+
+            {/* Test Result Display */}
+            {testResult && (
+              <div className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                testResult.success 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}>
+                {testResult.success ? (
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <XCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="font-bold">{testResult.success ? 'Koneksi Normal' : 'Koneksi Gagal / Tertahan'}</div>
+                  <div className="text-[11px] leading-relaxed">{testResult.message}</div>
+                  {testResult.isHtml && (
+                    <div className="text-[10px] text-rose-800 bg-white/80 p-2 rounded border border-rose-200 mt-1">
+                      <strong>Cara Perbaiki:</strong> Buka spreadsheet tujuan &gt; Ekstensi &gt; Apps Script &gt; Deploy &gt; Manage Deployments &gt; Edit (Pensil) &gt; Version: <em>New version</em> &gt; Who has access: <strong>Anyone (Siapa saja)</strong> &gt; Deploy.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Daftar Sheet Tab yang Sinkron Otomatis */}
@@ -312,23 +399,85 @@ export function SpreadsheetLinkModal({
             </p>
           </div>
 
-          {/* Edit Spreadsheet ID Section */}
+          {/* Bagian Script Webhook Apps Script */}
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                <Code2 size={13} className="text-indigo-600" /> Script Webhook Google Spreadsheet
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAppsScript(!showAppsScript)}
+                className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold underline cursor-pointer"
+              >
+                {showAppsScript ? 'Sembunyikan Kode' : 'Lihat / Salin Script'}
+              </button>
+            </div>
+
+            {showAppsScript && (
+              <div className="space-y-2 pt-1 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-semibold">Kode Apps Script untuk Sheet Ini</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE);
+                      setCopiedScript(true);
+                      showToast('Tersalin', 'Kode Google Apps Script disalin ke clipboard!', 'success');
+                      setTimeout(() => setCopiedScript(false), 2000);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy size={11} />
+                    <span>{copiedScript ? 'Tersalin!' : 'Salin Kode Script'}</span>
+                  </button>
+                </div>
+                <pre className="p-2 bg-white rounded-lg border border-slate-200 font-mono text-[10px] text-slate-700 max-h-36 overflow-y-auto leading-relaxed">
+                  {APPS_SCRIPT_TEMPLATE}
+                </pre>
+                <div className="text-[10px] text-slate-500 space-y-0.5">
+                  <div>1. Buka spreadsheet &gt; menu <strong>Ekstensi &gt; Apps Script</strong>.</div>
+                  <div>2. Tempel kode di atas &gt; Simpan &gt; klik <strong>Deploy &gt; New Deployment &gt; Web App</strong>.</div>
+                  <div>3. Set <em>Execute as: Me</em> dan <em>Who has access: Anyone (Siapa saja)</em>.</div>
+                  <div>4. Salin Web App URL dan tempelkan ke form sinkronisasi modul.</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Edit Configuration Section */}
           {isEditing ? (
-            <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 animate-in fade-in">
-              <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                Spreadsheet ID atau Full URL
-              </label>
-              <input
-                type="text"
-                value={tempId}
-                onChange={(e) => setTempId(e.target.value)}
-                placeholder="Contoh: 1n1AMHYOU-NFxpc8CyJCd8g0OCcAHR2lbLK77Awzy420"
-                className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 mb-2"
-              />
-              <p className="text-[10px] text-slate-500 mb-3">
-                Bisa langsung paste link lengkap Spreadsheet, ID akan diekstrak secara otomatis dan disinkronkan ke database cloud tim.
-              </p>
-              <div className="flex justify-end gap-2">
+            <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 animate-in fade-in space-y-3">
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  Spreadsheet ID atau Full URL
+                </label>
+                <input
+                  type="text"
+                  value={tempId}
+                  onChange={(e) => setTempId(e.target.value)}
+                  placeholder="Contoh: 1n1AMHYOU-NFxpc8CyJCd8g0OCcAHR2lbLK77Awzy420"
+                  className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  URL Webhook Google Apps Script (Web App URL)
+                </label>
+                <input
+                  type="url"
+                  value={tempWebhookUrl}
+                  onChange={(e) => setTempWebhookUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  URL Webhook otomatis disinkronkan ke seluruh modul (Picking, Incoming, Penyiapan, dll).
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
@@ -339,12 +488,12 @@ export function SpreadsheetLinkModal({
                 </button>
                 <button
                   type="button"
-                  onClick={handleSaveId}
+                  onClick={handleSaveConfig}
                   disabled={isSaving}
                   className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isSaving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
-                  <span>Simpan ID</span>
+                  <span>Simpan Pengaturan</span>
                 </button>
               </div>
             </div>
@@ -358,7 +507,7 @@ export function SpreadsheetLinkModal({
                 onClick={handleStartEdit}
                 className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] underline cursor-pointer"
               >
-                Ubah ID / URL
+                Ubah ID &amp; Webhook
               </button>
             </div>
           )}

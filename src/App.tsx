@@ -32,6 +32,7 @@ import { PemusnahanModule } from './components/logistics/PemusnahanModule';
 import { RecoModule } from './components/logistics/RecoModule';
 import { InventoryModule } from './components/logistics/InventoryModule';
 import { RepackModule } from './components/logistics/RepackModule';
+import { PickingModule } from './components/logistics/PickingModule';
 
 // Dialogs - Direct imports
 import { BroadcastModal } from './components/broadcast/BroadcastModal';
@@ -255,6 +256,7 @@ export default function App() {
                       onNavigateToReco={() => handleOpenTool('menu-f')}
                       onNavigateToInventory={() => handleOpenTool('menu-g')}
                       onNavigateToRepack={() => handleOpenTool('menu-h')}
+                      onNavigateToPicking={() => handleOpenTool('menu-i')}
                     />
                   ) : activeToolId === 'menu-e' ? (
                     <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
@@ -268,6 +270,14 @@ export default function App() {
                     />
                   ) : activeToolId === 'menu-h' ? (
                     <RepackModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
+                  ) : activeToolId === 'menu-i' ? (
+                    <PickingModule 
+                      onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
+                      onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
+                      onNavigateToReco={() => handleOpenTool('menu-f')}
+                      onNavigateToInventory={() => handleOpenTool('menu-g')}
+                      onNavigateToRepack={() => handleOpenTool('menu-h')}
+                    />
                   ) : (
                     <PlaceholderTool
                       id={currentTool.id}

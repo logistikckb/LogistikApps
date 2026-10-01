@@ -20,6 +20,14 @@ import { InventoryItem } from '../../../types';
 import { getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../../supabase';
 import { MenuPinAuthModal } from '../../admin/MenuPinAuthModal';
 import { SpreadsheetLinkModal } from './SpreadsheetLinkModal';
+import { 
+  syncDataToSpreadsheet, 
+  validateWebhookUrl,
+  testSpreadsheetWebhook,
+  exportToExcelFile,
+  saveGlobalSpreadsheetConfig,
+  DEFAULT_LOGISTIK_SPREADSHEET_ID
+} from '../../../services/spreadsheetSyncService';
 
 export const INVENTORY_STOCK_OPNAME_HEADERS = [
   'Tujuan',
@@ -120,6 +128,8 @@ export function InventoryGSheetModal({
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSavingCloudConfig, setIsSavingCloudConfig] = useState(false);
   const [isConfigFromCloud, setIsConfigFromCloud] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [testWebhookResult, setTestWebhookResult] = useState<{ success: boolean; message: string } | null>(null);
   const [syncResult, setSyncResult] = useState<{
     success: boolean;
     message: string;
@@ -206,9 +216,9 @@ export function InventoryGSheetModal({
 
   // Execute Webhook Sync
   const handleExecuteSync = async () => {
-    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
-    if (!rawUrl) {
-      showToast('URL Kosong', 'Harap isi URL Webhook Google Apps Script / Cloudflare Worker terlebih dahulu.', 'warning');
+    const { valid, cleanUrl, extractedSpreadsheetId, warning } = validateWebhookUrl(gSheetConfig.webhookUrl || '');
+    if (!valid) {
+      showToast('URL Kosong', warning || 'Harap isi URL Webhook Google Apps Script / Cloudflare Worker terlebih dahulu.', 'warning');
       return;
     }
 
@@ -277,7 +287,7 @@ export function InventoryGSheetModal({
       source: 'inventory_module',
       module: 'stockopname',
       sheetName: targetSheet,
-      spreadsheetId: gSheetConfig.spreadsheetId ? gSheetConfig.spreadsheetId.trim() : '',
+      spreadsheetId: gSheetConfig.spreadsheetId ? gSheetConfig.spreadsheetId.trim() : (extractedSpreadsheetId || ''),
       secretToken: gSheetConfig.secretToken ? gSheetConfig.secretToken.trim() : '',
       mode: gSheetConfig.mode || 'overwrite',
       tujuanBulan: effectiveMonth,
@@ -289,73 +299,104 @@ export function InventoryGSheetModal({
     };
 
     try {
-      const res = await fetch(rawUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
+      saveGlobalSpreadsheetConfig({
+        webhookUrl: cleanUrl,
+        spreadsheetId: gSheetConfig.spreadsheetId ? gSheetConfig.spreadsheetId.trim() : (extractedSpreadsheetId || DEFAULT_LOGISTIK_SPREADSHEET_ID)
       });
 
-      let resJson: any = null;
-      try {
-        resJson = await res.json();
-      } catch {
-        resJson = { status: 'success' };
-      }
-
-      const updatedCount = resJson?.updatedRows || itemsToSync.length;
-      const sheetUrl = resJson?.spreadsheetUrl || (
-        gSheetConfig.spreadsheetId && gSheetConfig.spreadsheetId.trim()
-          ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}`
-          : undefined
+      const result = await syncDataToSpreadsheet(
+        { ...gSheetConfig, webhookUrl: cleanUrl },
+        payload
       );
 
       setSyncResult({
         success: true,
-        message: `Berhasil mengunggah ${updatedCount} baris data ke sheet "${targetSheet}" dengan Tujuan: "${effectiveMonth}"!`,
-        spreadsheetUrl: sheetUrl,
-        updatedRows: updatedCount,
-        timestamp: new Date().toLocaleTimeString('id-ID')
+        message: result.message,
+        spreadsheetUrl: result.spreadsheetUrl,
+        updatedRows: result.updatedRows ?? itemsToSync.length,
+        timestamp: result.timestamp || new Date().toLocaleTimeString('id-ID')
       });
 
       showToast(
         'Upload Berhasil',
-        `${updatedCount} data inventory berhasil dikirim ke Google Spreadsheet "${targetSheet}".`,
+        result.message,
         'success'
       );
     } catch (err: any) {
-      console.warn('Fetch standar gagal, mencoba fallback no-cors...', err);
-      // Fallback mode no-cors for Apps Script without explicit CORS headers
-      try {
-        await fetch(rawUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-
-        const sheetUrl = gSheetConfig.spreadsheetId && gSheetConfig.spreadsheetId.trim()
-          ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}`
-          : undefined;
-
-        setSyncResult({
-          success: true,
-          message: `Permintaan upload ${itemsToSync.length} baris telah dikirim ke Google Apps Script (mode no-cors).`,
-          spreadsheetUrl: sheetUrl,
-          updatedRows: itemsToSync.length,
-          timestamp: new Date().toLocaleTimeString('id-ID')
-        });
-
-        showToast('Data Dikirim', 'Data berhasil dikirim ke Webhook Spreadsheet.', 'success');
-      } catch (subErr: any) {
-        setSyncResult({
-          success: false,
-          message: err?.message || 'Gagal menghubungi Webhook Spreadsheet. Periksa URL dan koneksi Anda.'
-        });
-        showToast('Upload Gagal', err?.message || 'Gagal mengunggah data ke Spreadsheet.', 'error');
-      }
+      console.error('Inventory GSheet sync error:', err);
+      const errMsg = err?.message || 'Gagal mengunggah data ke Spreadsheet.';
+      setSyncResult({
+        success: false,
+        message: errMsg
+      });
+      showToast('Upload Gagal', errMsg, 'error');
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!gSheetConfig.webhookUrl || !gSheetConfig.webhookUrl.trim()) {
+      showToast('URL Kosong', 'Harap isi URL Webhook terlebih dahulu.', 'warning');
+      return;
+    }
+    setIsTestingWebhook(true);
+    setTestWebhookResult(null);
+    try {
+      const res = await testSpreadsheetWebhook({
+        webhookUrl: gSheetConfig.webhookUrl.trim(),
+        spreadsheetId: (gSheetConfig.spreadsheetId || DEFAULT_LOGISTIK_SPREADSHEET_ID).trim()
+      });
+      setTestWebhookResult(res);
+      if (res.success) {
+        showToast('Webhook Normal', res.message, 'success');
+      } else {
+        showToast('Webhook Bermasalah', res.message, 'error');
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Gagal menghubungi Webhook';
+      setTestWebhookResult({ success: false, message: msg });
+      showToast('Uji Gagal', msg, 'error');
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (itemsToSync.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data inventory untuk diekspor.', 'warning');
+      return;
+    }
+
+    const rows = itemsToSync.map(item => [
+      useOriginalTujuanIfSet && item.tujuan ? item.tujuan : selectedMonth,
+      item.item_code || '',
+      item.item_name || '',
+      item.category || '',
+      item.location || '',
+      item.location_type || '',
+      Number(item.first_qty) || 0,
+      Number(item.last_qty) || 0,
+      item.uom || '',
+      Number(item.qty_convert) || 0,
+      item.uom_convert || '',
+      item.lpn_serial_number || '',
+      item.batch || '',
+      item.vendor_batch || '',
+      item.sloc || '',
+      item.expired_date || '',
+      item.destination_code || '',
+      item.qc_code || '',
+      item.user_tally || '',
+      item.shelf_life || '',
+      item.source || '',
+      item.status || '',
+      item.note || ''
+    ]);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportToExcelFile(`Data_StockOpname_${dateStr}`, 'StockOpname', INVENTORY_STOCK_OPNAME_HEADERS, rows);
+    showToast('Download Berhasil', `File Excel Stock Opname berisi ${rows.length} baris berhasil didownload!`, 'success');
   };
 
   const handleMonthChange = (newMonth: string) => {
@@ -571,19 +612,47 @@ export function InventoryGSheetModal({
                 <label className="font-bold text-slate-700">
                   URL Webhook Google Apps Script / Cloudflare Worker: <span className="text-rose-500">*</span>
                 </label>
-                {isConfigFromCloud && (
-                  <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 flex items-center gap-1">
-                    <CheckCircle2 size={10} /> Sinkron Cloud
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTestWebhook}
+                    disabled={isTestingWebhook || !gSheetConfig.webhookUrl.trim()}
+                    className="text-[11px] text-teal-700 hover:text-teal-900 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw size={11} className={isTestingWebhook ? 'animate-spin' : ''} />
+                    <span>{isTestingWebhook ? 'Menguji...' : 'Uji Koneksi'}</span>
+                  </button>
+                  {isConfigFromCloud && (
+                    <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 flex items-center gap-1">
+                      <CheckCircle2 size={10} /> Sinkron Cloud
+                    </span>
+                  )}
+                </div>
               </div>
               <input
                 type="url"
                 value={gSheetConfig.webhookUrl}
-                onChange={(e) => setGSheetConfig(p => ({ ...p, webhookUrl: e.target.value }))}
+                onChange={(e) => {
+                  setGSheetConfig(p => ({ ...p, webhookUrl: e.target.value }));
+                  setTestWebhookResult(null);
+                }}
                 placeholder="https://script.google.com/macros/s/.../exec"
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-mono text-[11px] text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-700"
               />
+
+              {testWebhookResult && (
+                <div className={`mt-2 p-2 rounded-xl text-[11px] flex items-start gap-1.5 ${
+                  testWebhookResult.success 
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-900' 
+                    : 'bg-rose-50 border border-rose-200 text-rose-900'
+                }`}>
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div>
+                    <strong>{testWebhookResult.success ? 'Koneksi Normal: ' : 'Koneksi Gagal: '}</strong>
+                    {testWebhookResult.message}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -680,9 +749,21 @@ export function InventoryGSheetModal({
         </div>
 
         {/* Footer Buttons */}
-        <div className="flex items-center justify-between pt-3.5 mt-2 border-t border-slate-200 shrink-0">
-          <div className="text-xs text-slate-600 font-medium">
-            Siap kirim: <strong className="text-slate-900">{itemsToSync.length} baris</strong>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3.5 mt-2 border-t border-slate-200 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-600 font-medium">
+              Siap kirim: <strong className="text-slate-900">{itemsToSync.length} baris</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={itemsToSync.length === 0}
+              className="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs border border-teal-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Download cadangan data ke file Excel (.xlsx)"
+            >
+              <FileSpreadsheet size={13} />
+              <span>Download Excel (.xlsx)</span>
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <button

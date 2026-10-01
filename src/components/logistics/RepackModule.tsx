@@ -62,6 +62,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { RepackItem, DataBarang } from '../../types';
 import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
+import { syncDataToSpreadsheet, validateWebhookUrl } from '../../services/spreadsheetSyncService';
 
 interface RepackModuleProps {
   onNavigateToPenyiapan?: () => void;
@@ -1108,9 +1109,9 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
 
   // Google Sheets Webhook Sync Handler
   const handleExecuteGSheetSync = async () => {
-    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
-    if (!rawUrl) {
-      showToast('URL Kosong', 'Harap isi URL Webhook Spreadsheet / Apps Script.', 'warning');
+    const { valid, cleanUrl, extractedSpreadsheetId, warning } = validateWebhookUrl(gSheetConfig.webhookUrl || '');
+    if (!valid) {
+      showToast('Perhatian', warning || 'URL Webhook Spreadsheet / Apps Script belum diisi.', 'warning');
       return;
     }
 
@@ -1184,7 +1185,7 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
       source: 'repack_module',
       module: 'repack',
       sheetName: gSheetConfig.sheetName || 'Repack',
-      spreadsheetId: gSheetConfig.spreadsheetId || '',
+      spreadsheetId: gSheetConfig.spreadsheetId || extractedSpreadsheetId || '',
       secretToken: gSheetConfig.secretToken || '',
       mode: gSheetConfig.mode || 'overwrite',
       timestamp: new Date().toISOString(),
@@ -1196,50 +1197,33 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
     };
 
     try {
-      localStorage.setItem('REPACK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(gSheetConfig));
-      const res = await fetch(rawUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
+      localStorage.setItem('REPACK_GSHEET_WEBHOOK_CONFIG', JSON.stringify({
+        ...gSheetConfig,
+        webhookUrl: cleanUrl,
+        spreadsheetId: gSheetConfig.spreadsheetId || extractedSpreadsheetId || ''
+      }));
 
-      let resJson: any = null;
-      try { resJson = await res.json(); } catch { resJson = { status: 'success' }; }
-
-      const updatedCount = resJson?.updatedRows || itemsToSync.length;
-      const sheetUrl = resJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
+      const result = await syncDataToSpreadsheet(
+        { ...gSheetConfig, webhookUrl: cleanUrl },
+        payload
+      );
 
       setGSheetSyncResult({
         success: true,
-        message: `Berhasil sinkronisasi ${updatedCount} data repack ke Spreadsheet "${gSheetConfig.sheetName}"!`,
-        spreadsheetUrl: sheetUrl,
-        updatedRows: updatedCount,
-        timestamp: new Date().toLocaleTimeString('id-ID')
+        message: result.message,
+        spreadsheetUrl: result.spreadsheetUrl,
+        updatedRows: result.updatedRows ?? itemsToSync.length,
+        timestamp: result.timestamp || new Date().toLocaleTimeString('id-ID')
       });
-      showToast('Sinkronisasi Sukses', `Berhasil mengirim ${updatedCount} baris data ke Spreadsheet.`, 'success');
+      showToast('Sinkronisasi Sukses', result.message, 'success');
     } catch (err: any) {
-      // Fallback no-cors
-      try {
-        await fetch(rawUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-        setGSheetSyncResult({
-          success: true,
-          message: `Berhasil mengirim ${itemsToSync.length} baris data ke Apps Script.`,
-          updatedRows: itemsToSync.length,
-          timestamp: new Date().toLocaleTimeString('id-ID')
-        });
-        showToast('Sinkronisasi Terkirim', 'Data berhasil dikirim ke Apps Script.', 'success');
-      } catch (subErr: any) {
-        setGSheetSyncResult({
-          success: false,
-          message: err?.message || 'Gagal menghubungi Webhook Spreadsheet.'
-        });
-        showToast('Gagal Sinkronisasi', err?.message || 'Koneksi ke webhook gagal.', 'danger');
-      }
+      console.error('Repack GSheet sync error:', err);
+      const errMsg = err?.message || 'Gagal menghubungi Webhook Spreadsheet.';
+      setGSheetSyncResult({
+        success: false,
+        message: errMsg
+      });
+      showToast('Gagal Sinkronisasi', errMsg, 'danger');
     } finally {
       setIsSyncingGSheet(false);
     }

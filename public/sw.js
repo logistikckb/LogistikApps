@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ckblogistic-pwa-v1';
+const CACHE_NAME = 'ckblogistic-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -40,8 +40,21 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Skip non-GET and chrome-extension / external cross-origin analytics/APIs if needed
+  // Skip non-GET
   if (req.method !== 'GET') return;
+
+  // CRITICAL: NEVER cache or intercept Vite dev server modules or dynamically bundled modules
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('.vite') ||
+    url.search.includes('v=') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx')
+  ) {
+    return;
+  }
 
   // Handle navigation (HTML page)
   if (req.mode === 'navigate') {

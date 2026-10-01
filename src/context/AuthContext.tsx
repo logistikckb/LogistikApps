@@ -46,8 +46,71 @@ const STORAGE_KEY_USERS = 'ckb_logistic_users_db';
 const STORAGE_KEY_LAST_ACTIVE = 'ckb_logistic_last_active_time';
 const STORAGE_KEY_SESSION_EXPIRED = 'ckb_logistic_session_expired_msg';
 
+const DEFAULT_SYSTEM_USERS: UserProfile[] = [
+  {
+    id: 'usr_admin',
+    username: 'admin',
+    nama: 'Administrator Logistik',
+    pin: '399339',
+    avatar: DEFAULT_AVATAR,
+    role: 'Admin',
+    status: 'Aktif',
+    email_google: 'logistikcikembar@gmail.com',
+    permissions: {
+      canInputIncoming: true,
+      canTally: true,
+      canEditMasterBarang: true,
+      canManageUsers: true,
+      canApproveQC: true,
+      canAccessDatabase: true,
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'usr_logistik',
+    username: 'logistik',
+    nama: 'Tim Logistik Cikembar',
+    pin: '399339',
+    avatar: DEFAULT_AVATAR,
+    role: 'Admin',
+    status: 'Aktif',
+    email_google: 'logistikcikembar@gmail.com',
+    permissions: {
+      canInputIncoming: true,
+      canTally: true,
+      canEditMasterBarang: true,
+      canManageUsers: true,
+      canApproveQC: true,
+      canAccessDatabase: true,
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'usr_pelaksana',
+    username: 'pelaksana',
+    nama: 'Staff Operasional Gudang',
+    pin: '123456',
+    avatar: DEFAULT_AVATAR,
+    role: 'Pelaksana',
+    status: 'Aktif',
+    email_google: '',
+    permissions: {
+      canInputIncoming: true,
+      canTally: true,
+      canEditMasterBarang: false,
+      canManageUsers: false,
+      canApproveQC: true,
+      canAccessDatabase: false,
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+];
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isDbConnected, setIsDbConnected] = useState<boolean>(isSupabaseConfigured);
+  const [isDbConnected, setIsDbConnected] = useState<boolean>(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
 
   // Inactivity Security States
@@ -68,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  // Inisialisasi daftar users (dari cache penyimpanan lokal atau array kosong)
+  // Inisialisasi daftar users (dari cache penyimpanan lokal atau array sistem default)
   const [usersList, setUsersList] = useState<UserProfile[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_USERS);
@@ -79,10 +142,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // ignore
     }
-    return [];
+    return DEFAULT_SYSTEM_USERS;
   });
 
-  // Inisialisasi user yang sedang login
+  // Inisialisasi user yang sedang login (default ke admin jika belum tersimpan)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_AUTH);
@@ -92,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // ignore
     }
-    return null;
+    return DEFAULT_SYSTEM_USERS[0];
   });
 
   // Sinkronisasi data profil pengguna langsung dari database pusat (Tabel 'users')

@@ -208,6 +208,14 @@ export function Hero() {
             <InstallPwaButton variant="header" />
 
             <div 
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
+              title="Aplikasi beroperasi penuh dengan Database Google Spreadsheet"
+            >
+              <FileSpreadsheet size={11} className="text-emerald-700 shrink-0" />
+              <span>DB: Spreadsheet</span>
+            </div>
+
+            <div 
               id="hero-security-inactivity-badge"
               className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-white text-slate-700 border border-slate-200 shadow-2xs"
               title="Proteksi sesi: Auto logout 30 menit"

@@ -64,6 +64,7 @@ import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCal
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 import { CekFisikPemusnahanModule } from './CekFisikPemusnahanModule';
 import { MonitoringPemusnahanModule } from './MonitoringPemusnahanModule';
+import { syncDataToSpreadsheet, validateWebhookUrl } from '../../services/spreadsheetSyncService';
 
 interface PemusnahanModuleProps {
   onNavigateToPenyiapan?: () => void;
@@ -1647,14 +1648,9 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
   };
 
   const handleExecuteGSheetSync = async () => {
-    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
-    if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Apps Script atau Cloudflare Worker.', 'warning');
-      return;
-    }
-
-    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
-      showToast('Format URL Tidak Valid', 'URL Webhook harus diawali dengan https:// atau http://', 'warning');
+    const { valid, cleanUrl, extractedSpreadsheetId, warning } = validateWebhookUrl(gSheetConfig.webhookUrl || '');
+    if (!valid) {
+      showToast('Perhatian', warning || 'URL Webhook Google Apps Script belum diisi.', 'warning');
       return;
     }
 
@@ -1730,7 +1726,7 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         action: 'sync_pemusnahan',
         mode: gSheetConfig.mode || 'append',
         sheetName: gSheetConfig.sheetName || 'pemusnahan',
-        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
+        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || extractedSpreadsheetId || '',
         secretToken: gSheetConfig.secretToken || '',
         timestamp: new Date().toISOString(),
         totalRows: itemsToSync.length,
@@ -1739,97 +1735,35 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
         data: itemsToSync
       };
 
-      handleSaveGSheetConfig(gSheetConfig);
+      handleSaveGSheetConfig({
+        ...gSheetConfig,
+        webhookUrl: cleanUrl,
+        spreadsheetId: gSheetConfig.spreadsheetId || extractedSpreadsheetId || ''
+      });
 
-      const isDirectGoogleScript = rawUrl.includes('script.google.com');
-      let responseJson: any = null;
-      let syncSucceeded = false;
-      let executionMode: 'cors' | 'no-cors' = 'cors';
-
-      try {
-        const res = await fetch(rawUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          try {
-            responseJson = await res.json();
-          } catch {
-            responseJson = { status: 'success' };
-          }
-          syncSucceeded = true;
-          executionMode = 'cors';
-        } else {
-          let errMsg = `HTTP Error ${res.status}`;
-          try {
-            const errBody = await res.json();
-            if (errBody.message) errMsg = errBody.message;
-          } catch {}
-          throw new Error(errMsg);
-        }
-      } catch (directErr: any) {
-        if (isDirectGoogleScript || directErr?.message?.includes('Failed to fetch') || directErr?.name === 'TypeError') {
-          try {
-            await fetch(rawUrl, {
-              method: 'POST',
-              mode: 'no-cors',
-              headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
-              },
-              body: JSON.stringify(payload)
-            });
-            syncSucceeded = true;
-            executionMode = 'no-cors';
-            responseJson = {
-              status: 'success',
-              message: `Data ${itemsToSync.length} baris pemusnahan berhasil dikirim ke Webhook Apps Script.`
-            };
-          } catch (noCorsErr: any) {
-            throw directErr;
-          }
-        } else {
-          throw directErr;
-        }
-      }
-
-      if (!syncSucceeded) {
-        throw new Error('Gagal mengirim data ke Webhook tujuan.');
-      }
-
-      const updatedCount = responseJson?.updatedRows || itemsToSync.length;
-      const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
-
-      const successMsg = executionMode === 'no-cors'
-        ? `Berhasil mengirim ${updatedCount} baris data ke Apps Script (Sheet: "${gSheetConfig.sheetName || 'pemusnahan'}").`
-        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Spreadsheet "${gSheetConfig.sheetName || 'pemusnahan'}"!`);
+      const result = await syncDataToSpreadsheet(
+        { ...gSheetConfig, webhookUrl: cleanUrl },
+        payload
+      );
 
       setGSheetSyncResult({
         success: true,
-        message: successMsg,
-        spreadsheetUrl: sheetUrl,
-        updatedRows: updatedCount,
-        timestamp: new Date().toLocaleTimeString('id-ID')
+        message: result.message,
+        spreadsheetUrl: result.spreadsheetUrl,
+        updatedRows: result.updatedRows ?? itemsToSync.length,
+        timestamp: result.timestamp || new Date().toLocaleTimeString('id-ID')
       });
 
-      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data pemusnahan ke Spreadsheet!`, 'success');
+      showToast('Sinkronisasi Berhasil', result.message, 'success');
     } catch (err: any) {
       console.error('Pemusnahan GSheet sync error:', err);
-      const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
-      const guidance = isGoogleUrl
-        ? 'Pastikan Deployment Web App di Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
-        : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
-
+      const errMsg = err?.message || 'Gagal mengirim data ke Spreadsheet.';
       setGSheetSyncResult({
         success: false,
-        message: `${err?.message || 'Terjadi kesalahan jaringan/CORS'}. ${guidance}`,
+        message: errMsg,
         timestamp: new Date().toLocaleTimeString('id-ID')
       });
-
-      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Spreadsheet.', 'danger');
+      showToast('Gagal Sinkronisasi', errMsg, 'danger');
     } finally {
       setIsSyncingGSheet(false);
     }

@@ -243,6 +243,53 @@ CREATE TRIGGER set_data_penyiapan_updated_at
     EXECUTE FUNCTION public.handle_updated_at();
 
 -- ==============================================================================
+-- 7. TABEL DATA_PICKING (Transaksi Picking Barang Outbound)
+-- Penjelasan: Struktur Tabel, Kolom, Relasi & Fungsi Sama Persis 100% dengan data_penyiapan
+-- Nama Sheet Target di Spreadsheet: Picking
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.data_picking (
+    id_picking VARCHAR(100) PRIMARY KEY NOT NULL,
+    tujuan VARCHAR(255) DEFAULT 'Picking Outbound',
+    item_code VARCHAR(100) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Finished Good',
+    location VARCHAR(100) DEFAULT 'WH-PICKING-01',
+    location_type VARCHAR(50) DEFAULT 'Floor',
+    first_qty NUMERIC(12,2) DEFAULT 0,
+    last_qty NUMERIC(12,2) DEFAULT 0,
+    uom VARCHAR(50) DEFAULT 'CTN',
+    qty_convert NUMERIC(12,2) DEFAULT 0,
+    uom_convert VARCHAR(50) DEFAULT 'PCS',
+    lpn_serial_number VARCHAR(100),
+    batch VARCHAR(100),
+    vendor_batch VARCHAR(100),
+    sloc VARCHAR(50) DEFAULT 'SL02',
+    expired_date DATE,
+    destination_code VARCHAR(100) DEFAULT 'DST-PICK',
+    qc_code VARCHAR(50) DEFAULT 'QC-PASS',
+    user_tally VARCHAR(100) DEFAULT 'Tally Picking',
+    shelf_life VARCHAR(50) DEFAULT '24 Bulan',
+    source VARCHAR(100) DEFAULT 'Stok Gudang',
+    user_input VARCHAR(100) DEFAULT 'Admin',
+    tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
+    status VARCHAR(50) DEFAULT 'Ready',
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_picking_item_code ON public.data_picking(item_code);
+CREATE INDEX IF NOT EXISTS idx_data_picking_status ON public.data_picking(status);
+CREATE INDEX IF NOT EXISTS idx_data_picking_batch ON public.data_picking(batch);
+CREATE INDEX IF NOT EXISTS idx_data_picking_created_at ON public.data_picking(created_at DESC);
+
+DROP TRIGGER IF EXISTS set_data_picking_updated_at ON public.data_picking;
+CREATE TRIGGER set_data_picking_updated_at
+    BEFORE UPDATE ON public.data_picking
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+-- ==============================================================================
 -- 7. TABEL DATA_CEK_FISIK_PEMUSNAHAN (Transaksi Cek Fisik / Penyiapan Pemusnahan)
 -- Penjelasan: Logika & Struktur sama persis 100% dengan data_penyiapan untuk
 -- proses check fisik sebelum dipindahkan secara massal ke data_pemusnahan final
@@ -476,6 +523,7 @@ ALTER TABLE public.data_barang DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_distributor DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.incoming DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_penyiapan DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_picking DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_pemusnahan DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_reco DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_repack DISABLE ROW LEVEL SECURITY;
@@ -512,6 +560,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'data_penyiapan') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.data_penyiapan;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'data_picking') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.data_picking;
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'data_pemusnahan') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.data_pemusnahan;
     END IF;
@@ -544,6 +595,36 @@ SELECT
     nama_distributor AS "Nama Distributor",
     status AS "Status"
 FROM public.data_distributor;
+
+CREATE OR REPLACE VIEW public."DataPicking" AS
+SELECT
+    id_picking AS "ID Picking",
+    tujuan AS "Tujuan",
+    item_code AS "Item Code",
+    item_name AS "Nama Barang",
+    category AS "Kategori",
+    location AS "Lokasi",
+    location_type AS "Tipe Lokasi",
+    first_qty AS "Qty Awal",
+    last_qty AS "Qty Akhir",
+    uom AS "UOM",
+    qty_convert AS "Qty Convert",
+    uom_convert AS "UOM Convert",
+    lpn_serial_number AS "LPN / SN",
+    batch AS "Batch",
+    vendor_batch AS "Vendor Batch",
+    sloc AS "SLOC",
+    expired_date AS "Expired Date",
+    destination_code AS "Kode Tujuan",
+    qc_code AS "Status QC",
+    user_tally AS "User Tally",
+    shelf_life AS "Shelf Life",
+    source AS "Sumber",
+    user_input AS "User Input",
+    tanggal_update AS "Tanggal Update",
+    status AS "Status",
+    note AS "Catatan"
+FROM public.data_picking;
 
 -- ==============================================================================
 -- 13. SEED DATA USERS OPERATOR & ADMIN

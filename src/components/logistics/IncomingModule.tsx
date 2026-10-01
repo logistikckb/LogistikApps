@@ -53,6 +53,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
 import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
+import { syncDataToSpreadsheet, validateWebhookUrl } from '../../services/spreadsheetSyncService';
 
 // Helper function to normalize proses / status to 'open' | 'closedoretur' | 'closepg'
 export const normalizeProsesStatus = (status?: string): 'open' | 'closedoretur' | 'closepg' => {
@@ -1709,14 +1710,9 @@ export function IncomingModule() {
   };
 
   const handleExecuteGSheetSync = async () => {
-    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
-    if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook Apps Script atau Cloudflare Worker.', 'warning');
-      return;
-    }
-
-    if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
-      showToast('Format URL Tidak Valid', 'URL Webhook harus diawali dengan https:// atau http://', 'warning');
+    const { valid, cleanUrl, extractedSpreadsheetId, warning } = validateWebhookUrl(gSheetConfig.webhookUrl || '');
+    if (!valid) {
+      showToast('Perhatian', warning || 'URL Webhook Google Apps Script belum diisi.', 'warning');
       return;
     }
 
@@ -1798,7 +1794,7 @@ export function IncomingModule() {
         action: 'sync_incoming',
         mode: gSheetConfig.mode || 'overwrite',
         sheetName: gSheetConfig.sheetName || 'Incoming',
-        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || '',
+        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || extractedSpreadsheetId || '',
         secretToken: gSheetConfig.secretToken || '',
         timestamp: new Date().toISOString(),
         totalRows: itemsToSync.length,
@@ -1808,99 +1804,34 @@ export function IncomingModule() {
       };
 
       // Save latest config
-      handleSaveGSheetConfig(gSheetConfig);
+      handleSaveGSheetConfig({
+        ...gSheetConfig,
+        webhookUrl: cleanUrl,
+        spreadsheetId: gSheetConfig.spreadsheetId || extractedSpreadsheetId || ''
+      });
 
-      const isDirectGoogleScript = rawUrl.includes('script.google.com');
-      let responseJson: any = null;
-      let syncSucceeded = false;
-      let executionMode: 'cors' | 'no-cors' = 'cors';
-
-      // 1. Attempt standard POST using text/plain to avoid CORS OPTIONS preflight
-      try {
-        const res = await fetch(rawUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          try {
-            responseJson = await res.json();
-          } catch {
-            responseJson = { status: 'success' };
-          }
-          syncSucceeded = true;
-          executionMode = 'cors';
-        } else {
-          // If server returned HTTP error status
-          let errMsg = `HTTP Error ${res.status}`;
-          try {
-            const errBody = await res.json();
-            if (errBody.message) errMsg = errBody.message;
-          } catch {}
-          throw new Error(errMsg);
-        }
-      } catch (directErr: any) {
-        // 2. If browser blocked cross-origin redirect (common with direct script.google.com URLs)
-        // or threw Failed to fetch, retry in no-cors mode so the payload reaches Google Apps Script
-        if (isDirectGoogleScript || directErr?.message?.includes('Failed to fetch') || directErr?.name === 'TypeError') {
-          try {
-            await fetch(rawUrl, {
-              method: 'POST',
-              mode: 'no-cors',
-              headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
-              },
-              body: JSON.stringify(payload)
-            });
-            syncSucceeded = true;
-            executionMode = 'no-cors';
-            responseJson = {
-              status: 'success',
-              message: `Data ${itemsToSync.length} baris berhasil dikirim ke Webhook Apps Script.`
-            };
-          } catch (noCorsErr: any) {
-            throw directErr;
-          }
-        } else {
-          throw directErr;
-        }
-      }
-
-      if (!syncSucceeded) {
-        throw new Error('Gagal mengirim data ke Webhook tujuan.');
-      }
-
-      const updatedCount = responseJson?.updatedRows || itemsToSync.length;
-      const sheetUrl = responseJson?.spreadsheetUrl || (gSheetConfig.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${gSheetConfig.spreadsheetId.trim()}` : undefined);
-
-      const successMsg = executionMode === 'no-cors'
-        ? `Berhasil mengirim ${updatedCount} baris data ke Apps Script (Sheet: "${gSheetConfig.sheetName || 'Incoming'}").`
-        : (responseJson?.message || `Berhasil sinkronisasi ${updatedCount} baris data ke Spreadsheet "${gSheetConfig.sheetName || 'Incoming'}"!`);
+      const result = await syncDataToSpreadsheet(
+        { ...gSheetConfig, webhookUrl: cleanUrl },
+        payload
+      );
 
       setGSheetSyncResult({
         success: true,
-        message: successMsg,
-        spreadsheetUrl: sheetUrl,
-        updatedRows: updatedCount,
-        timestamp: new Date().toLocaleTimeString('id-ID')
+        message: result.message,
+        spreadsheetUrl: result.spreadsheetUrl,
+        updatedRows: result.updatedRows ?? itemsToSync.length,
+        timestamp: result.timestamp || new Date().toLocaleTimeString('id-ID')
       });
 
-      showToast('Sinkronisasi Berhasil', `Berhasil upload ${updatedCount} data ke Spreadsheet!`, 'success');
+      showToast('Sinkronisasi Berhasil', result.message, 'success');
     } catch (err: any) {
-      console.error('GSheet sync error:', err);
-      const isGoogleUrl = gSheetConfig.webhookUrl?.includes('script.google.com');
-      const guidance = isGoogleUrl
-        ? 'Pastikan Deployment Web App di Apps Script telah diset "Who has access: Anyone" (Siapa saja).'
-        : 'Pastikan URL Webhook / Cloudflare Worker aktif dan dapat diakses.';
-
+      console.error('Incoming GSheet sync error:', err);
+      const errMsg = err?.message || 'Gagal mengirim data ke Spreadsheet';
       setGSheetSyncResult({
         success: false,
-        message: `${err?.message || 'Gagal menghubungi Webhook'}. ${guidance}`
+        message: errMsg
       });
-      showToast('Gagal Sinkronisasi', err?.message || 'Gagal mengirim data ke Spreadsheet', 'danger');
+      showToast('Gagal Sinkronisasi', errMsg, 'danger');
     } finally {
       setIsSyncingGSheet(false);
     }

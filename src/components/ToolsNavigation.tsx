@@ -15,7 +15,8 @@ import {
   Lock,
   Unlock,
   FileSpreadsheet,
-  ExternalLink
+  ExternalLink,
+  PackageCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useMenuVisibility } from '../hooks/useMenuVisibility';
@@ -33,7 +34,8 @@ export type ToolId =
   | 'menu-e'
   | 'menu-f'
   | 'menu-g'
-  | 'menu-h';
+  | 'menu-h'
+  | 'menu-i';
 
 export interface ToolItem {
   id: ToolId;
@@ -209,6 +211,24 @@ export const TOOLS_LIST: ToolItem[] = [
       'Transfer Massal Otomatis dari Modul Penyiapan Outbound',
       'Tracking Lokasi Repack (WH-REPACK-01), SLOC (SL04) & Destinasi Promo',
       'Upload & Export Laporan Excel (.xlsx) dengan Template Standar'
+    ]
+  },
+  {
+    id: 'menu-i',
+    title: 'Picking',
+    shortDesc: 'Manajemen Data Picking Outbound, Upload Excel & Sinkronisasi Cloud',
+    category: 'Outbound & Picking',
+    icon: PackageCheck,
+    isReady: true,
+    requiresAdmin: false,
+    colorBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200/80',
+    colorBorder: 'border-indigo-200',
+    colorIcon: 'text-indigo-600',
+    plannedFeatures: [
+      'Manajemen Data Picking Outbound Realtime',
+      'Upload File Excel Massal Khusus Role Admin (20 Kolom Standar Logistik)',
+      'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/QC',
+      'Export Laporan Excel (.xlsx) & Sinkronisasi Spreadsheet Tab "Picking"'
     ]
   }
 ];
