@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ListTodo, X, Plus, RefreshCw, Trash2, BellRing, Volume2, ChevronLeft, Edit2, CheckCircle2, Clock, Circle, Save, Flame, Zap, AlertCircle, Sparkles } from 'lucide-react';
 import { TodoData, TodoPriority } from '../types';
 import { useNotification } from '../context/NotificationContext';
+import { usePwa } from '../context/PwaContext';
 import { InstallPwaButton } from './common/InstallPwaButton';
 
 interface SidebarProps {
@@ -23,6 +24,16 @@ const STATUS_CYCLE: TodoData['status'][] = ['no', 'onproses', 'close'];
 
 export function Sidebar({ todos, loading, isAdmin, isOpen, onToggle, onAddTodo, onUpdateStatus, onUpdateTodo, onDeleteTodo, onDeleteCompletedTodos, onRefresh }: SidebarProps) {
   const { showConfirm, showToast } = useNotification();
+  const { 
+    isUpdateAvailable, 
+    updateInfo, 
+    isCheckingUpdate, 
+    currentVersion, 
+    checkForUpdate, 
+    setShowUpdateModal, 
+    simulateUpdate 
+  } = usePwa();
+
   // Filter tab: 'all' | 'priority' | 'no' | 'onproses' | 'close'
   const [filter, setFilter] = useState<'all' | 'priority' | 'no' | 'onproses' | 'close'>('no');
   const [newTask, setNewTask] = useState('');
@@ -447,9 +458,63 @@ export function Sidebar({ todos, loading, isAdmin, isOpen, onToggle, onAddTodo, 
           )}
         </div>
 
-        {/* Sidebar Footer with Install PWA Button */}
-        <div className="p-3 border-t border-white/40 bg-white/40">
+        {/* Sidebar Footer with Install PWA & Update Status */}
+        <div className="p-3 border-t border-white/40 bg-white/40 space-y-2">
+          {/* If an update is detected, show glowing update notification card */}
+          {isUpdateAvailable ? (
+            <div className="p-2.5 bg-gradient-to-r from-blue-900 to-cyan-900 rounded-xl text-white shadow-md border border-cyan-400/50 animate-pulse">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300 flex items-center gap-1">
+                  <Sparkles size={11} className="text-yellow-300" /> Update Kode Siap
+                </span>
+                <span className="text-[9px] bg-cyan-400 text-slate-950 font-black px-1.5 py-0.2 rounded-md">
+                  v{updateInfo?.version || 'Baru'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-200 m-0 mb-2 leading-tight">
+                Versi baru telah diunduh. Muat ulang sekarang untuk menerapkan.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowUpdateModal(true)}
+                className="w-full py-1.5 px-2 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black text-xs rounded-lg shadow-sm cursor-pointer flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+              >
+                <RefreshCw size={12} />
+                <span>Perbarui Sekarang</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-2.5 py-1.5 bg-white/70 rounded-xl border border-slate-200 text-slate-700 text-xs">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold text-slate-500 block leading-none">Status Aplikasi</span>
+                <span className="font-extrabold text-[11px] text-slate-800">LogistikApps v{currentVersion}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => checkForUpdate(true)}
+                disabled={isCheckingUpdate}
+                className="px-2 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-900 rounded-lg font-bold text-[10px] border border-slate-200 transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                title="Cek apakah ada pembaruan kode baru di server"
+              >
+                <RefreshCw size={10} className={isCheckingUpdate ? "text-cyan-600 animate-spin" : "text-slate-600"} />
+                <span>{isCheckingUpdate ? 'Mengecek...' : 'Cek Update'}</span>
+              </button>
+            </div>
+          )}
+
           <InstallPwaButton variant="sidebar" />
+
+          {/* Developer / Testing Update Simulation Link */}
+          <div className="text-center pt-0.5">
+            <button
+              type="button"
+              onClick={simulateUpdate}
+              className="text-[9px] text-slate-400 hover:text-blue-600 underline cursor-pointer transition-colors"
+              title="Uji coba tampilan & suara notifikasi pembaruan kode PWA"
+            >
+              Uji Coba Notifikasi Update (Simulasi)
+            </button>
+          </div>
         </div>
       </div>
 

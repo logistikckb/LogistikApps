@@ -1,0 +1,13 @@
+{
+  "version": "2.5.0",
+  "buildTimestamp": 1727744838000,
+  "releaseDate": "30 September 2026",
+  "name": "LogistikApps PWA",
+  "changelog": [
+    "Sistem notifikasi pembaruan kode otomatis & instan di PWA (Service Worker Lifecycle)",
+    "Pemberitahuan visual, audio chime, dan tab alert saat ada rilis kode baru",
+    "Tombol Cek Pembaruan Sistem mandiri di Header, Sidebar, dan Halaman Login",
+    "Pembersihan cache otomatis & reload instan saat pengguna mengonfirmasi update",
+    "Dukungan mode simulasi update untuk verifikasi dan pengujian"
+  ]
+}

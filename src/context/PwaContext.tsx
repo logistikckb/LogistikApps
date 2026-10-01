@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNotification } from './NotificationContext';
-import { Smartphone, Download, Share2, X, Check, Laptop, Monitor, Sparkles, AlertCircle } from 'lucide-react';
+import { Smartphone, Download, Share2, X, Check, Laptop, Monitor, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
+import { 
+  CURRENT_APP_VERSION, 
+  AppUpdateInfo, 
+  subscribeToAppUpdates, 
+  checkForAppUpdate as runCheckForAppUpdate, 
+  applyAppUpdate as runApplyAppUpdate,
+  simulateUpdateForTesting
+} from '../pwa';
+import { PwaUpdatePrompt } from '../components/common/PwaUpdatePrompt';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -18,6 +27,19 @@ interface PwaContextType {
   isOnline: boolean;
   promptInstall: () => void;
   openInstallGuide: () => void;
+  // Update state & methods
+  isUpdateAvailable: boolean;
+  updateInfo: AppUpdateInfo | null;
+  isCheckingUpdate: boolean;
+  isUpdating: boolean;
+  currentVersion: string;
+  lastCheckedTime: Date | null;
+  showUpdateModal: boolean;
+  setShowUpdateModal: (show: boolean) => void;
+  checkForUpdate: (manualUserTrigger?: boolean) => Promise<boolean>;
+  applyUpdate: () => Promise<void>;
+  dismissUpdate: () => void;
+  simulateUpdate: () => void;
 }
 
 const PwaContext = createContext<PwaContextType | null>(null);
@@ -29,6 +51,28 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
   const [isIos, setIsIos] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [showInstallGuideModal, setShowInstallGuideModal] = useState<boolean>(false);
+
+  // Update states
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState<boolean>(false);
+  const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [lastCheckedTime, setLastCheckedTime] = useState<Date | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+
+  // Subscribe to PWA Update detection events
+  useEffect(() => {
+    const unsubscribe = subscribeToAppUpdates((info) => {
+      setIsUpdateAvailable(true);
+      setUpdateInfo(info);
+      showToast(
+        'Pembaruan Kode Tersedia!',
+        `Versi baru (v${info.version}) siap dipasang. Klik notifikasi untuk memuat ulang.`,
+        'info'
+      );
+    });
+    return unsubscribe;
+  }, [showToast]);
 
   useEffect(() => {
     // 1. Detect standalone mode (already installed & running from home screen/desktop)
@@ -118,6 +162,68 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
   // Can install if NOT currently running in standalone mode
   const canInstall = !isStandalone;
 
+  const checkForUpdate = useCallback(async (manualUserTrigger: boolean = false): Promise<boolean> => {
+    setIsCheckingUpdate(true);
+    setLastCheckedTime(new Date());
+
+    try {
+      if (manualUserTrigger) {
+        showToast('Memeriksa Pembaruan...', 'Menghubungi server untuk cek rilis kode terbaru', 'info');
+      }
+
+      const res = await runCheckForAppUpdate();
+
+      if (res.hasUpdate && res.updateInfo) {
+        setIsUpdateAvailable(true);
+        setUpdateInfo(res.updateInfo);
+        setShowUpdateModal(true);
+        showToast(
+          'Pembaruan Ditemukan!',
+          `Versi baru (${res.updateInfo.version}) siap dipasang sekarang.`,
+          'success'
+        );
+        return true;
+      } else {
+        if (manualUserTrigger) {
+          showToast(
+            'Aplikasi Up-To-Date',
+            `LogistikApps sudah menggunakan versi kode terbaru (v${CURRENT_APP_VERSION}).`,
+            'success'
+          );
+        }
+        return false;
+      }
+    } catch (err: any) {
+      if (manualUserTrigger) {
+        showToast('Gagal Cek Pembaruan', err?.message || 'Tidak dapat terhubung ke server', 'warning');
+      }
+      return false;
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }, [showToast]);
+
+  const applyUpdate = useCallback(async () => {
+    setIsUpdating(true);
+    showToast('Memperbarui Sistem...', 'Menyegarkan kode dan memuat versi terbaru...', 'info');
+    try {
+      await runApplyAppUpdate();
+    } catch (err) {
+      console.error('Update apply error:', err);
+      window.location.reload();
+    }
+  }, [showToast]);
+
+  const dismissUpdate = useCallback(() => {
+    // Keep isUpdateAvailable true so badge remains visible, but hide the full modal
+    setShowUpdateModal(false);
+  }, []);
+
+  const simulateUpdate = useCallback(() => {
+    simulateUpdateForTesting();
+    showToast('Simulasi Update Aktif', 'Notifikasi update kode sedang disimulasikan.', 'info');
+  }, [showToast]);
+
   return (
     <PwaContext.Provider
       value={{
@@ -127,9 +233,24 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         isOnline,
         promptInstall,
         openInstallGuide,
+        isUpdateAvailable,
+        updateInfo,
+        isCheckingUpdate,
+        isUpdating,
+        currentVersion: CURRENT_APP_VERSION,
+        lastCheckedTime,
+        showUpdateModal,
+        setShowUpdateModal,
+        checkForUpdate,
+        applyUpdate,
+        dismissUpdate,
+        simulateUpdate,
       }}
     >
       {children}
+
+      {/* Global PWA Code Update Notification Banner & Modal */}
+      <PwaUpdatePrompt />
 
       {/* Comprehensive Universal PWA Install Guide Modal */}
       {showInstallGuideModal && (

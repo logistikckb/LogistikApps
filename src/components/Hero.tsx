@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { usePwa } from '../context/PwaContext';
 import { 
   ShieldCheck, 
   LogOut, 
@@ -7,7 +8,9 @@ import {
   UserCog,
   KeyRound,
   FileSpreadsheet,
-  ExternalLink
+  ExternalLink,
+  RefreshCw,
+  ArrowUpCircle
 } from 'lucide-react';
 import { InstallPwaButton } from './common/InstallPwaButton';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
@@ -21,6 +24,13 @@ import { useNotification } from '../context/NotificationContext';
 export function Hero() {
   const { currentUser, logout, isAdmin } = useAuth();
   const { showToast } = useNotification();
+  const { 
+    isUpdateAvailable, 
+    updateInfo, 
+    isCheckingUpdate, 
+    checkForUpdate, 
+    setShowUpdateModal 
+  } = usePwa();
 
   const [time, setTime] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -205,6 +215,30 @@ export function Hero() {
           </div>
 
           <div className="mt-2.5 sm:mt-0 flex items-center gap-1.5 flex-wrap justify-center sm:justify-end">
+            {/* If update is available, prominent glowing update button */}
+            {isUpdateAvailable ? (
+              <button
+                type="button"
+                onClick={() => setShowUpdateModal(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-md shadow-cyan-500/25 animate-pulse cursor-pointer transition-transform active:scale-95"
+                title="Pembaruan kode sistem baru tersedia! Klik untuk melihat detail & memuat ulang"
+              >
+                <Sparkles size={12} className="text-yellow-300 animate-spin" />
+                <span>Update Siap (v{updateInfo?.version || 'Baru'})</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => checkForUpdate(true)}
+                disabled={isCheckingUpdate}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/90 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+                title="Periksa apakah ada pembaruan kode sistem di server"
+              >
+                <RefreshCw size={11} className={isCheckingUpdate ? "text-cyan-600 animate-spin" : "text-slate-500"} />
+                <span>{isCheckingUpdate ? 'Mengecek...' : 'Cek Update'}</span>
+              </button>
+            )}
+
             <InstallPwaButton variant="header" />
 
             <div 

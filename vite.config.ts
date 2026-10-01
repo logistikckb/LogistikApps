@@ -210,6 +210,47 @@ function registerSpreadsheetMiddlewares(middlewares: any) {
       }));
     }
   });
+
+  // 4. Endpoint Cek Versi PWA & Live Code Update Checker
+  middlewares.use('/api/app-version', async (_req: any, res: any) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    try {
+      const fs = await import('fs');
+      const versionFilePath = path.resolve(__dirname, 'public/version.json');
+      if (fs.existsSync(versionFilePath)) {
+        const raw = fs.readFileSync(versionFilePath, 'utf-8');
+        res.statusCode = 200;
+        res.end(raw);
+        return;
+      }
+    } catch (e) {
+      // Fallback below
+    }
+
+    res.statusCode = 200;
+    res.end(JSON.stringify({
+      version: '2.5.0',
+      buildTimestamp: 1727744838000,
+      releaseDate: '30 September 2026',
+      name: 'LogistikApps PWA',
+      changelog: [
+        'Sistem notifikasi pembaruan kode otomatis & instan di PWA',
+        'Pemberitahuan visual, audio chime, dan tab alert saat ada rilis kode baru',
+        'Tombol Cek Pembaruan Sistem mandiri di Header, Sidebar, dan Halaman Login'
+      ]
+    }));
+  });
+
+  // 5. Pastikan /version.json selalu dikirim tanpa browser cache
+  middlewares.use('/version.json', async (_req: any, res: any, next: any) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
 }
 
 function spreadsheetProxyPlugin(): Plugin {

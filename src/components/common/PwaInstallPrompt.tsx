@@ -3,11 +3,11 @@ import { Download, Smartphone, X, WifiOff } from 'lucide-react';
 import { usePwa } from '../../context/PwaContext';
 
 export function PwaInstallPrompt() {
-  const { isStandalone, canInstall, isOnline, promptInstall } = usePwa();
+  const { isStandalone, canInstall, isOnline, promptInstall, isUpdateAvailable } = usePwa();
   const [dismissed, setDismissed] = useState(false);
 
-  // If already running standalone or user dismissed floating bar
-  if (isStandalone || dismissed || !canInstall) {
+  // If already running standalone, user dismissed floating bar, or an update is pending
+  if (isStandalone || dismissed || !canInstall || isUpdateAvailable) {
     if (!isOnline) {
       return (
         <div className="fixed bottom-4 left-4 z-50 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-amber-300 text-xs font-bold rounded-xl border border-amber-500/30 flex items-center gap-1.5 shadow-lg animate-pulse">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useNotification } from './context/NotificationContext';
+import { usePwa } from './context/PwaContext';
 import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { LoginPage } from './components/auth/LoginPage';
 import { Hero } from './components/Hero';
@@ -37,12 +38,14 @@ import { PickingModule } from './components/logistics/PickingModule';
 // Dialogs - Direct imports
 import { BroadcastModal } from './components/broadcast/BroadcastModal';
 import { SupabaseConnectionModal } from './components/common/SupabaseConnectionModal';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
 export default function App() {
   const { currentUser, isAdmin } = useAuth();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
   const { showToast } = useNotification();
   const { hiddenMenuIds } = useMenuVisibility();
+  const { isUpdateAvailable, updateInfo, setShowUpdateModal } = usePwa();
 
   // Navigation: 'home' (Daftar Menu Utama) / 'module' (Halaman Detail Modul)
   const [currentView, setCurrentView] = useState<'home' | 'module'>('home');
@@ -128,6 +131,20 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* PWA Update Ready Button in Home Header */}
+                  {isUpdateAvailable && (
+                    <button
+                      type="button"
+                      onClick={() => setShowUpdateModal(true)}
+                      className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black shadow-md shadow-cyan-500/25 animate-pulse cursor-pointer transition-transform active:scale-95"
+                      title={`Pembaruan kode aplikasi (${updateInfo?.version || 'Baru'}) tersedia! Klik untuk memuat ulang`}
+                    >
+                      <Sparkles size={13} className="text-yellow-300 animate-spin" />
+                      <span className="hidden sm:inline">Update Siap (v{updateInfo?.version || 'Baru'})</span>
+                      <span className="sm:hidden">Update</span>
+                    </button>
+                  )}
+
                   {/* Siaran Publik Envelope Button in Header */}
                   <button
                     type="button"
@@ -189,6 +206,19 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* PWA Update Ready Button in Module Header */}
+                  {isUpdateAvailable && (
+                    <button
+                      type="button"
+                      onClick={() => setShowUpdateModal(true)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black shadow-md shadow-cyan-500/25 animate-pulse cursor-pointer transition-transform active:scale-95"
+                      title={`Pembaruan kode aplikasi (${updateInfo?.version || 'Baru'}) tersedia! Klik untuk memuat ulang`}
+                    >
+                      <Sparkles size={13} className="text-yellow-300 animate-spin" />
+                      <span className="hidden sm:inline">Update Siap</span>
+                    </button>
+                  )}
+
                   {/* Siaran Publik Envelope Button in Header */}
                   <button
                     type="button"
@@ -394,6 +424,9 @@ export default function App() {
 
       {/* Inactivity Security Warning Modal (30 Mins Auto-Logout) */}
       {currentUser && <InactivityWarningModal />}
+
+      {/* Floating In-App PWA Install Prompt Bar */}
+      <PwaInstallPrompt />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ckblogistic-pwa-v2';
+const CACHE_NAME = 'ckblogistic-pwa-v2.5.0';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -16,8 +16,13 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
-    }).then(() => self.skipWaiting())
+    })
   );
+  // If there is no active worker controlling clients, activate immediately
+  // Otherwise, remain in waiting state so client page can display the update notification to the user
+  if (!self.registration.active) {
+    self.skipWaiting();
+  }
 });
 
 // Activate Event - Clean up stale caches
@@ -43,7 +48,7 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET
   if (req.method !== 'GET') return;
 
-  // CRITICAL: NEVER cache or intercept Vite dev server modules or dynamically bundled modules
+  // CRITICAL: NEVER cache or intercept Vite dev server modules, API routes, or version check files
   if (
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/src/') ||
@@ -51,7 +56,9 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('.vite') ||
     url.search.includes('v=') ||
     url.pathname.endsWith('.ts') ||
-    url.pathname.endsWith('.tsx')
+    url.pathname.endsWith('.tsx') ||
+    url.pathname === '/version.json' ||
+    url.pathname.startsWith('/api/')
   ) {
     return;
   }
@@ -114,6 +121,13 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.ports?.[0]?.postMessage({
+      type: 'VERSION_RESPONSE',
+      cacheName: CACHE_NAME,
+      version: '2.5.0'
+    });
   }
 });
 

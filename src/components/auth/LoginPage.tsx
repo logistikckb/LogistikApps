@@ -24,7 +24,18 @@ interface LoginPageProps {
 
 export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
   const { login, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
-  const { isStandalone, canInstall, promptInstall, openInstallGuide } = usePwa();
+  const { 
+    isStandalone, 
+    canInstall, 
+    promptInstall, 
+    openInstallGuide,
+    isUpdateAvailable,
+    updateInfo,
+    isCheckingUpdate,
+    checkForUpdate,
+    setShowUpdateModal,
+    currentVersion
+  } = usePwa();
 
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
@@ -124,6 +135,32 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
         {/* Form Login Container */}
         <div className="bg-white p-5 sm:p-6 border border-slate-200/90 shadow-sm rounded-2xl">
           
+          {/* PWA Update Notice if a new code version is waiting */}
+          {isUpdateAvailable && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-blue-900 to-cyan-950 text-white rounded-2xl border border-cyan-400/60 shadow-md flex items-center justify-between gap-2.5 animate-pulse text-left">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-cyan-400 text-slate-950 flex items-center justify-center shrink-0 font-bold shadow-xs">
+                  <Sparkles size={16} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-black block leading-tight text-white">
+                    Pembaruan Kode Tersedia (v{updateInfo?.version || 'Baru'})
+                  </span>
+                  <span className="text-[10px] text-cyan-200 font-medium">
+                    Versi baru aplikasi siap dipasang.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUpdateModal(true)}
+                className="px-3 py-1.5 bg-gradient-to-r from-cyan-400 to-blue-400 hover:from-cyan-300 hover:to-blue-300 text-slate-950 text-xs font-black rounded-xl shadow-xs cursor-pointer shrink-0 transition-transform active:scale-95"
+              >
+                Perbarui
+              </button>
+            </div>
+          )}
+
           {/* PWA Install Promotion Banner / Button before Login */}
           {!isStandalone ? (
             <div 
@@ -307,7 +344,17 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
               <Lock size={11} className="text-slate-400" />
               <span>PIN & Akses Terenkripsi</span>
             </span>
-            <span className="text-[10px] text-slate-400">Cikembar Logistic</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400">v{currentVersion}</span>
+              <button
+                type="button"
+                onClick={() => checkForUpdate(true)}
+                disabled={isCheckingUpdate}
+                className="text-[10px] font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer disabled:opacity-50"
+              >
+                {isCheckingUpdate ? 'Mengecek...' : 'Cek Update'}
+              </button>
+            </div>
           </div>
         </div>
 
