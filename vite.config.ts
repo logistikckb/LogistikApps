@@ -232,14 +232,14 @@ function registerSpreadsheetMiddlewares(middlewares: any) {
 
     res.statusCode = 200;
     res.end(JSON.stringify({
-      version: '2.5.0',
-      buildTimestamp: 1727744838000,
-      releaseDate: '30 September 2026',
+      version: '2.6.0',
+      buildTimestamp: 1727748800000,
+      releaseDate: '1 Oktober 2026',
       name: 'LogistikApps PWA',
       changelog: [
-        'Sistem notifikasi pembaruan kode otomatis & instan di PWA',
-        'Pemberitahuan visual, audio chime, dan tab alert saat ada rilis kode baru',
-        'Tombol Cek Pembaruan Sistem mandiri di Header, Sidebar, dan Halaman Login'
+        'Perbaikan sinkronisasi database server cloud Supabase ke seluruh perangkat',
+        'Bypass proteksi Service Worker untuk trafik API Supabase dan Webhook Cloudflare Worker',
+        'Pembersihan otomatis cache usang antar perangkat tim'
       ]
     }));
   });
@@ -266,8 +266,13 @@ function spreadsheetProxyPlugin(): Plugin {
 }
 
 export default defineConfig(() => {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://lvxnozabjemsvejkkwvx.supabase.co';
+  const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2eG5vemFiamVtc3Zlamtrd3Z4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MjI0NTcsImV4cCI6MjEwMjM5ODQ1N30.haeBn4x-QBhpTdZoJpCV39B7xPABuadcFjmtm5K3At4';
+  const sharedBroadcastUrl = process.env.VITE_SHARED_BROADCAST_SUPABASE_URL || process.env.SHARED_BROADCAST_SUPABASE_URL || 'https://elwdoyfviqrhfvpqwfmx.supabase.co';
+  const sharedBroadcastKey = process.env.VITE_SHARED_BROADCAST_SUPABASE_ANON_KEY || process.env.SHARED_BROADCAST_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsd2RveWZ2aXFyaGZ2cHF3Zm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0MTQ2NjcsImV4cCI6MjA4OTk5MDY2N30.ElQJLokg0uBDfquesI085RVQlz5mhIbn6M7kahH-y9A';
+  const gsheetWebhookUrl = process.env.VITE_GSHEET_WEBHOOK_URL || 'https://logistikapps.cikembar.workers.dev/';
+  const gsheetSpreadsheetId = process.env.VITE_GSHEET_SPREADSHEET_ID || '1o8hWUAK6DO1rmggbiRaRNfT7On4c9RhrHR6X07nqZm4';
+  const gsheetSheetName = process.env.VITE_GSHEET_SHEET_NAME || 'Incoming';
 
   return {
     plugins: [react(), tailwindcss(), spreadsheetProxyPlugin()],
@@ -276,6 +281,13 @@ export default defineConfig(() => {
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
       'import.meta.env.SUPABASE_URL': JSON.stringify(supabaseUrl),
       'import.meta.env.SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
+      'import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_URL': JSON.stringify(sharedBroadcastUrl),
+      'import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_ANON_KEY': JSON.stringify(sharedBroadcastKey),
+      'import.meta.env.SHARED_BROADCAST_SUPABASE_URL': JSON.stringify(sharedBroadcastUrl),
+      'import.meta.env.SHARED_BROADCAST_SUPABASE_ANON_KEY': JSON.stringify(sharedBroadcastKey),
+      'import.meta.env.VITE_GSHEET_WEBHOOK_URL': JSON.stringify(gsheetWebhookUrl),
+      'import.meta.env.VITE_GSHEET_SPREADSHEET_ID': JSON.stringify(gsheetSpreadsheetId),
+      'import.meta.env.VITE_GSHEET_SHEET_NAME': JSON.stringify(gsheetSheetName),
     },
     resolve: {
       alias: {

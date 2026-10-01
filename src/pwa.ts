@@ -4,8 +4,8 @@
 import { playBroadcastSound, triggerDeviceVibrate } from './utils/broadcastSound';
 import { startTabAlert, triggerSystemBroadcastNotification } from './utils/systemNotification';
 
-export const CURRENT_APP_VERSION = '2.5.0';
-export const CURRENT_BUILD_TIMESTAMP = 1727744838000;
+export const CURRENT_APP_VERSION = '2.6.0';
+export const CURRENT_BUILD_TIMESTAMP = 1727748800000;
 
 export interface AppUpdateInfo {
   version: string;
@@ -244,6 +244,18 @@ export function simulateUpdateForTesting() {
  */
 export function registerServiceWorker() {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  // Purge any stale caches from previous versions immediately on startup
+  if ('caches' in window) {
+    caches.keys().then((keys) => {
+      keys.forEach((key) => {
+        if (!key.includes(CURRENT_APP_VERSION)) {
+          console.log('[PWA] Purging outdated cache:', key);
+          caches.delete(key).catch(() => {});
+        }
+      });
+    }).catch(() => {});
+  }
 
   // Listen for controllerchange to reload seamlessly when new service worker takes over
   navigator.serviceWorker.addEventListener('controllerchange', () => {

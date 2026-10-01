@@ -1,5 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// Default Production Credentials (Fallback otomatis jika env vars belum terbaca pada perangkat/PWA klien)
+export const DEFAULT_SUPABASE_URL = 'https://lvxnozabjemsvejkkwvx.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2eG5vemFiamVtc3Zlamtrd3Z4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MjI0NTcsImV4cCI6MjEwMjM5ODQ1N30.haeBn4x-QBhpTdZoJpCV39B7xPABuadcFjmtm5K3At4';
+
+export const DEFAULT_SHARED_BROADCAST_URL = 'https://elwdoyfviqrhfvpqwfmx.supabase.co';
+export const DEFAULT_SHARED_BROADCAST_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsd2RveWZ2aXFyaGZ2cHF3Zm14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0MTQ2NjcsImV4cCI6MjA4OTk5MDY2N30.ElQJLokg0uBDfquesI085RVQlz5mhIbn6M7kahH-y9A';
+
 // Resolve URL from Vite env, defines, or localStorage overrides
 function cleanUrl(raw: string): string {
   if (!raw) return '';
@@ -16,30 +23,45 @@ function cleanKey(raw: string): string {
 }
 
 function getResolvedUrl(): string {
-  const envUrl = 
-    (import.meta.env.VITE_SUPABASE_URL as string) || 
-    (import.meta.env.SUPABASE_URL as string) || 
-    '';
-  
-  if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL')) {
-    const cleaned = cleanUrl(envUrl);
-    if (cleaned.startsWith('https://')) return cleaned;
-  }
-
+  // 1. Cek penyimpanan kustom di localStorage (abaikan jika berisi placeholder)
   try {
     const saved = localStorage.getItem('ckb_custom_supabase_url');
-    if (saved) {
+    if (saved && !saved.includes('placeholder') && !saved.includes('YOUR_SUPABASE_URL')) {
       const cleaned = cleanUrl(saved);
-      if (cleaned.startsWith('https://')) return cleaned;
+      if (cleaned.startsWith('https://') && cleaned.includes('.supabase.co')) return cleaned;
     }
   } catch {
     // ignore
   }
 
-  return '';
+  // 2. Cek env var dari Vite (import.meta.env)
+  const envUrl = 
+    (import.meta.env.VITE_SUPABASE_URL as string) || 
+    (import.meta.env.SUPABASE_URL as string) || 
+    '';
+  
+  if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL') && !envUrl.includes('placeholder')) {
+    const cleaned = cleanUrl(envUrl);
+    if (cleaned.startsWith('https://')) return cleaned;
+  }
+
+  // 3. Fallback ke URL Produksi Pusat (Menjamin SEMUA perangkat selalu terhubung ke database yang sama)
+  return DEFAULT_SUPABASE_URL;
 }
 
 function getResolvedKey(): string {
+  // 1. Cek penyimpanan kustom di localStorage (abaikan jika tidak valid)
+  try {
+    const saved = localStorage.getItem('ckb_custom_supabase_anon_key');
+    if (saved && !saved.includes('YOUR_SUPABASE_ANON_KEY') && saved.length > 20) {
+      const cleaned = cleanKey(saved);
+      if (cleaned.length > 20) return cleaned;
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2. Cek env var dari Vite (import.meta.env)
   const envKey = 
     (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 
     (import.meta.env.SUPABASE_ANON_KEY as string) || 
@@ -50,23 +72,24 @@ function getResolvedKey(): string {
     if (cleaned.length > 20) return cleaned;
   }
 
-  try {
-    const saved = localStorage.getItem('ckb_custom_supabase_anon_key');
-    if (saved) {
-      const cleaned = cleanKey(saved);
-      if (cleaned.length > 20) return cleaned;
-    }
-  } catch {
-    // ignore
-  }
-
-  return '';
+  // 3. Fallback ke Key Produksi Pusat
+  return DEFAULT_SUPABASE_ANON_KEY;
 }
 
 // ============================================================================
 // SECONDARY / SHARED BROADCAST BRIDGE (Jembatan Pesan Siaran Antar-Aplikasi)
 // ============================================================================
 function getResolvedSharedBroadcastUrl(): string {
+  try {
+    const saved = localStorage.getItem('ckb_shared_broadcast_supabase_url');
+    if (saved && !saved.includes('placeholder') && !saved.includes('YOUR_SUPABASE_URL')) {
+      const cleaned = cleanUrl(saved);
+      if (cleaned.startsWith('https://') && cleaned.includes('.supabase.co')) return cleaned;
+    }
+  } catch {
+    // ignore
+  }
+
   const envUrl = 
     (import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_URL as string) || 
     (import.meta.env.VITE_SHARED_BROADCAST_URL as string) || 
@@ -78,25 +101,25 @@ function getResolvedSharedBroadcastUrl(): string {
     (import.meta.env.APP2_SUPABASE_URL as string) || 
     '';
   
-  if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL')) {
+  if (envUrl && !envUrl.includes('YOUR_SUPABASE_URL') && !envUrl.includes('placeholder')) {
     const cleaned = cleanUrl(envUrl);
     if (cleaned.startsWith('https://')) return cleaned;
   }
 
+  return DEFAULT_SHARED_BROADCAST_URL;
+}
+
+function getResolvedSharedBroadcastKey(): string {
   try {
-    const saved = localStorage.getItem('ckb_shared_broadcast_supabase_url');
-    if (saved) {
-      const cleaned = cleanUrl(saved);
-      if (cleaned.startsWith('https://')) return cleaned;
+    const saved = localStorage.getItem('ckb_shared_broadcast_supabase_anon_key');
+    if (saved && !saved.includes('YOUR_SUPABASE_ANON_KEY') && saved.length > 20) {
+      const cleaned = cleanKey(saved);
+      if (cleaned.length > 20) return cleaned;
     }
   } catch {
     // ignore
   }
 
-  return '';
-}
-
-function getResolvedSharedBroadcastKey(): string {
   const envKey = 
     (import.meta.env.VITE_SHARED_BROADCAST_SUPABASE_ANON_KEY as string) || 
     (import.meta.env.VITE_SHARED_BROADCAST_ANON_KEY as string) || 
@@ -113,17 +136,7 @@ function getResolvedSharedBroadcastKey(): string {
     if (cleaned.length > 20) return cleaned;
   }
 
-  try {
-    const saved = localStorage.getItem('ckb_shared_broadcast_supabase_anon_key');
-    if (saved) {
-      const cleaned = cleanKey(saved);
-      if (cleaned.length > 20) return cleaned;
-    }
-  } catch {
-    // ignore
-  }
-
-  return '';
+  return DEFAULT_SHARED_BROADCAST_KEY;
 }
 
 const resolvedUrl = getResolvedUrl();
@@ -199,8 +212,10 @@ export interface ConnectionTestResult {
   tables: {
     users: boolean;
     broadcasts: boolean;
-    links: boolean;
-    todos: boolean;
+    penyiapan: boolean;
+    barang: boolean;
+    links?: boolean;
+    todos?: boolean;
   };
   details: string;
   latencyMs?: number;
@@ -218,7 +233,7 @@ export async function testSupabaseConnection(): Promise<ConnectionTestResult> {
     return {
       connected: false,
       url: currentUrl || 'Belum Terhubung',
-      tables: { users: false, broadcasts: false, links: false, todos: false },
+      tables: { users: false, broadcasts: false, penyiapan: false, barang: false },
       details: 'Kredensial Server Database Supabase belum dikonfigurasi. Aplikasi beroperasi dalam mode lokal offline.',
     };
   }
@@ -226,7 +241,7 @@ export async function testSupabaseConnection(): Promise<ConnectionTestResult> {
   const result: ConnectionTestResult = {
     connected: false,
     url: currentUrl,
-    tables: { users: false, broadcasts: false, links: false, todos: false },
+    tables: { users: false, broadcasts: false, penyiapan: false, barang: false },
     details: '',
   };
 
@@ -244,19 +259,16 @@ export async function testSupabaseConnection(): Promise<ConnectionTestResult> {
       if (!bErr2) result.tables.broadcasts = true;
     }
 
-    // 3. Test links table
-    const { error: linkErr } = await supabase.from('links').select('id').limit(1);
-    if (!linkErr) result.tables.links = true;
-
-    // 4. Test todos table
-    const { error: todoErr } = await supabase.from('todos').select('id').limit(1);
-    if (!todoErr) result.tables.todos = true;
-
-    // 5. Test data_penyiapan table
+    // 3. Test data_penyiapan table
     const { error: penyiapanErr } = await supabase.from('data_penyiapan').select('id_penyiapan').limit(1);
+    if (!penyiapanErr) result.tables.penyiapan = true;
+
+    // 4. Test data_barang table
+    const { error: barangErr } = await supabase.from('data_barang').select('item_code').limit(1);
+    if (!barangErr) result.tables.barang = true;
 
     result.latencyMs = Date.now() - startTime;
-    result.connected = !userErr || !bErr || !penyiapanErr || !linkErr || !todoErr;
+    result.connected = !userErr || !bErr || !penyiapanErr || !barangErr;
 
     if (result.connected) {
       result.details = `Server Cloud Supabase Terhubung Aktif (${result.latencyMs}ms). Data otomatis sinkron secara realtime di semua perangkat.`;
@@ -319,7 +331,7 @@ export async function testSharedBroadcastConnection(): Promise<ConnectionTestRes
     return {
       connected: false,
       url: currentUrl || 'Belum Terhubung',
-      tables: { users: false, broadcasts: false, links: false, todos: false },
+      tables: { users: false, broadcasts: false, penyiapan: false, barang: false },
       details: 'Jembatan Siaran Antar-Aplikasi belum dikonfigurasi.',
     };
   }
@@ -327,7 +339,7 @@ export async function testSharedBroadcastConnection(): Promise<ConnectionTestRes
   const result: ConnectionTestResult = {
     connected: false,
     url: currentUrl,
-    tables: { users: false, broadcasts: false, links: false, todos: false },
+    tables: { users: false, broadcasts: false, penyiapan: false, barang: false },
     details: '',
   };
 

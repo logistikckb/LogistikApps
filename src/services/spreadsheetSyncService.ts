@@ -6,7 +6,8 @@
 
 import * as XLSX from 'xlsx';
 
-export const DEFAULT_LOGISTIK_SPREADSHEET_ID = '1n1AMHYOU-NFxpc8CyJCd8g0OCcAHR2lbLK77Awzy420';
+export const DEFAULT_LOGISTIK_SPREADSHEET_ID = '1o8hWUAK6DO1rmggbiRaRNfT7On4c9RhrHR6X07nqZm4';
+export const DEFAULT_WORKER_WEBHOOK_URL = 'https://logistikapps.cikembar.workers.dev/';
 
 export interface SpreadsheetConfig {
   webhookUrl?: string;
@@ -537,7 +538,7 @@ export function validateWebhookUrl(rawUrl: string): {
  * Baca konfigurasi global terpadu yang tersimpan di localStorage
  */
 export function getGlobalSpreadsheetConfig(): SpreadsheetConfig {
-  const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
+  const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || DEFAULT_WORKER_WEBHOOK_URL;
   const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || DEFAULT_LOGISTIK_SPREADSHEET_ID;
 
   const storageKeys = [

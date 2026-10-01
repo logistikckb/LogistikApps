@@ -250,13 +250,13 @@ export function SupabaseConnectionModal({ isOpen, onClose, initialTab = 'primary
                       <span className="font-bold">Pesan Siaran</span>
                       {testResult?.tables.broadcasts ? <Check size={14} /> : <span className="text-[10px]">--</span>}
                     </div>
-                    <div className={`p-2 rounded-xl border flex items-center justify-between ${testResult?.tables.links ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                      <span className="font-bold">Menu Cepat</span>
-                      {testResult?.tables.links ? <Check size={14} /> : <span className="text-[10px]">--</span>}
+                    <div className={`p-2 rounded-xl border flex items-center justify-between ${testResult?.tables.penyiapan ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                      <span className="font-bold">Penyiapan</span>
+                      {testResult?.tables.penyiapan ? <Check size={14} /> : <span className="text-[10px]">--</span>}
                     </div>
-                    <div className={`p-2 rounded-xl border flex items-center justify-between ${testResult?.tables.todos ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                      <span className="font-bold">Tugas Tim</span>
-                      {testResult?.tables.todos ? <Check size={14} /> : <span className="text-[10px]">--</span>}
+                    <div className={`p-2 rounded-xl border flex items-center justify-between ${testResult?.tables.barang ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                      <span className="font-bold">Master Barang</span>
+                      {testResult?.tables.barang ? <Check size={14} /> : <span className="text-[10px]">--</span>}
                     </div>
                   </div>
                 </div>

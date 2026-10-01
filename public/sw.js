@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ckblogistic-pwa-v2.5.0';
+const CACHE_NAME = 'ckblogistic-pwa-v2.6.0';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -11,27 +11,25 @@ const STATIC_ASSETS = [
   '/icons/apple-touch-icon.png'
 ];
 
-// Install Event - Pre-cache core shell
+// Install Event - Pre-cache core shell and activate immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  // If there is no active worker controlling clients, activate immediately
-  // Otherwise, remain in waiting state so client page can display the update notification to the user
-  if (!self.registration.active) {
-    self.skipWaiting();
-  }
+  // Activate immediately so new service worker takes effect across all devices
+  self.skipWaiting();
 });
 
-// Activate Event - Clean up stale caches
+// Activate Event - Clean up any stale caches from previous versions
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => {
           if (name !== CACHE_NAME) {
+            console.log('[SW] Purging stale cache:', name);
             return caches.delete(name);
           }
         })
@@ -40,30 +38,62 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Network First with Cache Fallback for navigation, Stale-While-Revalidate for assets
+// Fetch Event - Anti-Error & Cross-Device Database Sync Protection
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Skip non-GET
+  // 1. Skip all non-GET requests (POST, PUT, DELETE, PATCH)
   if (req.method !== 'GET') return;
 
-  // CRITICAL: NEVER cache or intercept Vite dev server modules, API routes, or version check files
+  // 2. CRITICAL DATABASE & SYNC PROTECTION:
+  // NEVER intercept cross-origin requests to Supabase, Cloudflare Workers, Google APIs, or external DBs.
+  // By returning without calling event.respondWith, browser performs them natively
+  // ensuring CORS headers, Bearer tokens, apikey, and WebSockets are NEVER blocked or altered.
+  if (url.origin !== self.location.origin) {
+    const isCdnAsset = 
+      url.hostname.includes('fonts.googleapis.com') ||
+      url.hostname.includes('fonts.gstatic.com') ||
+      url.hostname.includes('cdnjs.cloudflare.com');
+
+    if (!isCdnAsset) {
+      // BYPASS COMPLETELY (Direct Native Network)
+      return;
+    }
+
+    // For external font/CDN static assets, serve from cache with network fallback
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        return cached || fetch(req).then((networkRes) => {
+          if (networkRes && networkRes.status === 200) {
+            const clone = networkRes.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+          }
+          return networkRes;
+        }).catch(() => cached);
+      })
+    );
+    return;
+  }
+
+  // 3. CRITICAL SAME-ORIGIN BYPASS:
+  // NEVER intercept API endpoints, version checks, or Vite development modules
   if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/version.json' ||
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/src/') ||
     url.pathname.startsWith('/node_modules/') ||
     url.pathname.includes('.vite') ||
     url.search.includes('v=') ||
     url.pathname.endsWith('.ts') ||
-    url.pathname.endsWith('.tsx') ||
-    url.pathname === '/version.json' ||
-    url.pathname.startsWith('/api/')
+    url.pathname.endsWith('.tsx')
   ) {
     return;
   }
 
-  // Handle navigation (HTML page)
+  // 4. Navigation requests (HTML page)
+  // Network-First: Always fetch latest index.html so devices get newest code immediately; fallback to cache if offline
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -78,7 +108,7 @@ self.addEventListener('fetch', (event) => {
           const cached = await caches.match(req);
           if (cached) return cached;
           const fallback = await caches.match('/index.html');
-          return fallback || new Response('Offline - CKBLogistic Hub', {
+          return fallback || new Response('Offline - LogistikApps Hub', {
             headers: { 'Content-Type': 'text/html' }
           });
         })
@@ -86,34 +116,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle Static Assets (JS, CSS, Images, Fonts)
-  if (
-    url.origin === self.location.origin ||
-    url.hostname.includes('cdnjs.cloudflare.com') ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com')
-  ) {
-    event.respondWith(
-      caches.match(req).then((cachedRes) => {
-        const fetchPromise = fetch(req)
-          .then((networkRes) => {
-            if (networkRes && networkRes.status === 200) {
-              const resClone = networkRes.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
-            }
-            return networkRes;
-          })
-          .catch(() => cachedRes);
-
-        return cachedRes || fetchPromise;
-      })
-    );
-    return;
-  }
-
-  // Default network with fallback
+  // 5. Same-origin Static Assets (JS bundles, CSS, Images, Icons)
+  // Network-First: Fetch from network first so code updates take effect immediately on all devices
   event.respondWith(
-    fetch(req).catch(() => caches.match(req))
+    fetch(req)
+      .then((networkRes) => {
+        if (networkRes && networkRes.status === 200) {
+          const resClone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+        }
+        return networkRes;
+      })
+      .catch(() => caches.match(req))
   );
 });
 
@@ -126,7 +140,7 @@ self.addEventListener('message', (event) => {
     event.ports?.[0]?.postMessage({
       type: 'VERSION_RESPONSE',
       cacheName: CACHE_NAME,
-      version: '2.5.0'
+      version: '2.6.0'
     });
   }
 });
@@ -177,4 +191,3 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
-
