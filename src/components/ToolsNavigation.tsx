@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   CalendarCheck2, 
   Sparkles,
@@ -9,21 +9,9 @@ import {
   Flame,
   ClipboardList,
   Package,
-  Eye,
-  EyeOff,
-  Settings2,
-  Lock,
-  Unlock,
-  FileSpreadsheet,
-  ExternalLink,
   PackageCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useMenuVisibility } from '../hooks/useMenuVisibility';
-import { MenuVisibilityModal } from './admin/MenuVisibilityModal';
-import { MenuPinAuthModal } from './admin/MenuPinAuthModal';
-import { SpreadsheetLinkModal } from './common/SpreadsheetLinkModal';
-import { useNotification } from '../context/NotificationContext';
 
 export type ToolId = 
   | 'ed-checker' 
@@ -241,65 +229,13 @@ interface ToolsGridMenuProps {
 export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
   const { currentUser, isAdmin } = useAuth();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
-  const { showToast } = useNotification();
 
-  const {
-    hiddenMenuIds,
-    toggleMenuVisibility,
-    unhideAllMenus,
-    isSyncing,
-    lastSyncTime
-  } = useMenuVisibility();
-
-  const [showVisibilityModal, setShowVisibilityModal] = useState(false);
-  const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
-  const [showHiddenInGrid, setShowHiddenInGrid] = useState(false);
-
-  // Keamanan PIN khusus untuk fitur Hide / Unhide dan Buka Spreadsheet
-  const [isPinVerified, setIsPinVerified] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-
-  const requirePinForAction = (action: () => void) => {
-    if (isPinVerified) {
-      action();
-    } else {
-      setPendingAction(() => action);
-      setShowPinModal(true);
-    }
-  };
-
-  const handlePinSuccess = () => {
-    setIsPinVerified(true);
-    showToast('PIN Terverifikasi', 'Akses fitur keamanan dibuka.', 'success');
-    if (pendingAction) {
-      pendingAction();
-      setPendingAction(null);
-    }
-  };
-
-  // Filter tools:
-  // 1. Check requiresAdmin
-  // 2. Check hidden status
-  const visibleTools = TOOLS_LIST.filter(tool => {
-    if (tool.requiresAdmin && !isSuperAdmin) {
-      return false;
-    }
-    const isHidden = hiddenMenuIds.includes(tool.id);
-    if (isHidden) {
-      // Non-admin can NEVER see hidden tools
-      if (!isSuperAdmin) return false;
-      // Admin can view if toggle is turned on
-      return showHiddenInGrid;
-    }
-    return true;
-  });
-
-  const hiddenCount = hiddenMenuIds.length;
+  // Filter tools: Check requiresAdmin
+  const visibleTools = TOOLS_LIST.filter(tool => !tool.requiresAdmin || isSuperAdmin);
 
   return (
     <div className="space-y-2.5">
-      {/* Top Header / Bar for Menu Management (Admin Only) */}
+      {/* Top Header */}
       <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <span className="text-xs font-extrabold text-slate-800 tracking-tight">
@@ -309,206 +245,54 @@ export function ToolsGridMenu({ onOpenTool }: ToolsGridMenuProps) {
             ({visibleTools.length} modul aktif)
           </span>
         </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Tombol Buka Spreadsheet yang Dipakai untuk Sinkron Data */}
-          <button
-            type="button"
-            onClick={() => requirePinForAction(() => setShowSpreadsheetModal(true))}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs active:scale-95"
-            title="Buka Google Spreadsheet yang dipakai untuk sinkron data (Memerlukan PIN Keamanan)"
-          >
-            <FileSpreadsheet size={13} className="text-emerald-700" />
-            <span>Buka Spreadsheet Sinkron</span>
-            <ExternalLink size={10} className="text-emerald-600" />
-          </button>
-
-          {isSuperAdmin && (
-            <>
-              {hiddenCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowHiddenInGrid(prev => !prev)}
-                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    showHiddenInGrid 
-                      ? 'bg-amber-100 text-amber-900 border border-amber-300' 
-                      : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
-                  }`}
-                  title={showHiddenInGrid ? 'Sembunyikan menu nonaktif dari grid' : 'Tampilkan menu yang sedang di-hide di grid ini'}
-                >
-                  <EyeOff size={12} className="text-rose-600" />
-                  <span>{hiddenCount} Menu Dihide</span>
-                  <span className="text-[9px] underline ml-0.5">
-                    ({showHiddenInGrid ? 'Tampil di Grid' : 'Lihat'})
-                  </span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/90 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
-                title="Atur Hide / Unhide menu untuk seluruh perangkat tim (Memerlukan PIN Keamanan)"
-              >
-                {isPinVerified ? (
-                  <Unlock size={12} className="text-emerald-600" />
-                ) : (
-                  <Lock size={12} className="text-amber-600" />
-                )}
-                <span>Atur Menu (Hide/Unhide)</span>
-              </button>
-
-              {isPinVerified && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPinVerified(false);
-                    showToast('Akses Dikunci', 'PIN diperlukan kembali untuk mengubah menu atau spreadsheet.', 'info');
-                  }}
-                  className="p-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 cursor-pointer transition-colors"
-                  title="Kunci kembali akses pengaturan menu"
-                >
-                  <Lock size={12} />
-                </button>
-              )}
-            </>
-          )}
-        </div>
       </div>
 
       {/* Grid of Menus */}
-      {visibleTools.length === 0 ? (
-        <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-          <EyeOff size={28} className="mx-auto mb-2 text-slate-300" />
-          <p className="text-xs font-bold text-slate-700 m-0">Tidak ada menu yang ditampilkan saat ini.</p>
-          <p className="text-[11px] text-slate-500 mt-1">
-            {isSuperAdmin ? 'Semua menu sedang disembunyikan. Silakan buka menu Atur Menu untuk mengaktifkan kembali.' : 'Silakan hubungi Administrator untuk mengaktifkan akses menu.'}
-          </p>
-          {isSuperAdmin && (
-            <button
-              type="button"
-              onClick={() => requirePinForAction(() => setShowVisibilityModal(true))}
-              className="mt-3 px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs cursor-pointer shadow-sm"
-            >
-              Atur Menu Sekarang
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-2.5">
-          {visibleTools.map((tool) => {
-            const Icon = tool.icon;
-            const isHidden = hiddenMenuIds.includes(tool.id);
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-2.5">
+        {visibleTools.map((tool) => {
+          const Icon = tool.icon;
 
-            return (
-              <div key={tool.id} className="relative group">
-                <button
-                  type="button"
-                  onClick={() => onOpenTool(tool.id)}
-                  className={`w-full p-2.5 sm:p-3 rounded-xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer border shadow-2xs select-none min-h-[88px] sm:min-h-[96px] ${
-                    isHidden
-                      ? 'bg-rose-50/40 border-dashed border-rose-300 opacity-70 hover:opacity-100 hover:bg-rose-50'
-                      : 'bg-white hover:bg-slate-50 active:bg-blue-50/40 border-slate-200/90 hover:border-slate-300'
-                  }`}
-                >
-                  {/* Ready Indicator dot for active tool */}
-                  {tool.isReady && !isHidden && (
-                    <span 
-                      className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" 
-                      title="Modul Aktif"
-                    />
-                  )}
-
-                  {/* Super Admin Badge on top left if tool requires admin */}
-                  {tool.requiresAdmin && !isHidden && (
-                    <span 
-                      className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[8px] font-bold uppercase tracking-wider"
-                      title="Khusus Super Admin"
-                    >
-                      ADMIN
-                    </span>
-                  )}
-
-                  {/* Hidden Indicator Badge */}
-                  {isHidden && (
-                    <span 
-                      className="absolute top-1.5 left-1.5 px-1.5 py-0.2 rounded-md bg-rose-100 border border-rose-300 text-rose-800 text-[8px] font-extrabold uppercase tracking-wider flex items-center gap-0.5"
-                      title="Disembunyikan di semua perangkat user"
-                    >
-                      <EyeOff size={8} /> HIDE
-                    </span>
-                  )}
-
-                  {/* Icon Container with Light Pastel Fill */}
-                  <div 
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${tool.colorBg} flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 ${
-                      isHidden ? 'grayscale-40 opacity-70' : ''
-                    }`}
-                  >
-                    <Icon size={18} className="sm:size-[19px]" />
-                  </div>
-
-                  {/* Nama Menu di Bawah Icon */}
-                  <span className={`mt-1.5 text-xs font-semibold leading-tight tracking-tight text-center line-clamp-2 w-full ${
-                    isHidden ? 'text-slate-500' : 'text-slate-800 group-hover:text-blue-900'
-                  }`}>
-                    {tool.title}
-                  </span>
-                </button>
-
-                {/* Quick Unhide button for Admin when hovering on hidden menu */}
-                {isSuperAdmin && isHidden && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      requirePinForAction(() => toggleMenuVisibility(tool.id));
-                    }}
-                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-110 z-10"
-                    title={`Klik untuk Unhide "${tool.title}" di semua perangkat (Perlu PIN Keamanan)`}
-                  >
-                    <Eye size={12} />
-                  </button>
+          return (
+            <div key={tool.id} className="relative group">
+              <button
+                type="button"
+                onClick={() => onOpenTool(tool.id)}
+                className="w-full p-2.5 sm:p-3 rounded-xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer border shadow-2xs select-none min-h-[88px] sm:min-h-[96px] bg-white hover:bg-slate-50 active:bg-blue-50/40 border-slate-200/90 hover:border-slate-300"
+              >
+                {/* Ready Indicator dot for active tool */}
+                {tool.isReady && (
+                  <span 
+                    className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" 
+                    title="Modul Aktif"
+                  />
                 )}
-              </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Modal Pengaturan Visibilitas Menu (Admin Only) */}
-      {isSuperAdmin && (
-        <MenuVisibilityModal
-          isOpen={showVisibilityModal}
-          onClose={() => setShowVisibilityModal(false)}
-          onLock={() => setIsPinVerified(false)}
-          hiddenMenuIds={hiddenMenuIds}
-          onToggleVisibility={toggleMenuVisibility}
-          onUnhideAll={unhideAllMenus}
-          isSyncing={isSyncing}
-          lastSyncTime={lastSyncTime}
-          showToast={showToast}
-        />
-      )}
+                {/* Super Admin Badge on top left if tool requires admin */}
+                {tool.requiresAdmin && (
+                  <span 
+                    className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[8px] font-bold uppercase tracking-wider"
+                    title="Khusus Super Admin"
+                  >
+                    ADMIN
+                  </span>
+                )}
 
-      {/* Modal Buka Link Google Spreadsheet Sinkron Data */}
-      <SpreadsheetLinkModal
-        isOpen={showSpreadsheetModal}
-        onClose={() => setShowSpreadsheetModal(false)}
-        showToast={showToast}
-      />
+                {/* Icon Container with Light Pastel Fill */}
+                <div 
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${tool.colorBg} flex items-center justify-center group-hover:scale-105 transition-transform shrink-0`}
+                >
+                  <Icon size={18} className="sm:size-[19px]" />
+                </div>
 
-      {/* Modal Verifikasi PIN Khusus Hide/Unhide & Buka Spreadsheet */}
-      <MenuPinAuthModal
-        isOpen={showPinModal}
-        onClose={() => {
-          setShowPinModal(false);
-          setPendingAction(null);
-        }}
-        onSuccess={handlePinSuccess}
-        title="Verifikasi PIN Keamanan"
-        description="Masukkan PIN keamanan untuk melanjutkan akses."
-      />
+                {/* Nama Menu di Bawah Icon */}
+                <span className="mt-1.5 text-xs font-semibold leading-tight tracking-tight text-center line-clamp-2 w-full text-slate-800 group-hover:text-blue-900">
+                  {tool.title}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

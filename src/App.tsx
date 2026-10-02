@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useNotification } from './context/NotificationContext';
 import { usePwa } from './context/PwaContext';
-import { useMenuVisibility } from './hooks/useMenuVisibility';
 import { LoginPage } from './components/auth/LoginPage';
 import { Hero } from './components/Hero';
 import { ToolsGridMenu, ToolId, TOOLS_LIST } from './components/ToolsNavigation';
@@ -46,7 +45,6 @@ export default function App() {
   const { currentUser, isAdmin } = useAuth();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
   const { showToast } = useNotification();
-  const { hiddenMenuIds } = useMenuVisibility();
   const { isUpdateAvailable, updateInfo, setShowUpdateModal } = usePwa();
 
   // Navigation: 'home' (Daftar Menu Utama) / 'module' (Halaman Detail Modul)
@@ -77,14 +75,6 @@ export default function App() {
     });
   }, []);
 
-  // Guard: Jika sedang membuka modul yang baru saja di-hide oleh admin di perangkat lain, redirect ke home
-  useEffect(() => {
-    if (currentView === 'module' && !isSuperAdmin && hiddenMenuIds.includes(activeToolId)) {
-      showToast('Menu Dinonaktifkan', 'Modul yang sedang Anda buka telah dinonaktifkan oleh Administrator.', 'warning');
-      setCurrentView('home');
-    }
-  }, [hiddenMenuIds, activeToolId, currentView, isSuperAdmin, showToast]);
-
   // Broadcast intercom system
   const {
     messages: broadcastMessages,
@@ -112,10 +102,6 @@ export default function App() {
   const handleOpenTool = (id: ToolId) => {
     const targetTool = TOOLS_LIST.find((t) => t.id === id);
     if (targetTool?.requiresAdmin && !isSuperAdmin) {
-      return;
-    }
-    if (hiddenMenuIds.includes(id) && !isSuperAdmin) {
-      showToast('Akses Dibatasi', `Menu "${targetTool?.title || id}" sedang dinonaktifkan oleh Administrator.`, 'warning');
       return;
     }
     setActiveToolId(id);
