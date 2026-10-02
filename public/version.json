@@ -1,12 +1,12 @@
 {
   "version": "2.6.0",
-  "buildTimestamp": 1727748800000,
-  "releaseDate": "1 Oktober 2026",
+  "buildTimestamp": 1730073600000,
+  "releaseDate": "28 Oktober 2026",
   "name": "LogistikApps PWA",
   "changelog": [
-    "Perbaikan sinkronisasi database server cloud Supabase ke seluruh perangkat",
-    "Bypass proteksi Service Worker untuk trafik API Supabase dan Webhook Cloudflare Worker",
-    "Pembersihan otomatis cache usang antar perangkat tim",
-    "Sistem notifikasi pembaruan kode otomatis & instan di PWA (Service Worker Lifecycle)"
+    "Pengembalian konfigurasi role hak akses ke versi sebelum update (Semua modul operasional dapat diakses)",
+    "Peniadaan mode offline: Seluruh data transaksi tidak lagi disimpan di penyimpanan lokal (localStorage) perangkat",
+    "Pembersihan otomatis cache transaksi lama pada seluruh perangkat tim",
+    "Sinkronisasi data transaksi terpusat secara langsung ke server cloud Supabase real-time"
   ]
 }

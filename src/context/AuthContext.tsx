@@ -145,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_SYSTEM_USERS;
   });
 
-  // Inisialisasi user yang sedang login (default ke admin jika belum tersimpan)
+  // Inisialisasi user yang sedang login (default null agar pengguna wajib login terlebih dahulu)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_AUTH);
@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // ignore
     }
-    return DEFAULT_SYSTEM_USERS[0];
+    return null;
   });
 
   // Sinkronisasi data profil pengguna langsung dari database pusat (Tabel 'users')

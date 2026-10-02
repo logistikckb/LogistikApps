@@ -367,11 +367,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       });
       if (Array.isArray(data)) {
         setCekFisikList(data);
-        if (data.length > 0) {
-          localStorage.setItem('cek_fisik_pemusnahan_cache_v1', JSON.stringify(data));
-        } else {
-          localStorage.removeItem('cek_fisik_pemusnahan_cache_v1');
-        }
       }
     } catch (err: any) {
       console.error('Error fetching data_cek_fisik_pemusnahan:', err);
@@ -387,17 +382,11 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     }
   }, []);
 
-  // Initial Load & Realtime Sync
+  // Initial Load & Realtime Sync (Data transaksi langsung dari Supabase cloud)
   useEffect(() => {
-    const cached = localStorage.getItem('cek_fisik_pemusnahan_cache_v1');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) setCekFisikList(parsed);
-      } catch (e) {
-        console.error('Error loading cek fisik cache:', e);
-      }
-    }
+    try {
+      localStorage.removeItem('cek_fisik_pemusnahan_cache_v1');
+    } catch {}
     fetchMasterData();
     fetchCekFisikData();
 
@@ -411,15 +400,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       return () => { supabase.removeChannel(channel); };
     }
   }, [fetchMasterData, fetchCekFisikData]);
-
-  // Save to localStorage whenever list changes
-  useEffect(() => {
-    if (cekFisikList.length > 0) {
-      try { localStorage.setItem('cek_fisik_pemusnahan_cache_v1', JSON.stringify(cekFisikList)); } catch {}
-    } else {
-      try { localStorage.removeItem('cek_fisik_pemusnahan_cache_v1'); } catch {}
-    }
-  }, [cekFisikList]);
 
   // Filter & Unique options
   const uniqueCategories = useMemo(() => {
@@ -844,16 +824,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             console.error(`Error batch transferring to ${targetConfig.tableName}:`, error);
           }
         }
-      }
-
-      // 3. Update cache local storage untuk target table (misal: pemusnahan_cache_v1)
-      try {
-        const cachedTarget = localStorage.getItem(targetConfig.cacheKey);
-        const targetList = cachedTarget ? JSON.parse(cachedTarget) : [];
-        const mergedTargetList = [...targetPayloads, ...targetList.filter((x: any) => !targetPayloads.some(p => p[targetConfig.idField] === x[targetConfig.idField]))];
-        localStorage.setItem(targetConfig.cacheKey, JSON.stringify(mergedTargetList));
-      } catch (e) {
-        console.warn('Error updating local target cache:', e);
       }
 
       // 4. Update source status atau delete source

@@ -852,11 +852,6 @@ export function IncomingModule() {
 
       if (Array.isArray(data)) {
         setIncomingList(data);
-        if (data.length > 0) {
-          localStorage.setItem('incoming_cache_v1', JSON.stringify(data));
-        } else {
-          localStorage.removeItem('incoming_cache_v1');
-        }
       }
     } catch (err: any) {
       console.error('Unexpected error fetching incoming:', err);
@@ -867,22 +862,14 @@ export function IncomingModule() {
     }
   }, []);
 
-  // Initial Load & Local Storage Sync
+  // Initial Load & Realtime Sync (Data transaksi langsung dari Cloud, tanpa simpan ke lokal perangkat)
   useEffect(() => {
-    // 1. Try loading cached data from LocalStorage first for instant UI response
-    const cachedIncoming = localStorage.getItem('incoming_cache_v1');
-    if (cachedIncoming) {
-      try {
-        const parsed = JSON.parse(cachedIncoming);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setIncomingList(parsed);
-        }
-      } catch (e) {
-        console.error('Error loading incoming cache:', e);
-      }
-    }
+    // Bersihkan cache transaksi lama jika ada
+    try {
+      localStorage.removeItem('incoming_cache_v1');
+    } catch {}
 
-    // 2. Fetch master data and incoming records from Supabase
+    // Fetch master data and incoming records from Supabase
     fetchMasterData();
     fetchIncomingData();
 
@@ -924,15 +911,6 @@ export function IncomingModule() {
       window.removeEventListener('storage', handleStorage);
     };
   }, [fetchMasterData, fetchIncomingData]);
-
-  // Save to local storage whenever incomingList changes
-  useEffect(() => {
-    if (incomingList.length > 0) {
-      localStorage.setItem('incoming_cache_v1', JSON.stringify(incomingList));
-    } else {
-      localStorage.removeItem('incoming_cache_v1');
-    }
-  }, [incomingList]);
 
   // Unified Sync & Refresh handler: syncs local dirty state to DB and re-fetches latest cloud rows
   const handleSyncAndRefresh = async () => {

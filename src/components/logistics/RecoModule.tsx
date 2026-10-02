@@ -279,20 +279,6 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
     setIsLoading(true);
     setLastSupabaseError(null);
 
-    // Read local cache first for instant render
-    let cachedList: RecoItem[] = [];
-    try {
-      const cached = localStorage.getItem('reco_cache_v1');
-      if (cached) {
-        cachedList = JSON.parse(cached);
-        if (Array.isArray(cachedList) && cachedList.length > 0) {
-          setRecoList(cachedList);
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading reco local cache:', e);
-    }
-
     if (!isSupabaseConfigured) {
       setIsLoading(false);
       return;
@@ -306,9 +292,6 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
       if (rows) {
         setRecoList(rows);
-        try {
-          localStorage.setItem('reco_cache_v1', JSON.stringify(rows));
-        } catch {}
       }
     } catch (err: any) {
       console.error('Error fetching data_reco:', err);
@@ -320,6 +303,11 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
 
   // Initial Load & Supabase Realtime Subscription
   useEffect(() => {
+    // Bersihkan cache transaksi lokal lama
+    try {
+      localStorage.removeItem('reco_cache_v1');
+    } catch {}
+
     fetchRecoData();
     fetchMasterData();
 
@@ -353,15 +341,6 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       supabase.removeChannel(channel);
     };
   }, [fetchRecoData, fetchMasterData]);
-
-  // Sync to local storage whenever recoList changes
-  useEffect(() => {
-    if (recoList.length > 0) {
-      try {
-        localStorage.setItem('reco_cache_v1', JSON.stringify(recoList));
-      } catch {}
-    }
-  }, [recoList]);
 
   // Manual Refresh Handler
   const handleRefresh = async () => {
@@ -655,15 +634,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
     // 1. Optimistic Local State Update
     setRecoList(prev => prev.map(p => p.id_reco === item.id_reco ? updatedItem : p));
 
-    // 2. Local Storage Cache
-    try {
-      const currentList = recoList.map(p => p.id_reco === item.id_reco ? updatedItem : p);
-      localStorage.setItem('reco_cache_v1', JSON.stringify(currentList));
-    } catch (e) {
-      console.warn('Error caching reco after inline edit:', e);
-    }
-
-    // 3. Supabase Cloud Sync
+    // 2. Supabase Cloud Sync
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase
@@ -675,7 +646,7 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
         showToast('Catatan Tersimpan', `Catatan ${item.id_reco} berhasil diperbarui di database.`, 'info');
       } catch (err: any) {
         console.error('Error saving inline update to Supabase:', err);
-        showToast('Tersimpan Lokal', `Tersimpan di offline cache. Error cloud: ${err.message}`, 'warning');
+        showToast('Peringatan Cloud', `Gagal simpan ke server: ${err.message}`, 'warning');
       }
     }
   };
@@ -937,18 +908,6 @@ export function RecoModule({ onNavigateToPenyiapan }: RecoModuleProps = {}) {
       }
       return item;
     }));
-
-    try {
-      const updated = recoList.map(item => {
-        if (targetIdSet.has(item.id_reco)) {
-          return { ...item, status: finalStatus, updated_at: nowIso };
-        }
-        return item;
-      });
-      localStorage.setItem('reco_cache_v1', JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Error saving reco cache:', e);
-    }
 
     // 2. Supabase Cloud Update in chunks
     let cloudError = false;

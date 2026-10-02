@@ -233,13 +233,13 @@ function registerSpreadsheetMiddlewares(middlewares: any) {
     res.statusCode = 200;
     res.end(JSON.stringify({
       version: '2.6.0',
-      buildTimestamp: 1727748800000,
-      releaseDate: '1 Oktober 2026',
+      buildTimestamp: 1730073600000,
+      releaseDate: '28 Oktober 2026',
       name: 'LogistikApps PWA',
       changelog: [
-        'Perbaikan sinkronisasi database server cloud Supabase ke seluruh perangkat',
-        'Bypass proteksi Service Worker untuk trafik API Supabase dan Webhook Cloudflare Worker',
-        'Pembersihan otomatis cache usang antar perangkat tim'
+        'Pengembalian konfigurasi role hak akses ke versi sebelum update',
+        'Peniadaan penyimpanan lokal untuk data transaksi',
+        'Sinkronisasi database pusat multi-perangkat real-time'
       ]
     }));
   });

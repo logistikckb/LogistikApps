@@ -173,7 +173,7 @@ export function PwaUpdatePrompt() {
                     <span>Rilis Versi</span>
                   </div>
                   <div className="font-bold text-slate-800 mt-0.5">
-                    {updateInfo?.releaseDate || '30 September 2026'}
+                    {updateInfo?.releaseDate || '28 Oktober 2026'}
                   </div>
                 </div>
 

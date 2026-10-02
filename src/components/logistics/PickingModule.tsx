@@ -198,18 +198,18 @@ export function PickingModule({
   // Role function: identical to Penyiapan
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin';
 
-  // Primary Data State (Database Spreadsheet / Local Cache)
+  // Primary Data State (In-Memory & Cloud, Tanpa Simpan Lokal Perangkat)
   const [pickingList, setPickingList] = useState<PickingItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_DB_KEY) || localStorage.getItem('picking_cache_v1');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    // Gunakan 90 data awal yang diinput user jika belum ada data tersimpan
     return SEED_PICKING_ITEMS;
   });
+
+  // Bersihkan cache transaksi lama pada perangkat
+  useEffect(() => {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_DB_KEY);
+      localStorage.removeItem('picking_cache_v1');
+    } catch {}
+  }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
@@ -294,14 +294,9 @@ export function PickingModule({
     timestamp?: string;
   } | null>(null);
 
-  // Save changes to localStorage database
-  const saveToLocalDb = (items: PickingItem[]) => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_DB_KEY, JSON.stringify(items));
-      localStorage.setItem('picking_cache_v1', JSON.stringify(items));
-    } catch (e) {
-      console.warn('Gagal menyimpan ke localStorage:', e);
-    }
+  // Update in-memory state (Data transaksi tidak disimpan di localStorage perangkat)
+  const saveToLocalDb = (_items: PickingItem[]) => {
+    // No-op: Data transaksi tidak disimpan ke penyimpanan lokal perangkat
   };
 
   // Helper ID generator for Picking
@@ -828,16 +823,6 @@ export function PickingModule({
         created_at: new Date().toISOString()
       };
     });
-
-    // Save to destination storage
-    try {
-      const existingRaw = localStorage.getItem(bulkDestination.storageKey);
-      const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      const merged = Array.isArray(existing) ? [...targetItems, ...existing] : targetItems;
-      localStorage.setItem(bulkDestination.storageKey, JSON.stringify(merged));
-    } catch (e) {
-      console.warn('Gagal transfer ke target storage:', e);
-    }
 
     // Source action: delete or update
     if (bulkSourceAction === 'delete' && isSuperAdmin) {

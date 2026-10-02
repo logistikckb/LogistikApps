@@ -361,25 +361,16 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
     }
   };
 
-  // 2. Fetch Repack Data (from Supabase with localStorage cache fallback)
+  // 2. Fetch Repack Data langsung dari Supabase cloud (tanpa penyimpanan offline lokal)
   const fetchRepackData = async (silent = false) => {
     if (!silent) setIsLoading(true);
     setIsRefreshing(true);
     setLastSupabaseError(null);
 
-    // Initial cache load
+    // Pastikan tidak ada data usang di cache lokal
     try {
-      const cached = localStorage.getItem('repack_cache_v1');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setRepackList(parsed);
-          if (!silent) setIsLoading(false);
-        }
-      }
-    } catch (e) {
-      console.warn('Gagal membaca cache repack_cache_v1:', e);
-    }
+      localStorage.removeItem('repack_cache_v1');
+    } catch {}
 
     if (!isSupabaseConfigured) {
       setIsLoading(false);
@@ -393,12 +384,8 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
         ascending: false
       });
 
-      if (data && data.length > 0) {
+      if (data) {
         setRepackList(data);
-        localStorage.setItem('repack_cache_v1', JSON.stringify(data));
-      } else if (data && data.length === 0) {
-        // Only set if we don't have local cached items or freshly empty
-        setRepackList(prev => prev.length > 0 ? prev : []);
       }
     } catch (err: any) {
       console.error('Fetch error:', err);
@@ -410,6 +397,9 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
   };
 
   useEffect(() => {
+    try {
+      localStorage.removeItem('repack_cache_v1');
+    } catch {}
     fetchRepackData();
     fetchMasterData();
 
@@ -425,23 +415,17 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
               const newRow = payload.new as RepackItem;
               setRepackList(prev => {
                 if (prev.some(x => x.id_repack === newRow.id_repack)) return prev;
-                const next = [newRow, ...prev];
-                localStorage.setItem('repack_cache_v1', JSON.stringify(next));
-                return next;
+                return [newRow, ...prev];
               });
             } else if (payload.eventType === 'UPDATE') {
               const updatedRow = payload.new as RepackItem;
               setRepackList(prev => {
-                const next = prev.map(item => item.id_repack === updatedRow.id_repack ? updatedRow : item);
-                localStorage.setItem('repack_cache_v1', JSON.stringify(next));
-                return next;
+                return prev.map(item => item.id_repack === updatedRow.id_repack ? updatedRow : item);
               });
             } else if (payload.eventType === 'DELETE') {
               const oldRow = payload.old as { id_repack: string };
               setRepackList(prev => {
-                const next = prev.filter(item => item.id_repack !== oldRow.id_repack);
-                localStorage.setItem('repack_cache_v1', JSON.stringify(next));
-                return next;
+                return prev.filter(item => item.id_repack !== oldRow.id_repack);
               });
             }
           }
@@ -1077,7 +1061,6 @@ export function RepackModule({ onNavigateToPenyiapan }: RepackModuleProps = {}) 
     try {
       const mergedList = [...parsedExcelRows, ...repackList.filter(item => !parsedExcelRows.some(p => p.id_repack === item.id_repack))];
       setRepackList(mergedList);
-      localStorage.setItem('repack_cache_v1', JSON.stringify(mergedList));
 
       if (isSupabaseConfigured) {
         // Chunk batch upload (50 per batch)

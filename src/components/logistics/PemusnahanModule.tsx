@@ -361,11 +361,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
       if (Array.isArray(data)) {
         setPemusnahanList(data);
-        if (data.length > 0) {
-          localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(data));
-        } else {
-          localStorage.removeItem('pemusnahan_cache_v1');
-        }
       }
     } catch (err: any) {
       console.error('Unexpected error fetching data_pemusnahan:', err);
@@ -378,20 +373,12 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
   // Initial Load & Realtime Sync
   useEffect(() => {
-    // 1. Load cached data from localStorage
-    const cached = localStorage.getItem('pemusnahan_cache_v1');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPemusnahanList(parsed);
-        }
-      } catch (e) {
-        console.error('Error loading pemusnahan cache:', e);
-      }
-    }
+    // Bersihkan cache transaksi lokal lama
+    try {
+      localStorage.removeItem('pemusnahan_cache_v1');
+    } catch {}
 
-    // 2. Fetch live data
+    // Fetch live data from Supabase
     fetchMasterData();
     fetchPemusnahanData();
 
@@ -409,19 +396,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
       };
     }
   }, [fetchMasterData, fetchPemusnahanData]);
-
-  // Save to local storage whenever pemusnahanList changes
-  useEffect(() => {
-    if (pemusnahanList.length > 0) {
-      try {
-        localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(pemusnahanList));
-      } catch {}
-    } else {
-      try {
-        localStorage.removeItem('pemusnahan_cache_v1');
-      } catch {}
-    }
-  }, [pemusnahanList]);
 
   // Safe Batch Upsert for Supabase
   const safeBatchUpsertPemusnahan = async (records: PemusnahanItem[], batchSize = 50) => {
@@ -776,14 +750,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     setIsDeletingBulk(true);
     const targetIdSet = new Set(targetIds);
 
-    // 1. Optimistic Local State & Cache Update
+    // 1. Optimistic Local State Update
     setPemusnahanList(prev => prev.filter(item => !targetIdSet.has(item.id_pemusnahan)));
-    try {
-      const remaining = pemusnahanList.filter(item => !targetIdSet.has(item.id_pemusnahan));
-      localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(remaining));
-    } catch (e) {
-      console.warn('Error saving pemusnahan cache:', e);
-    }
 
     // 2. Supabase Cloud Deletion in chunks
     let cloudError = false;
@@ -919,25 +887,13 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
 
     setIsUpdatingBulkStatus(true);
 
-    // 1. Optimistic Local State & Cache Update (Keeps 100% full text)
+    // 1. Optimistic Local State Update (Keeps 100% full text)
     setPemusnahanList(prev => prev.map(item => {
       if (targetIdSet.has(item.id_pemusnahan)) {
         return { ...item, status: finalStatus, updated_at: nowIso };
       }
       return item;
     }));
-
-    try {
-      const updated = pemusnahanList.map(item => {
-        if (targetIdSet.has(item.id_pemusnahan)) {
-          return { ...item, status: finalStatus, updated_at: nowIso };
-        }
-        return item;
-      });
-      localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Error saving pemusnahan cache:', e);
-    }
 
     // 2. Safe Supabase Cloud Synchronization with adaptive fallback
     const syncRes = await safeUpdatePemusnahanStatusInSupabase(targetItems, finalStatus);
@@ -1241,18 +1197,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     // 1. Optimistic Local State Update
     setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p));
 
-    // Update Local Storage Cache
-    try {
-      const currentCache = localStorage.getItem('pemusnahan_cache_v1');
-      if (currentCache) {
-        const parsed = JSON.parse(currentCache);
-        const nextCache = parsed.map((p: PemusnahanItem) => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p);
-        localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(nextCache));
-      }
-    } catch (e) {
-      console.warn('Cache write warning:', e);
-    }
-
     // Special safe handler for status
     if (field === 'status') {
       const res = await safeUpdatePemusnahanStatusInSupabase([item], String(processedValue));
@@ -1309,15 +1253,6 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     const updatedItem = { ...item, status: newStatus, updated_at: nowIso };
     
     setPemusnahanList(prev => prev.map(p => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p));
-
-    try {
-      const currentCache = localStorage.getItem('pemusnahan_cache_v1');
-      if (currentCache) {
-        const parsed = JSON.parse(currentCache);
-        const nextCache = parsed.map((p: PemusnahanItem) => p.id_pemusnahan === item.id_pemusnahan ? updatedItem : p);
-        localStorage.setItem('pemusnahan_cache_v1', JSON.stringify(nextCache));
-      }
-    } catch {}
 
     const res = await safeUpdatePemusnahanStatusInSupabase([item], newStatus);
     if (!res.success) {

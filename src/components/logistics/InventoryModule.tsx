@@ -93,17 +93,15 @@ export function InventoryModule({
     } catch {}
   };
 
-  // Primary Data State
-  const [inventoryList, setInventoryList] = useState<InventoryItem[]>(() => {
+  // Primary Data State (Direct Realtime from Cloud, Tanpa Simpan Lokal Perangkat)
+  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
+
+  // Bersihkan cache transaksi lokal lama
+  useEffect(() => {
     try {
-      const cached = localStorage.getItem(INVENTORY_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) return parsed;
-      }
+      localStorage.removeItem(INVENTORY_CACHE_KEY);
     } catch {}
-    return [];
-  });
+  }, []);
 
   const [barangList, setBarangList] = useState<DataBarang[]>(() => {
     try {
@@ -223,7 +221,6 @@ export function InventoryModule({
       }
 
       setInventoryList(allData);
-      localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(allData));
       setLastSupabaseError(null);
       if (isManualRefresh) {
         showToast('Sinkronisasi Sukses', `Berhasil memuat ${allData.length} baris data inventory terbaru.`, 'success');
@@ -232,7 +229,7 @@ export function InventoryModule({
       console.warn('Inventory fetch warning:', err);
       setLastSupabaseError(err.message || 'Gagal tersambung ke cloud database');
       if (isManualRefresh) {
-        showToast('Sinkronisasi Offline', err.message || 'Menggunakan data cache offline.', 'warning');
+        showToast('Koneksi Terputus', err.message || 'Gagal memuat data dari cloud database.', 'warning');
       }
     } finally {
       setIsLoading(false);
@@ -253,23 +250,11 @@ export function InventoryModule({
           (payload) => {
             console.log('Realtime inventory update:', payload);
             if (payload.eventType === 'INSERT') {
-              setInventoryList(prev => {
-                const updated = [payload.new as InventoryItem, ...prev.filter(i => i.id_inventory !== (payload.new as any).id_inventory)];
-                localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-                return updated;
-              });
+              setInventoryList(prev => [payload.new as InventoryItem, ...prev.filter(i => i.id_inventory !== (payload.new as any).id_inventory)]);
             } else if (payload.eventType === 'UPDATE') {
-              setInventoryList(prev => {
-                const updated = prev.map(i => i.id_inventory === (payload.new as any).id_inventory ? (payload.new as InventoryItem) : i);
-                localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-                return updated;
-              });
+              setInventoryList(prev => prev.map(i => i.id_inventory === (payload.new as any).id_inventory ? (payload.new as InventoryItem) : i));
             } else if (payload.eventType === 'DELETE') {
-              setInventoryList(prev => {
-                const updated = prev.filter(i => i.id_inventory !== (payload.old as any).id_inventory);
-                localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-                return updated;
-              });
+              setInventoryList(prev => prev.filter(i => i.id_inventory !== (payload.old as any).id_inventory));
             }
           }
         )
@@ -307,7 +292,6 @@ export function InventoryModule({
       } else {
         updated = [cleanItem, ...prev];
       }
-      localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       return updated;
     });
 
@@ -373,7 +357,6 @@ export function InventoryModule({
       const rowMap = new Map(sanitizedRows.map(r => [r.id_inventory, r]));
       const remainingPrev = prev.filter(r => !rowMap.has(r.id_inventory));
       const updated = [...sanitizedRows, ...remainingPrev];
-      localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
       return updated;
     });
 
@@ -404,11 +387,7 @@ export function InventoryModule({
         if (error) throw error;
       }
 
-      setInventoryList(prev => {
-        const updated = prev.filter(i => i.id_inventory !== id);
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-        return updated;
-      });
+      setInventoryList(prev => prev.filter(i => i.id_inventory !== id));
 
       setSelectedIds(prev => prev.filter(sid => sid !== id));
       showToast('Data Terhapus', `Data inventory ${id} berhasil dihapus.`, 'info');
@@ -449,11 +428,7 @@ export function InventoryModule({
       }
 
       const idSet = new Set(selectedIds);
-      setInventoryList(prev => {
-        const updated = prev.filter(i => !idSet.has(i.id_inventory));
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-        return updated;
-      });
+      setInventoryList(prev => prev.filter(i => !idSet.has(i.id_inventory)));
 
       setSelectedIds([]);
       showToast('Hapus Massal Selesai', `Berhasil menghapus ${count} baris data inventory.`, 'success');
@@ -530,9 +505,6 @@ export function InventoryModule({
         }
         return p;
       });
-      try {
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-      } catch {}
       return updated;
     });
 
@@ -569,9 +541,6 @@ export function InventoryModule({
             }
             return p;
           });
-          try {
-            localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(reverted));
-          } catch {}
           return reverted;
         });
         return;
@@ -626,9 +595,6 @@ export function InventoryModule({
     // Local optimistic update
     setInventoryList(prev => {
       const updated = prev.map(p => matchingIds.has(p.id_inventory) ? { ...p, status: formattedStatus, updated_at: nowIso } : p);
-      try {
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-      } catch {}
       return updated;
     });
 
@@ -672,9 +638,6 @@ export function InventoryModule({
 
     setInventoryList(prev => {
       const updated = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, note: cleanNote, updated_at: nowIso } : p);
-      try {
-        localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-      } catch {}
       return updated;
     });
     setEditingNoteId(null);
@@ -693,9 +656,6 @@ export function InventoryModule({
         showToast('Gagal Simpan Catatan', err.message || 'Terjadi kesalahan sistem.', 'error');
         setInventoryList(prev => {
           const reverted = prev.map(p => targetIds.includes(p.id_inventory) ? { ...p, note: oldNote } : p);
-          try {
-            localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(reverted));
-          } catch {}
           return reverted;
         });
       }
@@ -2508,14 +2468,12 @@ export function InventoryModule({
             setInventoryList(prev => {
               const mapUpdated = new Map(updatedItems.map(i => [i.id_inventory, i]));
               const updated = prev.map(i => mapUpdated.has(i.id_inventory) ? mapUpdated.get(i.id_inventory)! : i);
-              localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
               return updated;
             });
           } else {
             // Source items deleted
             setInventoryList(prev => {
               const updated = prev.filter(i => !selectedIds.includes(i.id_inventory));
-              localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
               return updated;
             });
           }
@@ -2539,9 +2497,6 @@ export function InventoryModule({
           setInventoryList(prev => {
             const mapUpdated = new Map(updatedItems.map(i => [i.id_inventory, i]));
             const updated = prev.map(i => mapUpdated.has(i.id_inventory) ? mapUpdated.get(i.id_inventory)! : i);
-            try {
-              localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(updated));
-            } catch {}
             return updated;
           });
           // Remove updated items from selectedIds if needed

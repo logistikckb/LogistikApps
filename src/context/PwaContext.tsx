@@ -105,7 +105,7 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
     };
     const handleOffline = () => {
       setIsOnline(false);
-      showToast('Mode Offline', 'Aplikasi berjalan dari cache lokal offline.', 'info');
+      showToast('Koneksi Terputus', 'Perangkat sedang offline. Sambungkan internet untuk mengakses dan menyimpan transaksi ke cloud.', 'warning');
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);

@@ -51,6 +51,30 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'module'>('home');
   const [activeToolId, setActiveToolId] = useState<ToolId>('menu-b');
 
+  // Bersihkan semua memori cache data transaksi dari localStorage di seluruh perangkat klien
+  // agar setiap perangkat selalu mengambil dan membaca data terpusat real-time dari Supabase cloud (tanpa mode offline lokal)
+  useEffect(() => {
+    const TRANSACTION_CACHE_KEYS = [
+      'incoming_cache_v1',
+      'penyiapan_cache_v1',
+      'ckb_penyiapan_deleted_ids',
+      'picking_spreadsheet_db',
+      'picking_cache_v1',
+      'inventory_data_cache_v2',
+      'inventory_cache_v1',
+      'reco_cache_v1',
+      'pemusnahan_cache_v1',
+      'repack_cache_v1',
+      'cek_fisik_pemusnahan_cache_v1',
+      'ckb_app_setting_hidden_menu_ids'
+    ];
+    TRANSACTION_CACHE_KEYS.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    });
+  }, []);
+
   // Guard: Jika sedang membuka modul yang baru saja di-hide oleh admin di perangkat lain, redirect ke home
   useEffect(() => {
     if (currentView === 'module' && !isSuperAdmin && hiddenMenuIds.includes(activeToolId)) {
