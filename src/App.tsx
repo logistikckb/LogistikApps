@@ -39,6 +39,8 @@ import { PickingModule } from './components/logistics/PickingModule';
 import { BroadcastModal } from './components/broadcast/BroadcastModal';
 import { SupabaseConnectionModal } from './components/common/SupabaseConnectionModal';
 import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
+import { ConnectionStatusBadge } from './components/common/ConnectionStatusBadge';
+import { ConnectionWarningBanner } from './components/common/ConnectionWarningBanner';
 
 export default function App() {
   const { currentUser, isAdmin } = useAuth();
@@ -155,6 +157,9 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Indikator Status Koneksi Realtime Live / Offline */}
+                  <ConnectionStatusBadge />
+
                   {/* PWA Update Ready Button in Home Header */}
                   {isUpdateAvailable && (
                     <button
@@ -190,6 +195,9 @@ export default function App() {
                   </button>
                 </div>
               </header>
+
+              {/* Banner Peringatan Koneksi Terputus (Offline) */}
+              <ConnectionWarningBanner />
 
               <NotificationPermissionBanner 
                 permission={notificationPermission}
@@ -230,6 +238,9 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Indikator Status Koneksi Realtime Live / Offline */}
+                  <ConnectionStatusBadge />
+
                   {/* PWA Update Ready Button in Module Header */}
                   {isUpdateAvailable && (
                     <button
@@ -278,6 +289,9 @@ export default function App() {
                   )}
                 </div>
               </header>
+
+              {/* Banner Peringatan Koneksi Terputus (Offline) saat membuka modul */}
+              <ConnectionWarningBanner />
 
               {/* Modul Content */}
               <main className="space-y-2 sm:space-y-2.5">

@@ -6,7 +6,9 @@
   "changelog": [
     "Pengembalian konfigurasi role hak akses ke versi sebelum update (Semua modul operasional dapat diakses)",
     "Peniadaan mode offline: Seluruh data transaksi tidak lagi disimpan di penyimpanan lokal (localStorage) perangkat",
+    "Indikator status koneksi Live / Offline realtime dengan pemantauan detak heartbeat server terus-menerus",
+    "Banner peringatan otomatis jika koneksi terputus agar pengguna tidak menginput data saat tidak tersinkronisasi",
     "Pembersihan otomatis cache transaksi lama pada seluruh perangkat tim",
-    "Sinkronisasi data transaksi terpusat secara langsung ke server cloud Supabase real-time"
+    "Sinkronisasi data transaksi terpusat secara langsung ke server cloud database real-time"
   ]
 }

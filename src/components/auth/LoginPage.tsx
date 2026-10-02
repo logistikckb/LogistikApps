@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usePwa } from '../../context/PwaContext';
+import { ConnectionStatusBadge } from '../common/ConnectionStatusBadge';
+import { ConnectionWarningBanner } from '../common/ConnectionWarningBanner';
 import { 
   LogIn, 
   CheckCircle2, 
@@ -103,7 +105,13 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
           <p className="text-xs text-slate-500 font-medium">
             Masukkan Username dan Kode PIN untuk melanjutkan
           </p>
+          <div className="flex justify-center pt-1">
+            <ConnectionStatusBadge />
+          </div>
         </div>
+
+        {/* Banner Peringatan Koneksi Terputus (Offline) */}
+        <ConnectionWarningBanner />
 
         {/* Security Auto-Logout Notification Banner */}
         {sessionExpiredNotice && (

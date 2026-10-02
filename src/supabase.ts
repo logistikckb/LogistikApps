@@ -234,7 +234,7 @@ export async function testSupabaseConnection(): Promise<ConnectionTestResult> {
       connected: false,
       url: currentUrl || 'Belum Terhubung',
       tables: { users: false, broadcasts: false, penyiapan: false, barang: false },
-      details: 'Kredensial Server Database Supabase belum dikonfigurasi. Aplikasi beroperasi dalam mode lokal offline.',
+      details: 'Kredensial Server Database belum dikonfigurasi. Pastikan koneksi server cloud aktif.',
     };
   }
 
@@ -271,7 +271,7 @@ export async function testSupabaseConnection(): Promise<ConnectionTestResult> {
     result.connected = !userErr || !bErr || !penyiapanErr || !barangErr;
 
     if (result.connected) {
-      result.details = `Server Cloud Supabase Terhubung Aktif (${result.latencyMs}ms). Data otomatis sinkron secara realtime di semua perangkat.`;
+      result.details = `Server Cloud Terhubung Aktif (${result.latencyMs}ms). Data otomatis sinkron secara realtime di semua perangkat.`;
     } else {
       result.details = `Koneksi ke server gagal: ${userErr?.message || penyiapanErr?.message || 'Periksa URL dan Key'}`;
     }

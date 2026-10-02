@@ -2751,7 +2751,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (isSupabaseConfigured) {
         setUploadProgress(prev => ({
           ...prev,
-          statusText: `Mengunggah ${finalUploadRows.length.toLocaleString('id-ID')} data ke Database Supabase...`
+          statusText: `Mengunggah ${finalUploadRows.length.toLocaleString('id-ID')} data ke Server Database...`
         }));
 
         const { successCount, error } = await safeBatchUpsertPenyiapan(
@@ -2779,7 +2779,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             percentage: 100,
             statusText: 'Unggah selesai! Memfinalisasi data...'
           });
-          showToast('Import Selesai', `${successCount.toLocaleString('id-ID')} data penyiapan berhasil ditambahkan ke Database Supabase (Lanjut dari baris akhir)!`, 'success');
+          showToast('Import Selesai', `${successCount.toLocaleString('id-ID')} data penyiapan berhasil ditambahkan ke Server Database (Lanjut dari baris akhir)!`, 'success');
           // Silent refresh: background fetch without unmounting table or blinking screen
           await fetchPenyiapanData(true);
         }
@@ -3533,7 +3533,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (isSupabaseConfigured) {
         setPasteSaveProgress(prev => ({
           ...prev,
-          statusText: `Menyimpan ${finalUploadRows.length.toLocaleString('id-ID')} baris data ke Database Supabase...`
+          statusText: `Menyimpan ${finalUploadRows.length.toLocaleString('id-ID')} baris data ke Database Server...`
         }));
 
         const { successCount, error } = await safeBatchUpsertPenyiapan(
@@ -3622,7 +3622,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       setIsConfigFromSupabase(true);
       showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
     } else {
-      showToast('Perhatian', res.message || 'Gagal menyimpan ke Supabase.', 'warning');
+      showToast('Perhatian', res.message || 'Gagal menyimpan ke server database.', 'warning');
       if (res.message?.includes('app_settings')) {
         setShowSqlHelp(true);
       }
@@ -3823,11 +3823,11 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
         {/* Right Side: Refresh & Sync Database */}
         <div className="flex items-center gap-1.5">
-          {/* Supabase Cloud Status Indicator */}
+          {/* Cloud Database Status Indicator */}
           {isSupabaseConfigured ? (
-            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold" title="Database Cloud Supabase Terhubung Aktif - Sinkron Otomatis Antar Perangkat">
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold" title="Database Cloud Terhubung Aktif - Sinkron Otomatis Antar Perangkat">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Supabase Cloud Sync</span>
+              <span>Cloud Sync Aktif</span>
             </div>
           ) : (
             <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold" title="Mode Database Lokal Offline">
@@ -3836,12 +3836,12 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
             </div>
           )}
 
-          {/* Tombol Push Semua Data ke Supabase */}
+          {/* Tombol Push Semua Data ke Server Database */}
           <button
             onClick={handlePushAllToSupabase}
             disabled={isPushing || !isSupabaseConfigured}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border border-blue-200 text-blue-800 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-            title="Kirim dan sinkronkan seluruh data penyiapan saat ini ke Server Database Supabase"
+            title="Kirim dan sinkronkan seluruh data penyiapan saat ini ke Server Database Cloud"
           >
             <CloudUpload size={13} className={isPushing ? 'animate-bounce' : ''} />
             <span className="hidden sm:inline">{isPushing ? 'Menyinkronkan...' : 'Sinkron ke Cloud'}</span>
@@ -4788,7 +4788,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                     {isEditMode ? 'Edit Data Penyiapan' : 'Tambah Data Penyiapan Baru'}
                   </h3>
                   <p className="text-[11px] text-blue-200 m-0 font-medium">
-                    Tabel: public.data_penyiapan (Supabase)
+                    Tabel: public.data_penyiapan (Database Cloud)
                   </p>
                 </div>
               </div>
@@ -6394,7 +6394,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                   <div className="text-xs leading-relaxed">
                     <span className="font-bold text-amber-900">URL Webhook Belum Diatur: </span>
                     <span className="text-slate-600">
-                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke database cloud Supabase agar otomatis terpasang di seluruh perangkat tim.
+                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke database cloud agar otomatis terpasang di seluruh perangkat tim.
                     </span>
                   </div>
                 </div>
@@ -6416,7 +6416,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                       disabled={isSavingToSupabase || !gSheetConfig.webhookUrl.trim()}
                       onClick={handleSaveConfigToSupabase}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                      title="Simpan ke Cloud Supabase agar otomatis aktif di semua HP/Laptop tim"
+                      title="Simpan ke Database Cloud agar otomatis aktif di semua HP/Laptop tim"
                     >
                       {isSavingToSupabase ? (
                         <>
@@ -6525,13 +6525,13 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                       className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                     >
                       <Info size={13} />
-                      <span>{showSqlHelp ? 'Sembunyikan Script SQL Supabase' : 'Petunjuk Tabel Supabase (app_settings)'}</span>
+                      <span>{showSqlHelp ? 'Sembunyikan Script SQL Server' : 'Petunjuk Tabel Server Cloud (app_settings)'}</span>
                     </button>
 
                     {showSqlHelp && (
                       <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] space-y-2 animate-fade-in border border-slate-800">
                         <div className="flex items-center justify-between text-slate-400 font-sans text-xs pb-1 border-b border-slate-800">
-                          <span>Jalankan di Supabase SQL Editor:</span>
+                          <span>Jalankan di SQL Editor Server Cloud:</span>
                           <button
                             type="button"
                             onClick={() => {
