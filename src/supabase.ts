@@ -424,7 +424,9 @@ export async function fetchAllRowsFromSupabase<T = any>(
       }
 
       if (data && data.length > 0) {
-        allRows = allRows.concat(data as T[]);
+        for (let i = 0; i < data.length; i++) {
+          allRows.push(data[i] as T);
+        }
         if (data.length < pageSize) {
           hasMore = false;
         } else {
@@ -439,6 +441,150 @@ export async function fetchAllRowsFromSupabase<T = any>(
   }
 
   return allRows;
+}
+
+// ============================================================================
+// SHARED IN-MEMORY MASTER DATA CACHE (Mencegah JSON.parse & Fetch Berulang)
+// ============================================================================
+const MASTER_BARANG_CACHE_KEY = 'ckb_master_data_barang_cache';
+const MASTER_DIST_CACHE_KEY = 'ckb_master_data_distributor_cache';
+const MASTER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 menit di memori RAM
+
+let memoryBarangCache: any[] | null = null;
+let memoryBarangLastFetch = 0;
+let inFlightBarangPromise: Promise<any[]> | null = null;
+
+let memoryDistCache: any[] | null = null;
+let memoryDistLastFetch = 0;
+let inFlightDistPromise: Promise<any[]> | null = null;
+
+export function getCachedMasterBarangSync<T = any>(): T[] {
+  if (memoryBarangCache) return memoryBarangCache as T[];
+  try {
+    const raw = localStorage.getItem(MASTER_BARANG_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        memoryBarangCache = parsed;
+        return parsed as T[];
+      }
+    }
+  } catch {}
+  return [];
+}
+
+export function setSharedMasterBarangCache<T = any>(items: T[]): void {
+  memoryBarangCache = items;
+  memoryBarangLastFetch = Date.now();
+  try {
+    if (items.length > 0) {
+      localStorage.setItem(MASTER_BARANG_CACHE_KEY, JSON.stringify(items));
+    } else {
+      localStorage.removeItem(MASTER_BARANG_CACHE_KEY);
+    }
+  } catch {}
+}
+
+export async function getSharedMasterBarang<T = any>(forceRefresh = false): Promise<T[]> {
+  if (!forceRefresh && memoryBarangCache && memoryBarangCache.length > 0 && Date.now() - memoryBarangLastFetch < MASTER_CACHE_TTL_MS) {
+    return memoryBarangCache as T[];
+  }
+  if (!isSupabaseConfigured) {
+    return getCachedMasterBarangSync<T>();
+  }
+  if (inFlightBarangPromise) {
+    return inFlightBarangPromise as Promise<T[]>;
+  }
+
+  inFlightBarangPromise = (async () => {
+    try {
+      const data = await fetchAllRowsFromSupabase<any>('data_barang', { orderBy: 'item_name', ascending: true });
+      if (Array.isArray(data) && data.length > 0) {
+        const map = new Map<string, any>();
+        for (let i = 0; i < data.length; i++) {
+          const item = data[i];
+          if (item?.item_code) {
+            map.set(String(item.item_code).trim().toLowerCase(), item);
+          }
+        }
+        const deduped = Array.from(map.values());
+        setSharedMasterBarangCache(deduped);
+        return deduped;
+      }
+    } catch (err) {
+      console.warn('[getSharedMasterBarang] Gagal memuat dari cloud:', err);
+    } finally {
+      inFlightBarangPromise = null;
+    }
+    return getCachedMasterBarangSync<T>();
+  })();
+
+  return inFlightBarangPromise as Promise<T[]>;
+}
+
+export function getCachedMasterDistributorSync<T = any>(): T[] {
+  if (memoryDistCache) return memoryDistCache as T[];
+  try {
+    const raw = localStorage.getItem(MASTER_DIST_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        memoryDistCache = parsed;
+        return parsed as T[];
+      }
+    }
+  } catch {}
+  return [];
+}
+
+export function setSharedMasterDistributorCache<T = any>(items: T[]): void {
+  memoryDistCache = items;
+  memoryDistLastFetch = Date.now();
+  try {
+    if (items.length > 0) {
+      localStorage.setItem(MASTER_DIST_CACHE_KEY, JSON.stringify(items));
+    } else {
+      localStorage.removeItem(MASTER_DIST_CACHE_KEY);
+    }
+  } catch {}
+}
+
+export async function getSharedMasterDistributor<T = any>(forceRefresh = false): Promise<T[]> {
+  if (!forceRefresh && memoryDistCache && memoryDistCache.length > 0 && Date.now() - memoryDistLastFetch < MASTER_CACHE_TTL_MS) {
+    return memoryDistCache as T[];
+  }
+  if (!isSupabaseConfigured) {
+    return getCachedMasterDistributorSync<T>();
+  }
+  if (inFlightDistPromise) {
+    return inFlightDistPromise as Promise<T[]>;
+  }
+
+  inFlightDistPromise = (async () => {
+    try {
+      const data = await fetchAllRowsFromSupabase<any>('data_distributor', { orderBy: 'nama_distributor', ascending: true });
+      if (Array.isArray(data) && data.length > 0) {
+        const map = new Map<string, any>();
+        for (let i = 0; i < data.length; i++) {
+          const item = data[i];
+          const key = String(item?.kode_ld || item?.nama_distributor || '').trim().toLowerCase();
+          if (key) {
+            map.set(key, item);
+          }
+        }
+        const deduped = Array.from(map.values());
+        setSharedMasterDistributorCache(deduped);
+        return deduped;
+      }
+    } catch (err) {
+      console.warn('[getSharedMasterDistributor] Gagal memuat dari cloud:', err);
+    } finally {
+      inFlightDistPromise = null;
+    }
+    return getCachedMasterDistributorSync<T>();
+  })();
+
+  return inFlightDistPromise as Promise<T[]>;
 }
 
 /**

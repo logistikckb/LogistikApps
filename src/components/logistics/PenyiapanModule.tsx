@@ -66,7 +66,7 @@ import {
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase, getCachedMasterBarangSync, getSharedMasterBarang } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PenyiapanItem, DataBarang } from '../../types';
@@ -326,28 +326,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     };
   }, []);
 
-  // Load master barang cache
+  // Load master barang cache from shared RAM / localStorage
   const loadMasterBarangLocally = useCallback(() => {
-    let loaded: DataBarang[] = [];
-    try {
-      const keys = ['ckb_master_data_barang_cache', 'ckb_data_barang', 'master_barang'];
-      for (const k of keys) {
-        const item = localStorage.getItem(k);
-        if (item) {
-          const parsed = JSON.parse(item);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            loaded = [...loaded, ...parsed];
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading local master barang cache:', e);
-    }
-    const map = new Map<string, DataBarang>();
-    loaded.forEach(b => {
-      if (b.item_code) map.set(b.item_code.trim().toLowerCase(), b);
-    });
-    return Array.from(map.values());
+    return getCachedMasterBarangSync<DataBarang>();
   }, []);
 
   // Fetch Master Data Barang
@@ -357,20 +338,9 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
 
     if (!isSupabaseConfigured) return;
     try {
-      const resBarangData = await fetchAllRowsFromSupabase<DataBarang>('data_barang', { orderBy: 'item_name', ascending: true });
+      const resBarangData = await getSharedMasterBarang<DataBarang>();
       if (resBarangData && resBarangData.length > 0) {
-        const mergedMap = new Map<string, DataBarang>();
-        local.forEach(b => {
-          if (b.item_code) mergedMap.set(b.item_code.trim().toLowerCase(), b);
-        });
-        resBarangData.forEach((b: DataBarang) => {
-          if (b.item_code) mergedMap.set(b.item_code.trim().toLowerCase(), b);
-        });
-        const finalBarang = Array.from(mergedMap.values());
-        setBarangList(finalBarang);
-        try {
-          localStorage.setItem('ckb_master_data_barang_cache', JSON.stringify(finalBarang));
-        } catch {}
+        setBarangList(resBarangData);
       }
     } catch (err) {
       console.warn('Error fetching master barang:', err);

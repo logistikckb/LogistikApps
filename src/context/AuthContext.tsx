@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile, UserRole, UserStatus } from '../types';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { DEFAULT_AVATAR } from '../data/avatarPresets';
@@ -122,14 +122,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
   });
-  const [lastActiveTime, setLastActiveTime] = useState<number>(() => {
+  const lastActiveTimeRef = useRef<number>((() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_LAST_ACTIVE);
       return saved ? parseInt(saved, 10) : Date.now();
     } catch {
       return Date.now();
     }
-  });
+  })());
 
   // Inisialisasi daftar users (dari cache penyimpanan lokal atau array sistem default)
   const [usersList, setUsersList] = useState<UserProfile[]>(() => {
@@ -284,8 +284,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetInactivityTimer = useCallback(() => {
     const now = Date.now();
-    setLastActiveTime(now);
-    setSessionExpiryWarning(null);
+    lastActiveTimeRef.current = now;
+    setSessionExpiryWarning(prev => (prev ? null : prev));
     try {
       localStorage.setItem(STORAGE_KEY_LAST_ACTIVE, now.toString());
     } catch {
@@ -295,15 +295,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // =========================================================================
   // INACTIVITY MONITOR (30 MINUTES AUTO-LOGOUT)
-  // Melindungi data logistik sensitif pada perangkat kerja & mobile bersama
+  // Menggunakan useRef agar aktivitas mouse/ketik tidak memicu re-render global
   // =========================================================================
   useEffect(() => {
     if (!currentUser) {
-      setSessionExpiryWarning(null);
+      setSessionExpiryWarning(prev => (prev ? null : prev));
       return;
     }
 
-    // Pastikan timestamp awal tersimpan
     const saved = localStorage.getItem(STORAGE_KEY_LAST_ACTIVE);
     const initialTime = saved ? parseInt(saved, 10) : Date.now();
     if (!saved) {
@@ -313,16 +312,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ignore
       }
     }
-    setLastActiveTime(initialTime);
+    lastActiveTimeRef.current = initialTime;
 
     let lastThrottledRecord = Date.now();
 
     const recordActivity = () => {
       const now = Date.now();
-      // Throttle update state & localStorage setiap 2.5 detik
-      if (now - lastThrottledRecord > 2500) {
+      // Throttle penulisan ke ref & localStorage setiap 10 detik tanpa re-render React
+      if (now - lastThrottledRecord > 10000) {
         lastThrottledRecord = now;
-        setLastActiveTime(now);
+        lastActiveTimeRef.current = now;
+        setSessionExpiryWarning(prev => (prev ? null : prev));
         try {
           localStorage.setItem(STORAGE_KEY_LAST_ACTIVE, now.toString());
         } catch {
@@ -335,21 +335,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (e.key === STORAGE_KEY_LAST_ACTIVE && e.newValue) {
         const timestamp = parseInt(e.newValue, 10);
         if (!isNaN(timestamp)) {
-          setLastActiveTime(timestamp);
+          lastActiveTimeRef.current = timestamp;
         }
       } else if (e.key === STORAGE_KEY_AUTH && !e.newValue) {
-        // User logout di tab lain
         setCurrentUser(null);
       }
     };
 
     const evaluateInactivity = () => {
-      let activeTs = lastActiveTime;
+      let activeTs = lastActiveTimeRef.current;
       try {
         const stored = localStorage.getItem(STORAGE_KEY_LAST_ACTIVE);
         if (stored) {
           const parsed = parseInt(stored, 10);
-          if (!isNaN(parsed)) activeTs = parsed;
+          if (!isNaN(parsed) && parsed > activeTs) {
+            activeTs = parsed;
+            lastActiveTimeRef.current = parsed;
+          }
         }
       } catch {
         // ignore
@@ -360,7 +362,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Melebihi 30 Menit (1.800.000 ms) -> Auto Logout
       if (elapsed >= INACTIVITY_TIMEOUT_MS) {
         logout('inactivity');
-      } 
+      }
       // 2. Dalam rentang 2 Menit peringatan (28 - 30 Menit) -> Tampilkan Dialog Countdown
       else if (elapsed >= INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_TIMEOUT_MS) {
         const remainingSecs = Math.max(0, Math.ceil((INACTIVITY_TIMEOUT_MS - elapsed) / 1000));
@@ -368,14 +370,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isWarning: true,
           secondsRemaining: remainingSecs,
         });
-      } 
-      // 3. Masih aktif normal -> Sembunyikan Dialog
+      }
+      // 3. Masih aktif normal -> Hanya update state jika sebelumnya ada warning
       else {
-        setSessionExpiryWarning(null);
+        setSessionExpiryWarning(prev => (prev ? null : prev));
       }
     };
 
-    // Handler saat aplikasi aktif kembali dari latar belakang / layar HP dinyalakan
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         evaluateInactivity();
@@ -383,14 +384,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const userActivityEvents: Array<keyof WindowEventMap> = [
-      'mousemove',
       'mousedown',
       'keydown',
       'touchstart',
-      'touchmove',
       'scroll',
       'click',
-      'wheel',
     ];
 
     userActivityEvents.forEach((evt) => {
@@ -401,8 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
 
-    // Evaluasi periodik setiap 1 detik
-    const timerInterval = setInterval(evaluateInactivity, 1000);
+    const timerInterval = setInterval(evaluateInactivity, 5000);
 
     return () => {
       userActivityEvents.forEach((evt) => {
@@ -413,7 +410,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('focus', handleVisibilityOrFocus);
       clearInterval(timerInterval);
     };
-  }, [currentUser, lastActiveTime, logout]);
+  }, [currentUser, logout]);
 
   // =========================================================================
   // AUTH: LOGIN
@@ -471,7 +468,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
 
           const now = Date.now();
-          setLastActiveTime(now);
+          lastActiveTimeRef.current = now;
           try {
             localStorage.setItem(STORAGE_KEY_LAST_ACTIVE, now.toString());
           } catch {
@@ -508,7 +505,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     delete safeUser.pin;
 
     const now = Date.now();
-    setLastActiveTime(now);
+    lastActiveTimeRef.current = now;
     try {
       localStorage.setItem(STORAGE_KEY_LAST_ACTIVE, now.toString());
     } catch {

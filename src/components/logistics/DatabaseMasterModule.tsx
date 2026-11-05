@@ -9,12 +9,20 @@ import {
   CloudUpload, Server, Terminal, Info
 } from 'lucide-react';
 import { DataBarang, DataDistributor } from '../../types';
-import { supabase, isSupabaseConfigured, supabaseUrl, fetchAllRowsFromSupabase } from '../../supabase';
+import {
+  supabase,
+  isSupabaseConfigured,
+  supabaseUrl,
+  fetchAllRowsFromSupabase,
+  getCachedMasterBarangSync,
+  getCachedMasterDistributorSync,
+  getSharedMasterBarang,
+  getSharedMasterDistributor,
+  setSharedMasterBarangCache,
+  setSharedMasterDistributorCache
+} from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-
-const CACHE_KEY_BARANG = 'ckb_master_data_barang_cache';
-const CACHE_KEY_DISTRIBUTOR = 'ckb_master_data_distributor_cache';
 
 export function DatabaseMasterModule() {
   const { currentUser, isAdmin } = useAuth();
@@ -23,32 +31,9 @@ export function DatabaseMasterModule() {
   // Active sub-tab: 'barang' | 'distributor'
   const [activeTab, setActiveTab] = useState<'barang' | 'distributor'>('barang');
 
-  // Master Data States (Initialized as empty or from cached local database)
-  const [barangList, setBarangList] = useState<DataBarang[]>(() => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY_BARANG);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
-
-  const [distributorList, setDistributorList] = useState<DataDistributor[]>(() => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY_DISTRIBUTOR);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
+  // Master Data States (Initialized from shared in-memory / local cache)
+  const [barangList, setBarangList] = useState<DataBarang[]>(() => getCachedMasterBarangSync<DataBarang>());
+  const [distributorList, setDistributorList] = useState<DataDistributor[]>(() => getCachedMasterDistributorSync<DataDistributor>());
 
   const [loading, setLoading] = useState(false);
   const [dbSynced, setDbSynced] = useState(isSupabaseConfigured);
@@ -95,68 +80,38 @@ export function DatabaseMasterModule() {
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Save to cache
+  // Sync state changes to shared memory & localStorage cache
   useEffect(() => {
-    try {
-      if (barangList.length > 0) {
-        localStorage.setItem(CACHE_KEY_BARANG, JSON.stringify(barangList));
-      } else {
-        localStorage.removeItem(CACHE_KEY_BARANG);
-      }
-    } catch {
-      // ignore
-    }
+    setSharedMasterBarangCache(barangList);
   }, [barangList]);
 
   useEffect(() => {
-    try {
-      if (distributorList.length > 0) {
-        localStorage.setItem(CACHE_KEY_DISTRIBUTOR, JSON.stringify(distributorList));
-      } else {
-        localStorage.removeItem(CACHE_KEY_DISTRIBUTOR);
-      }
-    } catch {
-      // ignore
-    }
+    setSharedMasterDistributorCache(distributorList);
   }, [distributorList]);
 
   // =========================================================================
-  // FETCH DATA FROM SUPABASE (PAGINATED CHUNKS - NO 1000 ROWS LIMIT)
+  // FETCH DATA FROM SUPABASE (SHARED CACHE + DELTA REALTIME)
   // =========================================================================
-  const fetchDataBarang = useCallback(async () => {
+  const fetchDataBarang = useCallback(async (forceRefresh = false) => {
     if (!isSupabaseConfigured) return;
     try {
-      const data = await fetchAllRowsFromSupabase<DataBarang>('data_barang', {
-        orderBy: 'item_code',
-        ascending: true
-      });
-
+      const data = await getSharedMasterBarang<DataBarang>(forceRefresh);
       if (Array.isArray(data)) {
         setDbSynced(true);
         setBarangList(data);
-        if (data.length === 0) {
-          localStorage.removeItem(CACHE_KEY_BARANG);
-        }
       }
     } catch (err) {
       console.warn('Error fetching data_barang from Supabase:', err);
     }
   }, []);
 
-  const fetchDataDistributor = useCallback(async () => {
+  const fetchDataDistributor = useCallback(async (forceRefresh = false) => {
     if (!isSupabaseConfigured) return;
     try {
-      const data = await fetchAllRowsFromSupabase<DataDistributor>('data_distributor', {
-        orderBy: 'kode_ld',
-        ascending: true
-      });
-
+      const data = await getSharedMasterDistributor<DataDistributor>(forceRefresh);
       if (Array.isArray(data)) {
         setDbSynced(true);
         setDistributorList(data);
-        if (data.length === 0) {
-          localStorage.removeItem(CACHE_KEY_DISTRIBUTOR);
-        }
       }
     } catch (err) {
       console.warn('Error fetching data_distributor from Supabase:', err);
@@ -165,23 +120,51 @@ export function DatabaseMasterModule() {
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchDataBarang(), fetchDataDistributor()]);
+    await Promise.all([fetchDataBarang(true), fetchDataDistributor(true)]);
     setLoading(false);
     showToast('Tersinkron', 'Data master berhasil diperbarui dari server pusat', 'info');
   }, [fetchDataBarang, fetchDataDistributor, showToast]);
 
   useEffect(() => {
-    fetchDataBarang();
-    fetchDataDistributor();
+    fetchDataBarang(false);
+    fetchDataDistributor(false);
 
     if (isSupabaseConfigured) {
       const channel = supabase
         .channel('master_database_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_barang' }, () => {
-          fetchDataBarang();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_barang' }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const item = payload.new as DataBarang;
+            if (item?.item_code) {
+              setBarangList(prev => {
+                const exists = prev.some(b => b.item_code === item.item_code);
+                return exists
+                  ? prev.map(b => (b.item_code === item.item_code ? item : b))
+                  : [...prev, item];
+              });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old?.item_code) {
+            setBarangList(prev => prev.filter(b => b.item_code !== payload.old.item_code));
+          } else {
+            fetchDataBarang(true);
+          }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_distributor' }, () => {
-          fetchDataDistributor();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_distributor' }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const item = payload.new as DataDistributor;
+            if (item?.kode_ld) {
+              setDistributorList(prev => {
+                const exists = prev.some(d => d.kode_ld === item.kode_ld);
+                return exists
+                  ? prev.map(d => (d.kode_ld === item.kode_ld ? item : d))
+                  : [...prev, item];
+              });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old?.kode_ld) {
+            setDistributorList(prev => prev.filter(d => d.kode_ld !== payload.old.kode_ld));
+          } else {
+            fetchDataDistributor(true);
+          }
         })
         .subscribe();
 

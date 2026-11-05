@@ -47,12 +47,21 @@ import {
   Settings
 } from 'lucide-react';
 import Fuse from 'fuse.js';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase } from '../../supabase';
+import {
+  supabase,
+  isSupabaseConfigured,
+  fetchAllRowsFromSupabase,
+  getCachedMasterBarangSync,
+  getCachedMasterDistributorSync,
+  getSharedMasterBarang,
+  getSharedMasterDistributor,
+  setSharedMasterBarangCache,
+  setSharedMasterDistributorCache
+} from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
 import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, normalizeToIsoDate } from '../../utils/logisticsCalculations';
-import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 // Helper function to normalize proses / status to 'open' | 'closedoretur' | 'closepg'
 export const normalizeProsesStatus = (status?: string): 'open' | 'closedoretur' | 'closepg' => {
@@ -68,70 +77,10 @@ export function IncomingModule() {
 
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
 
-  // Helper to load all cached master data from multiple local storage keys and merge with incoming history
-  const loadAllMasterDataLocally = useCallback(() => {
-    let loadedBarang: DataBarang[] = [];
-    let loadedDist: DataDistributor[] = [];
-
-    try {
-      const keysBarang = ['ckb_master_data_barang_cache', 'ckb_data_barang', 'master_barang'];
-      for (const k of keysBarang) {
-        const item = localStorage.getItem(k);
-        if (item) {
-          const parsed = JSON.parse(item);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            loadedBarang = [...loadedBarang, ...parsed];
-          }
-        }
-      }
-
-      const keysDist = ['ckb_master_data_distributor_cache', 'ckb_data_distributor', 'master_distributor'];
-      for (const k of keysDist) {
-        const item = localStorage.getItem(k);
-        if (item) {
-          const parsed = JSON.parse(item);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            loadedDist = [...loadedDist, ...parsed];
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading local master cache:', e);
-    }
-
-    // Deduplicate barang by item_code
-    const barangMap = new Map<string, DataBarang>();
-    loadedBarang.forEach(b => {
-      if (b.item_code) {
-        barangMap.set(b.item_code.trim().toLowerCase(), b);
-      }
-    });
-
-    // Deduplicate distributor by kode_ld or nama_distributor
-    const distMap = new Map<string, DataDistributor>();
-    loadedDist.forEach(d => {
-      const key = (d.kode_ld || d.nama_distributor || '').trim().toLowerCase();
-      if (key) {
-        distMap.set(key, d);
-      }
-    });
-
-    return {
-      barang: Array.from(barangMap.values()),
-      distributors: Array.from(distMap.values())
-    };
-  }, []);
-
-  // Primary Data State
+  // Primary Data State (Using Shared In-Memory Cache for 0ms Master Data Load)
   const [incomingList, setIncomingList] = useState<IncomingItem[]>([]);
-  const [barangList, setBarangList] = useState<DataBarang[]>(() => {
-    const initial = loadAllMasterDataLocally();
-    return initial.barang;
-  });
-  const [distributorList, setDistributorList] = useState<DataDistributor[]>(() => {
-    const initial = loadAllMasterDataLocally();
-    return initial.distributors;
-  });
+  const [barangList, setBarangList] = useState<DataBarang[]>(() => getCachedMasterBarangSync<DataBarang>());
+  const [distributorList, setDistributorList] = useState<DataDistributor[]>(() => getCachedMasterDistributorSync<DataDistributor>());
   const [isLoading, setIsLoading] = useState(true);
   const [isPushing, setIsPushing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -146,9 +95,9 @@ export function IncomingModule() {
   const [sortField, setSortField] = useState<keyof IncomingItem>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Pagination & Display (Tampilkan semua data sampai bawah secara default)
+  // Pagination & Display (Default 50 baris agar render ringan & cepat; opsi ALL tetap tersedia)
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'ALL'>('ALL');
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'ALL'>(50);
 
   // Modals
   const [showFormModal, setShowFormModal] = useState(false);
@@ -641,65 +590,28 @@ export function IncomingModule() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // =========================================================================
-  // FETCH MASTER & INCOMING DATA (PAGINATED CHUNKS - NO 1000 ROWS LIMIT)
+  // FETCH MASTER & INCOMING DATA (SHARED CACHE + DELTA REALTIME SYNC)
   // =========================================================================
-  const fetchMasterData = useCallback(async () => {
-    // 1. Sync from local cache first
-    const local = loadAllMasterDataLocally();
-    if (local.barang.length > 0) setBarangList(local.barang);
-    if (local.distributors.length > 0) setDistributorList(local.distributors);
-
-    if (!isSupabaseConfigured) return;
+  const fetchMasterData = useCallback(async (forceRefresh = false) => {
     try {
       const [resBarangData, resDistData] = await Promise.all([
-        fetchAllRowsFromSupabase<DataBarang>('data_barang', { orderBy: 'item_name', ascending: true }),
-        fetchAllRowsFromSupabase<DataDistributor>('data_distributor', { orderBy: 'nama_distributor', ascending: true })
+        getSharedMasterBarang<DataBarang>(forceRefresh),
+        getSharedMasterDistributor<DataDistributor>(forceRefresh)
       ]);
-
-      if (resBarangData && resBarangData.length > 0) {
-        // Merge with existing local data
-        const mergedBarangMap = new Map<string, DataBarang>();
-        local.barang.forEach(b => {
-          if (b.item_code) mergedBarangMap.set(b.item_code.trim().toLowerCase(), b);
-        });
-        resBarangData.forEach((b: DataBarang) => {
-          if (b.item_code) mergedBarangMap.set(b.item_code.trim().toLowerCase(), b);
-        });
-        const finalBarang = Array.from(mergedBarangMap.values());
-        setBarangList(finalBarang);
-        try {
-          localStorage.setItem('ckb_master_data_barang_cache', JSON.stringify(finalBarang));
-        } catch {}
-      }
-
-      if (resDistData && resDistData.length > 0) {
-        // Merge with existing local data
-        const mergedDistMap = new Map<string, DataDistributor>();
-        local.distributors.forEach(d => {
-          const key = (d.kode_ld || d.nama_distributor || '').trim().toLowerCase();
-          if (key) mergedDistMap.set(key, d);
-        });
-        resDistData.forEach((d: DataDistributor) => {
-          const key = (d.kode_ld || d.nama_distributor || '').trim().toLowerCase();
-          if (key) mergedDistMap.set(key, d);
-        });
-        const finalDist = Array.from(mergedDistMap.values());
-        setDistributorList(finalDist);
-        try {
-          localStorage.setItem('ckb_master_data_distributor_cache', JSON.stringify(finalDist));
-        } catch {}
-      }
+      if (resBarangData.length > 0) setBarangList(resBarangData);
+      if (resDistData.length > 0) setDistributorList(resDistData);
     } catch (err) {
       console.warn('Error fetching master lookup data:', err);
     }
-  }, [loadAllMasterDataLocally]);
+  }, []);
 
-  const fetchIncomingData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchIncomingData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setLastSupabaseError(null);
 
     if (!isSupabaseConfigured) {
       setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
@@ -721,85 +633,108 @@ export function IncomingModule() {
     }
   }, []);
 
-  // Initial Load & Realtime Sync (Data transaksi langsung dari Cloud, tanpa simpan ke lokal perangkat)
+  // Initial Load & Incremental Delta Realtime Sync across devices
   useEffect(() => {
-    // Bersihkan cache transaksi lama jika ada
-    try {
-      localStorage.removeItem('incoming_cache_v1');
-    } catch {}
+    fetchMasterData(false);
+    fetchIncomingData(false);
 
-    // Fetch master data and incoming records from Supabase
-    fetchMasterData();
-    fetchIncomingData();
-
-    // Listen to local storage events if master data updated in another tab/window
-    const handleStorage = (e: StorageEvent) => {
-      if (
-        e.key === 'ckb_master_data_barang_cache' ||
-        e.key === 'ckb_master_data_distributor_cache' ||
-        e.key === 'ckb_data_barang' ||
-        e.key === 'ckb_data_distributor'
-      ) {
-        fetchMasterData();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-
-    // Supabase Realtime channel for incoming & master data updates
     if (isSupabaseConfigured) {
       const channel = supabase
         .channel('incoming_master_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'incoming' }, () => {
-          fetchIncomingData();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'incoming' }, (payload: any) => {
+          if (payload.eventType === 'INSERT' && payload.new?.id_incoming) {
+            const newItem = payload.new as IncomingItem;
+            setIncomingList(prev => {
+              const exists = prev.some(i => i.id_incoming === newItem.id_incoming);
+              if (exists) {
+                return prev.map(i => (i.id_incoming === newItem.id_incoming ? { ...i, ...newItem } : i));
+              }
+              return [newItem, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new?.id_incoming) {
+            const updated = payload.new as IncomingItem;
+            setIncomingList(prev =>
+              prev.map(i => (i.id_incoming === updated.id_incoming ? { ...i, ...updated } : i))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id_incoming;
+            if (deletedId) {
+              setIncomingList(prev => prev.filter(i => i.id_incoming !== deletedId));
+            } else {
+              fetchIncomingData(true);
+            }
+          }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_barang' }, () => {
-          fetchMasterData();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_barang' }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const item = payload.new as DataBarang;
+            if (item?.item_code) {
+              setBarangList(prev => {
+                const exists = prev.some(b => b.item_code === item.item_code);
+                const next = exists
+                  ? prev.map(b => (b.item_code === item.item_code ? item : b))
+                  : [...prev, item];
+                setSharedMasterBarangCache(next);
+                return next;
+              });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old?.item_code) {
+            setBarangList(prev => {
+              const next = prev.filter(b => b.item_code !== payload.old.item_code);
+              setSharedMasterBarangCache(next);
+              return next;
+            });
+          } else {
+            fetchMasterData(true);
+          }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_distributor' }, () => {
-          fetchMasterData();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'data_distributor' }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const item = payload.new as DataDistributor;
+            if (item?.kode_ld) {
+              setDistributorList(prev => {
+                const exists = prev.some(d => d.kode_ld === item.kode_ld);
+                const next = exists
+                  ? prev.map(d => (d.kode_ld === item.kode_ld ? item : d))
+                  : [...prev, item];
+                setSharedMasterDistributorCache(next);
+                return next;
+              });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old?.kode_ld) {
+            setDistributorList(prev => {
+              const next = prev.filter(d => d.kode_ld !== payload.old.kode_ld);
+              setSharedMasterDistributorCache(next);
+              return next;
+            });
+          } else {
+            fetchMasterData(true);
+          }
         })
         .subscribe();
 
       return () => {
-        window.removeEventListener('storage', handleStorage);
         supabase.removeChannel(channel);
       };
     }
-
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-    };
   }, [fetchMasterData, fetchIncomingData]);
 
-  // Unified Sync & Refresh handler: syncs local dirty state to DB and re-fetches latest cloud rows
+  // Fast Refresh handler: pulls latest rows from cloud without re-uploading entire table
   const handleSyncAndRefresh = async () => {
     setIsRefreshing(true);
-    setIsPushing(true);
-    showToast('Sinkronisasi Data', 'Menyinkronkan data lokal dan memuat data terbaru dari cloud...', 'info');
-
     try {
       if (isSupabaseConfigured) {
-        if (incomingList.length > 0) {
-          const payload = incomingList.map(item => ({
-            ...item,
-            tujuan: item.tujuan || '-',
-            note: item.note || '-',
-            updated_at: new Date().toISOString()
-          }));
-          await safeBatchUpsert('incoming', payload, 'id_incoming', 50);
-        }
-        await Promise.all([fetchMasterData(), fetchIncomingData()]);
-        showToast('Sinkron & Refresh Sukses', 'Semua data kedatangan telah tersinkronkan dan dimuat dari database cloud!', 'success');
+        await Promise.all([fetchMasterData(true), fetchIncomingData(true)]);
+        showToast('Refresh Sukses', 'Data kedatangan dan master terbaru berhasil dimuat dari database cloud!', 'success');
       } else {
-        await fetchMasterData();
-        showToast('Data Diperbarui', 'Data kedatangan lokal berhasil dimuat ulang.', 'info');
+        await fetchMasterData(false);
+        showToast('Data Diperbarui', 'Data kedatangan berhasil dimuat ulang.', 'info');
       }
     } catch (err: any) {
-      console.error('Sync & Refresh error:', err);
+      console.error('Refresh error:', err);
       showToast('Peringatan', 'Gagal memuat ulang data terbaru.', 'warning');
     } finally {
       setIsRefreshing(false);
-      setIsPushing(false);
     }
   };
 
@@ -1282,7 +1217,6 @@ export function IncomingModule() {
           showToast('Peringatan Database', `Tersimpan lokal, namun gagal ke cloud: ${error.message}`, 'warning');
         } else {
           setLastSupabaseError(null);
-          fetchIncomingData();
         }
       } catch (err: any) {
         console.error('Database save error:', err);

@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InventoryItem, DataBarang } from '../../types';
-import { supabase, isSupabaseConfigured } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getCachedMasterBarangSync, getSharedMasterBarang } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { InventoryFormModal } from './inventory/InventoryFormModal';
@@ -98,16 +98,7 @@ export function InventoryModule({
     } catch {}
   }, []);
 
-  const [barangList, setBarangList] = useState<DataBarang[]>(() => {
-    try {
-      const cached = localStorage.getItem('ckb_master_data_barang_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return [];
-  });
+  const [barangList, setBarangList] = useState<DataBarang[]>(() => getCachedMasterBarangSync<DataBarang>());
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -178,39 +169,17 @@ export function InventoryModule({
         throw new Error('Server cloud belum terkonfigurasi. Menggunakan cache lokal.');
       }
 
-      // Fetch master barang if empty
+      // Fetch master barang via shared cache if empty
       if (barangList.length === 0) {
-        const { data: bData } = await supabase.from('data_barang').select('*').limit(2000);
-        if (bData && Array.isArray(bData)) {
-          setBarangList(bData);
-          localStorage.setItem('ckb_master_data_barang_cache', JSON.stringify(bData));
-        }
+        getSharedMasterBarang<DataBarang>().then(bData => {
+          if (bData && bData.length > 0) setBarangList(bData);
+        });
       }
 
-      let allData: InventoryItem[] = [];
-      let from = 0;
-      const step = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: pageData, error } = await supabase
-          .from('data_inventory')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .range(from, from + step - 1);
-
-        if (error) throw error;
-        if (pageData && Array.isArray(pageData)) {
-          allData = [...allData, ...pageData];
-          if (pageData.length < step) {
-            hasMore = false;
-          } else {
-            from += step;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
+      const allData = await fetchAllRowsFromSupabase<InventoryItem>('data_inventory', {
+        orderBy: 'created_at',
+        ascending: false
+      });
 
       setInventoryList(allData);
       setLastSupabaseError(null);

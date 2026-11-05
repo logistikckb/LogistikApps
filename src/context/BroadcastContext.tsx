@@ -227,42 +227,35 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Helper to fetch broadcasts from a specific Supabase client
+  const resolvedTableRef = useRef<WeakMap<any, string>>(new WeakMap());
+
+  // Helper to fetch broadcasts from a specific Supabase client (memoizing valid table name)
   const fetchFromClient = async (client: any): Promise<BroadcastMessage[]> => {
     if (!client) return [];
     try {
-      let { data, error } = await client
-        .from('broadcast')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) {
-        const fallback1 = await client
-          .from('broadcasts')
+      const knownTable = resolvedTableRef.current.get(client);
+      if (knownTable) {
+        const { data, error } = await client
+          .from(knownTable)
           .select('*')
           .order('created_at', { ascending: false })
           .limit(50);
-
-        if (!fallback1.error && fallback1.data) {
-          data = fallback1.data;
-          error = null;
-        } else {
-          const fallback2 = await client
-            .from('broadcast_messages')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(50);
-
-          if (!fallback2.error && fallback2.data) {
-            data = fallback2.data;
-            error = null;
-          }
+        if (!error && data) {
+          return data.map(normalizeBroadcast);
         }
       }
 
-      if (!error && data) {
-        return data.map(normalizeBroadcast);
+      const candidateTables = ['broadcast', 'broadcasts', 'broadcast_messages'];
+      for (const tbl of candidateTables) {
+        const { data, error } = await client
+          .from(tbl)
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!error && data) {
+          resolvedTableRef.current.set(client, tbl);
+          return data.map(normalizeBroadcast);
+        }
       }
     } catch (e) {
       console.warn('Fetch broadcast error on client:', e);
@@ -471,10 +464,12 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
         .subscribe();
     }
 
-    // 3. Resilient Hybrid Fallback Polling (Ensures cross-app sync even if WebSockets drop or are proxy-filtered)
+    // 3. Lightweight Fallback Polling (only when visible, every 20s since WebSocket Realtime is primary)
     const pollInterval = setInterval(() => {
-      fetchMessages();
-    }, 4000);
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        fetchMessages();
+      }
+    }, 20000);
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {

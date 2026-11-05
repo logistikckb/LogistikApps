@@ -21,8 +21,16 @@ export function useLinks() {
     fetchLinks();
     const channel = supabase
       .channel('links_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'links' }, () => {
-        fetchLinks();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'links' }, (payload: any) => {
+        if (payload.eventType === 'INSERT' && payload.new) {
+          setLinks(prev => (prev.some(l => l.id === payload.new.id) ? prev : [payload.new as LinkData, ...prev]));
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
+          setLinks(prev => prev.map(l => (l.id === payload.new.id ? (payload.new as LinkData) : l)));
+        } else if (payload.eventType === 'DELETE' && payload.old?.id) {
+          setLinks(prev => prev.filter(l => l.id !== payload.old.id));
+        } else {
+          fetchLinks();
+        }
       })
       .subscribe();
 
@@ -32,25 +40,19 @@ export function useLinks() {
   }, []);
 
   const addLink = async (link: Omit<LinkData, 'id'>) => {
-    const tempId = crypto.randomUUID();
-    const newLink = { ...link, id: tempId, created_at: new Date().toISOString() } as LinkData;
-    setLinks(prev => [newLink, ...prev]);
-    const { error } = await supabase.from('links').insert([link]);
+    const { data, error } = await supabase.from('links').insert([link]).select().single();
     if (error) {
-      alert(`Gagal menyimpan ke database cloud: ${error.message}\n\nSolusi: Pastikan tabel "links" sudah dibuat dan matikan RLS (DISABLE ROW LEVEL SECURITY) atau tambahkan POLICY di SQL Editor.`);
-      setLinks(prev => prev.filter(l => l.id !== tempId));
-    } else {
-      fetchLinks();
+      console.error(`Gagal menyimpan ke database cloud: ${error.message}`);
+    } else if (data) {
+      setLinks(prev => (prev.some(l => l.id === data.id) ? prev : [data as LinkData, ...prev]));
     }
   };
 
   const updateLink = async (id: string, link: Partial<Omit<LinkData, 'id'>>) => {
-    setLinks(prev => prev.map(l => l.id === id ? { ...l, ...link } : l));
+    setLinks(prev => prev.map(l => (l.id === id ? { ...l, ...link } : l)));
     const { error } = await supabase.from('links').update(link).eq('id', id);
     if (error) {
-      alert(`Gagal memperbarui aplikasi di server: ${error.message}`);
-      fetchLinks();
-    } else {
+      console.error(`Gagal memperbarui aplikasi di server: ${error.message}`);
       fetchLinks();
     }
   };
@@ -59,7 +61,7 @@ export function useLinks() {
     setLinks(prev => prev.filter(l => l.id !== id));
     const { error } = await supabase.from('links').delete().eq('id', id);
     if (error) {
-      alert(`Gagal menghapus aplikasi dari server: ${error.message}`);
+      console.error(`Gagal menghapus aplikasi dari server: ${error.message}`);
       fetchLinks();
     }
   };
@@ -283,15 +285,6 @@ export function useAuth() {
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
-      // Hardcoded fallback for immediate access
-      if (email === 'admin@admin.com' && password === 'Kino.2026') {
-        const u = { email };
-        setUser(u);
-        localStorage.setItem('user', JSON.stringify(u));
-        window.dispatchEvent(new Event('userChange'));
-        return;
-      }
-
       if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
         throw new Error("Kredensial Server Database belum terkonfigurasi pada Environment Variables.");
       }

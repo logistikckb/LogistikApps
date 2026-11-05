@@ -17,9 +17,9 @@ interface ConnectionStatusContextType {
 
 const ConnectionStatusContext = createContext<ConnectionStatusContextType | undefined>(undefined);
 
-// Interval heartbeat pemantauan koneksi secara berkala (10 detik saat online, 5 detik jika offline)
-const HEARTBEAT_INTERVAL_ONLINE_MS = 10000;
-const HEARTBEAT_INTERVAL_OFFLINE_MS = 5000;
+// Interval heartbeat pemantauan koneksi secara berkala (30 detik saat online, 10 detik jika offline)
+const HEARTBEAT_INTERVAL_ONLINE_MS = 30000;
+const HEARTBEAT_INTERVAL_OFFLINE_MS = 10000;
 const PROBE_TIMEOUT_MS = 6000;
 
 export function ConnectionStatusProvider({ children }: { children: React.ReactNode }) {
@@ -67,7 +67,7 @@ export function ConnectionStatusProvider({ children }: { children: React.ReactNo
         setTimeout(() => reject(new Error('Waktu tunggu koneksi server habis (>6 detik)')), PROBE_TIMEOUT_MS);
       });
 
-      // Lakukan real query read ke tabel database untuk memverifikasi kemampuan membaca data
+      // Lakukan real query read ringan ke tabel database
       const queryPromise = supabase
         .from('users')
         .select('id')
@@ -114,16 +114,17 @@ export function ConnectionStatusProvider({ children }: { children: React.ReactNo
     }
   }, [status]);
 
-  // Siklus Heartbeat terus-menerus
+  // Siklus Heartbeat ringan
   useEffect(() => {
-    // Jalankan pemeriksaan pertama kali saat dimuat
     checkConnection();
 
     const scheduleNextCheck = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       const interval = status === 'Offline' ? HEARTBEAT_INTERVAL_OFFLINE_MS : HEARTBEAT_INTERVAL_ONLINE_MS;
       timerRef.current = setTimeout(async () => {
-        await checkConnection();
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+          await checkConnection();
+        }
         scheduleNextCheck();
       }, interval);
     };
