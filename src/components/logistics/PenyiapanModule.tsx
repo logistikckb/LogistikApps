@@ -66,7 +66,7 @@ import {
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import QRCode from 'qrcode';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase, getCachedMasterBarangSync, getSharedMasterBarang } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSettingFromSupabase, saveAppSettingToSupabase, getCachedMasterBarangSync, getSharedMasterBarang, SUPABASE_TABLE_COLUMNS } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PenyiapanItem, DataBarang } from '../../types';
@@ -567,7 +567,8 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     try {
       const data = await fetchAllRowsFromSupabase<PenyiapanItem>('data_penyiapan', {
         orderBy: 'created_at',
-        ascending: true
+        ascending: true,
+        selectCols: SUPABASE_TABLE_COLUMNS.data_penyiapan
       });
 
       if (Array.isArray(data)) {

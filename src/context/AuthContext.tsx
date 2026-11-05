@@ -166,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('id, username, nama, pin, avatar, role, status, email_google, permissions, created_at, updated_at')
         .order('role', { ascending: true });
 
       if (!error && data && data.length > 0) {
@@ -434,7 +434,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: dbUser, error } = await supabase
           .from('users')
-          .select('*')
+          .select('id, username, nama, pin, avatar, role, status, email_google, permissions')
           .ilike('username', trimmedUsername)
           .maybeSingle();
 

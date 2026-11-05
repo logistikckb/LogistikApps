@@ -381,9 +381,38 @@ export async function testSharedBroadcastConnection(): Promise<ConnectionTestRes
   return result;
 }
 
+// Daftar kolom spesifik per tabel untuk mengurangi ukuran payload & latensi jaringan Supabase
+export const SUPABASE_TABLE_COLUMNS = {
+  users: 'id, username, nama, pin, avatar, role, status, email_google, permissions, created_at, updated_at',
+  broadcast: 'id, sender_name, author_name, message, content, title, category, priority, device_info, is_pinned, is_active, created_at',
+  broadcasts: 'id, title, content, category, priority, author_id, author_name, author_role, is_pinned, is_active, created_at',
+  broadcast_messages: 'id, sender_name, message, category, device_info, created_at',
+  data_barang: 'item_code, barcode, item_name, status, created_at, updated_at',
+  data_distributor: 'kode_ld, nama_distributor, status, created_at, updated_at',
+  incoming: 'id_incoming, jenis, id_distributor, distributor, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, tujuan, created_at, updated_at',
+  data_penyiapan: 'id_penyiapan, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, note, created_at, updated_at',
+  data_picking: 'id_picking, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, note, created_at, updated_at',
+  data_cek_fisik_pemusnahan: 'id_cek_fisik, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, note, created_at, updated_at',
+  data_pemusnahan: 'id_pemusnahan, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, note, created_at, updated_at',
+  data_reco: 'id_reco, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, note, created_at, updated_at',
+  data_repack: 'id_repack, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, tanggal_update, status, note, created_at, updated_at',
+  data_inventory: 'id_inventory, tujuan, item_code, item_name, category, location, location_type, first_qty, last_qty, uom, qty_convert, uom_convert, lpn_serial_number, batch, vendor_batch, sloc, expired_date, destination_code, qc_code, user_tally, shelf_life, source, user_input, status, note, created_at, updated_at',
+  documents: 'id, nomor_sj, jenis_id, tanggal, tujuan_id, up, no_telpon, created_at',
+  items: 'id, doc_id, rekap_no, nama_barang, ctn, pcs, berat, kubikasi, keterangan',
+  jenis: 'id, kode, nama',
+  tujuan: 'id, nama, alamat, kota, up, no_telpon',
+  pengirim: 'nama, alamat, kota_kab, telp',
+  rekapan_sj: 'id, judul, tanggal_rekap, total_sj, total_item, total_ctn, total_pcs, total_berat, total_kubikasi, data_detail, keterangan, created_at',
+  promosi: 'id, nomor, tgl_terima, material, pengirim, penerima, nopol, expedisi, jumlah_ctn, jumlah_pcs, keterangan, created_at',
+  links: 'id, title, url, category, subcategory, icon, created_at',
+  todos: 'id, task, status, created_at',
+  settings: 'id, order, messages',
+  app_settings: 'key, value, updated_at'
+} as const;
+
 /**
  * Ambil SEMUA baris dari tabel Supabase dengan otomatis melakukan iterasi/pagination
- * untuk melewati batas default 1000 baris PostgREST server.
+ * untuk melewati batas default 1000 baris PostgREST server dan hanya memilih kolom yang diperlukan.
  */
 export async function fetchAllRowsFromSupabase<T = any>(
   tableName: string,
@@ -397,7 +426,7 @@ export async function fetchAllRowsFromSupabase<T = any>(
   if (!isSupabaseConfigured) return [];
 
   const pageSize = options?.pageSize || 1000;
-  const selectCols = options?.selectCols || '*';
+  const activeSelectCols = options?.selectCols || (SUPABASE_TABLE_COLUMNS as Record<string, string>)[tableName] || 'id';
   const orderBy = options?.orderBy;
   const ascending = options?.ascending ?? true;
 
@@ -409,7 +438,7 @@ export async function fetchAllRowsFromSupabase<T = any>(
     while (hasMore) {
       let query = supabase
         .from(tableName)
-        .select(selectCols)
+        .select(activeSelectCols)
         .range(from, from + pageSize - 1);
 
       if (orderBy) {
@@ -498,7 +527,11 @@ export async function getSharedMasterBarang<T = any>(forceRefresh = false): Prom
 
   inFlightBarangPromise = (async () => {
     try {
-      const data = await fetchAllRowsFromSupabase<any>('data_barang', { orderBy: 'item_name', ascending: true });
+      const data = await fetchAllRowsFromSupabase<any>('data_barang', {
+        orderBy: 'item_name',
+        ascending: true,
+        selectCols: SUPABASE_TABLE_COLUMNS.data_barang
+      });
       if (Array.isArray(data) && data.length > 0) {
         const map = new Map<string, any>();
         for (let i = 0; i < data.length; i++) {
@@ -562,7 +595,11 @@ export async function getSharedMasterDistributor<T = any>(forceRefresh = false):
 
   inFlightDistPromise = (async () => {
     try {
-      const data = await fetchAllRowsFromSupabase<any>('data_distributor', { orderBy: 'nama_distributor', ascending: true });
+      const data = await fetchAllRowsFromSupabase<any>('data_distributor', {
+        orderBy: 'nama_distributor',
+        ascending: true,
+        selectCols: SUPABASE_TABLE_COLUMNS.data_distributor
+      });
       if (Array.isArray(data) && data.length > 0) {
         const map = new Map<string, any>();
         for (let i = 0; i < data.length; i++) {

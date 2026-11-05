@@ -1,64 +1,96 @@
-# Optimasi Performa Aplikasi, Penyederhanaan Kode & Sinkronisasi Real-Time Database
+# Audit & Pembersihan Modul di Luar Menu Operasional Utama
 
-Menghapus sisa data dummy/mock di dalam kode, menyederhanakan logika pembacaan data serta *timer* latar belakang yang memberatkan perangkat, dan mengubah mekanisme sinkronisasi antar perangkat dari *full-table refetch* menjadi *incremental real-time delta sync* (`INSERT` / `UPDATE` / `DELETE` langsung di memori) agar aplikasi berjalan sangat ringan dan instan di semua perangkat.
+Menyederhanakan dan membersihkan struktur kode aplikasi **Logistik Cikembar** agar hanya memuat **7 modul Menu Operasional aktif** beserta fitur inti pendukungnya (Autentikasi, Profil/Manajemen User, Siaran Publik/Intercom, Koneksi Realtime, dan PWA), serta menghapus seluruh modul logistik tambahan, komponen portal lama, dan skrip sementara tanpa mengganggu tampilan maupun fungsi menu utama.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Seluruh sinkronisasi transaksi (`incoming`, `data_penyiapan`, `data_pemusnahan`, `data_inventory`, `data_barang`, `data_distributor`) akan menggunakan **Delta Realtime Sync** (memperbarui baris yang berubah secara langsung dari *payload* WebSocket Supabase tanpa mengunduh ulang seluruh tabel berulang kali), serta menghentikan pengiriman ulang seluruh tabel saat menekan tombol **Refresh**.
+> Berdasarkan hasil konfirmasi pada tahap klarifikasi, seluruh pembersihan di bawah ini dirancang dengan prinsip **Zero Disruption** terhadap ke-7 modul utama yang tampil pada Menu Operasional.
 
-- **Penghapusan Mock / Dummy Data**: Menghapus akun fallback hardcoded (`admin@admin.com` pada `useSupabase.ts`) dan membersihkan fungsi/komponen dummy yang tidak diperlukan.
-- **Optimasi Sinkronisasi Antar Perangkat (Delta Realtime Updates)**: Saat Perangkat A menambah, mengubah, atau menghapus 1 baris data, Perangkat B langsung menerima 1 baris tersebut melalui *payload* `postgres_changes` dan memperbarui state tabel secara instan tanpa mengunduh ulang ribuan baris dari server.
-- **In-Memory Master Data Cache (`data_barang` & `data_distributor`)**: Menyimpan data master di memori aplikasi bersama (*shared memory cache* dengan *deduplicated request*) sehingga berpindah antar menu (Kedatangan, Penyiapan, Inventory, Pemusnahan) tidak perlu `JSON.parse` berulang kali atau mengunduh ulang tabel master.
-- **Pengurangan Beban Timer & DOM Rendering**:
-  - Mengubah interval pengecekan inaktivitas & koneksi agar tidak memicu *re-render* setiap detik.
-  - Mengoptimalkan *polling* dan *channel* pada sistem Broadcast agar hanya memantau tabel yang aktif.
-  - Membatasi tampilan awal baris tabel (`rowsPerPage` default `50` baris dengan opsi `Semua Data` tetap tersedia) agar browser tidak membeku saat merender ribuan baris sekaligus.
+- **Keputusan Terkonfirmasi 1 (Hapus 5 Modul Logistik Tambahan & Wrapper)**: Menghapus modul `Stock Opname Suite`, `Generator Serial No`, `Batch Checker`, `Barang Promosi`, dan `Surat Jalan Studio`, termasuk pembungkus lamanya (`LogisticsModal`, `EmbeddedToolsWorkspace`, dan `ToolsGrid`) beserta fungsi kalkulasi spesifik modul tersebut.
+- **Keputusan Terkonfirmasi 2 (Hapus Komponen, Hook & Tipe Data Portal Lama)**: Menghapus komponen warisan yang sudah tidak terpakai (`LinkGrid`, `LinkModal`, `Sidebar` To-Do, `QuranTicker`, `LoginModal` lama, `MenuPinAuthModal`, `BroadcastBar`, `PlaceholderTool`, `LazyFallback`), hook `useSupabase` lama (`useLinks`, `useTodos`, `useMenuOrder`), serta tipe data `LinkData` dan `TodoData`.
+- **Keputusan Terkonfirmasi 3 (Bersihkan Skrip Sementara di Root)**: Menghapus file skrip bantuan dan draf sementara di direktori utama (`fix_modals*`, `modals.txt`, `test.js`, `todo.md`, dan `DRAFT_firestore.rules`).
+
+---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Mengoptimalkan kecepatan muat, responsivitas input, dan efisiensi jaringan/sinkronisasi database di seluruh modul Logistik Cikembar.
-- **Target Audience / Persona**: Seluruh tim operasional gudang dan admin logistik yang menggunakan aplikasi secara bersamaan di berbagai perangkat (desktop & mobile/PWA).
-- **Key Value**: Aplikasi terasa jauh lebih ringan, hemat kuota/baterai, bebas *lag* saat mengetik atau berpindah menu, dan perubahan data antar perangkat tersinkronisasi dalam hitungan milidetik.
+- **What It Does**: Memastikan arsitektur aplikasi 100% selaras dengan tampilan **Menu Operasional (7 modul aktif)**:
+  1. **Cek Expired Date (ED)** (`ed-checker`)
+  2. **Database Master** (`menu-a`)
+  3. **Kedatangan** (`menu-b`)
+  4. **Penyiapan** (`menu-d`)
+  5. **Pemusnahan** (`menu-e` — termasuk sub-tab integrasi *Cek Fisik Pemusnahan* & *Data Pemusnahan Final*)
+  6. **Inventory** (`menu-g` — termasuk sub-modal form, scanner, detail, bulk transfer, bulk location, dan Excel)
+  7. **Monitoring Sample** (`menu-sample`)
+- **Target Audience / Persona**: Tim operasional gudang, QC, Tally, dan Administrator Logistik Cikembar yang membutuhkan aplikasi cepat, ringan, dan bebas dari kode membengkak (*dead code*).
+- **Key Value**: Mengurangi beban ukuran bundel aplikasi, menghilangkan kode yatim (*orphaned modules*) yang berpotensi menimbulkan kebingungan saat pemeliharaan, dan menjaga stabilitas 7 menu utama.
+
+---
 
 ## 2. User Experience & Visual Design
 
 - **Key User Flows**:
-  1. **Buka Modul & Pindah Menu Instan**: Data Master Barang & Distributor dimuat sekali ke *shared in-memory cache* dan langsung tersedia untuk semua modul tanpa jeda.
-  2. **Input & Edit Data Tanpa Reload Tabel Penuh**: Saat menyimpan transaksi baru atau mengubah status proses di tabel, UI langsung diperbarui (*optimistic update*) dan hanya mengirimkan 1 baris yang berubah ke database (tanpa memanggil `fetchAllRowsFromSupabase` berulang kali).
-  3. **Sinkronisasi Antar Perangkat Seketika**: Perubahan dari perangkat lain langsung disisipkan ke state tabel melalui *event payload* (`INSERT`, `UPDATE`, `DELETE`).
-  4. **Tombol Refresh yang Bersih & Cepat**: Tombol **Sinkron & Refresh** pada modul Kedatangan hanya menarik data terbaru dari database tanpa melakukan *batch upsert* ulang seluruh baris lama.
+  - **Alur Beranda (Menu Utama)**: Pengguna masuk melalui halaman Login $\rightarrow$ melihat Header status koneksi & tombol Siaran Publik, panel profil Hero (jam digital, ganti avatar, ganti PIN, kelola user bagi Admin), serta kartu **Menu Operasional (7 modul aktif)** persis seperti sedia kala.
+  - **Alur Buka Modul & Navigasi**: Klik salah satu dari 7 kartu modul $\rightarrow$ membuka tampilan kerja modul secara instan dengan tombol kembali ke Menu Utama dan navigasi lintas modul (seperti pengiriman item antara *Penyiapan*, *Pemusnahan*, dan *Inventory*).
+- **Visual Identity & Theme**:
+  - *Aesthetic Direction*: Utilitarian Enterprise SaaS Dashboard yang bersih, kontras tinggi, dan responsif untuk operasional gudang.
+  - *Color Palette & Mood*: Kanvas netral terang (`bg-slate-50`, permukaan kartu `bg-white` dengan border halus `border-slate-200/90`), dipadukan aksen warna semantik per modul (Biru untuk ED Checker, Indigo untuk Database Master, Emerald untuk Kedatangan, Sky untuk Penyiapan, Rose untuk Pemusnahan, Teal untuk Inventory & Monitoring Sample).
+  - *Typography & Hierarchy*: Hierarki tipografi sans-serif yang tegas untuk judul modul dan label aksi, dipadukan font monospace (`font-mono`) untuk jam operasional, kode batch, LPN, dan angka kuantitas.
+  - *Component Styling & Layout*: Kontainer utama `max-w-[1440px]` dengan grid 6 kolom proporsional pada layar desktop untuk kartu Menu Operasional.
+- **Interactive Feedback & Motion**: Mempertahankan seluruh indikator aktif, umpan balik *toast*, peringatan sesi inaktif 30 menit, serta popup interkom Siaran Publik tanpa perubahan perilaku.
+
+---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Delta Realtime State Update vs Full Table Refetch**
-  - *Chosen Approach*: Menggunakan `payload.eventType` (`INSERT`, `UPDATE`, `DELETE`) dan `payload.new` / `payload.old` pada listener Supabase Realtime di modul `IncomingModule`, `DatabaseMasterModule`, `PemusnahanModule`, dan `PenyiapanModule`.
-  - *Why*: Menghemat 99% *bandwidth* dan waktu CPU dibanding mengunduh ulang ribuan baris setiap kali ada 1 perubahan kecil.
-- **Decision 2: Shared In-Memory Cache untuk Master Data**
-  - *Chosen Approach*: Menyediakan helper terpusat di `supabase.ts` (`getSharedMasterBarang` & `getSharedMasterDistributor`) yang menyimpan array di memori RAM selama sesi berjalan dan melakukan *deduplication* jika ada 2 request bersamaan.
-  - *Why*: Menghilangkan *freeze* akibat pembacaan `localStorage` (`JSON.parse` ribuan objek) dan pemanggilan jaringan ganda.
-- **Decision 3: Penyederhanaan Polling & Interval Background**
-  - *Chosen Approach*: Memperpanjang interval *heartbeat* koneksi dari 10 detik ke 30 detik, memperpanjang *fallback poll* Broadcast dari 4 detik ke 20 detik (karena WebSocket Realtime sudah aktif), dan mengecek inaktivitas setiap 15 detik (bukan setiap 1 detik).
-  - *Why*: Mengurangi beban kerja *main thread* browser dan trafik jaringan latar belakang secara drastis.
+- **Decision 1: Mempertahankan `CekFisikPemusnahanModule` sebagai Bagian Integral dari Menu `Pemusnahan`**
+  - *Chosen Approach*: Modul `CekFisikPemusnahanModule` tetap dipertahankan karena merupakan sub-tab utama (*Tab 1: Cek Fisik Pemusnahan*) di dalam menu **Pemusnahan** sebelum data ditransfer ke *Tab 2: Data Pemusnahan Final*.
+  - *Why*: Menjaga alur kerja *staging* verifikasi fisik ke pemusnahan final agar tidak rusak.
+  - *Alternatives Considered*: Menghapus semua file selain 7 nama file modul utama—ditolak karena akan merusak fitur sub-tab di dalam menu Pemusnahan.
+- **Decision 2: Pemangkasan Fungsi Kalkulasi & Tipe Data Warisan**
+  - *Chosen Approach*: Menghapus fungsi kalkulasi yang hanya dipakai oleh modul yang dihapus (`aggregateStockOpnameRows`, `processMB52Rows`, `generateSerialNumberList`, `compareLargoAndSap`) serta tipe `LinkData` dan `TodoData`, sambil mempertahankan seluruh fungsi kalkulasi tanggal/batch/rak (`edComputeExpiredRow`, `getEdIsoDateString`, `normalizeToIsoDate`, `formatRakLocation`).
+  - *Why*: Memastikan utilitas dan definisi tipe data hanya berisi kontrak data yang benar-benar digunakan oleh 7 modul operasional aktif.
+
+---
 
 ## 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
+- **Architecture & Component Diagram**:
+
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Shared In-Memory & Realtime Layer                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Perangkat A (Input/Edit 1 Baris)                                       │
-│       │                                                                 │
-│       ├──► 1. Optimistic State Update (0ms di UI Perangkat A)           │
-│       └──► 2. Single-Row Upsert ke Supabase Cloud                       │
-│                    │                                                    │
-│                    ▼ (WebSocket postgres_changes payload.new/old)       │
-│  Perangkat B, C, D                                                      │
-│       └──► 3. Delta State Merge (Langsung update 1 baris di memori,     │
-│               tanpa fetchAllRowsFromSupabase ulang)                     │
-└─────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                        Root Application Providers                          │
+│  ErrorBoundary -> ConnectionStatus -> Auth -> Notification -> PWA ->       │
+│  BroadcastProvider                                                         │
+└─────────────────────────────────────┬──────────────────────────────────────┘
+                                      │
+                                      ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         App Shell (Home / Module)                          │
+│  ├─ LoginPage (Jika belum autentikasi)                                     │
+│  ├─ Header Bar (ConnectionStatusBadge, PWA Update, Siaran Publik)          │
+│  ├─ Hero Panel (Profil, Jam Operasional, AvatarPicker, ChangePin, Admin)   │
+│  └─ ToolsGridMenu (Menu Operasional: 7 Modul Aktif)                        │
+└──────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────────┘
+       │          │          │          │          │          │
+       ▼          ▼          ▼          ▼          ▼          ▼
+  ┌─────────┐┌─────────┐┌─────────┐┌─────────┐┌─────────┐┌─────────┐┌─────────┐
+  │   Cek   ││Database ││Kedatang-││Penyiapan││Pemusnah-││Inventory││Monitor  │
+  │   ED    ││ Master  ││   an    ││Outbound ││   an    ││ Gudang  ││ Sample  │
+  └─────────┘└─────────┘└─────────┘└────┬────┘└────┬────┘└────┬────┘└─────────┘
+                                        │          │          │
+                                        │     ┌────┴────┐     │
+                                        │     │Cek Fisik│     │
+                                        │     │ & Final │     │
+                                        │     └─────────┘     │
+                                        └──────────┼──────────┘
+                                    (Relasi Transfer Antar Modul)
 ```
 
 - **Data Model & State**:
-  - Pembersihan kode dummy pada `useSupabase.ts` dan penyederhanaan listener Realtime di `IncomingModule`, `DatabaseMasterModule`, `PemusnahanModule`, `PenyiapanModule`, `BroadcastContext`, `ConnectionStatusContext`, dan `AuthContext`.
-  - Penyesuaian default `rowsPerPage` menjadi `50` pada `IncomingModule` agar *initial render* tabel ribuan baris berlangsung instan (opsi `ALL` / Semua Data tetap dapat dipilih kapan saja).
+  - Mempertahankan entitas data aktif pada Supabase Cloud: `UserProfile`, `BroadcastMessage`, `DataBarang`, `DataDistributor`, `IncomingItem`, `PenyiapanItem`, `CekFisikPemusnahanItem`, `PemusnahanItem`, `InventoryItem`, dan `MonitoringSampleItem`.
+  - Menghapus state & langganan realtime tabel lama (`links`, `todos`, dan `settings.menu_order`) yang sudah tidak digunakan.
+- **Interactive Component & State Mapping**:
+  - Navigasi `currentView` (`'home' | 'module'`) dan `activeToolId` (`ToolId`) di komponen utama langsung merender salah satu dari 7 modul aktif tanpa cabang *fallback* `PlaceholderTool` yang tidak terpakai.
+  - Seluruh aksi lintas modul (`onNavigateToPemusnahan`, `onNavigateToPenyiapan`, `onNavigateToInventory`) tetap terhubung secara utuh.

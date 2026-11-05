@@ -229,15 +229,22 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
 
   const resolvedTableRef = useRef<WeakMap<any, string>>(new WeakMap());
 
+  const BROADCAST_SELECT_MAP: Record<string, string> = {
+    broadcast: 'id, sender_name, author_name, message, content, title, category, priority, device_info, is_pinned, is_active, created_at',
+    broadcasts: 'id, title, content, category, priority, author_name, author_role, is_pinned, is_active, created_at',
+    broadcast_messages: 'id, sender_name, message, category, device_info, created_at'
+  };
+
   // Helper to fetch broadcasts from a specific Supabase client (memoizing valid table name)
   const fetchFromClient = async (client: any): Promise<BroadcastMessage[]> => {
     if (!client) return [];
     try {
       const knownTable = resolvedTableRef.current.get(client);
       if (knownTable) {
+        const cols = BROADCAST_SELECT_MAP[knownTable] || BROADCAST_SELECT_MAP.broadcast;
         const { data, error } = await client
           .from(knownTable)
-          .select('*')
+          .select(cols)
           .order('created_at', { ascending: false })
           .limit(50);
         if (!error && data) {
@@ -247,9 +254,10 @@ export function BroadcastProvider({ children }: { children: React.ReactNode }) {
 
       const candidateTables = ['broadcast', 'broadcasts', 'broadcast_messages'];
       for (const tbl of candidateTables) {
+        const cols = BROADCAST_SELECT_MAP[tbl] || BROADCAST_SELECT_MAP.broadcast;
         const { data, error } = await client
           .from(tbl)
-          .select('*')
+          .select(cols)
           .order('created_at', { ascending: false })
           .limit(50);
         if (!error && data) {

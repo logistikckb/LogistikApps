@@ -56,7 +56,8 @@ import {
   getSharedMasterBarang,
   getSharedMasterDistributor,
   setSharedMasterBarangCache,
-  setSharedMasterDistributorCache
+  setSharedMasterDistributorCache,
+  SUPABASE_TABLE_COLUMNS
 } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -618,7 +619,8 @@ export function IncomingModule() {
     try {
       const data = await fetchAllRowsFromSupabase<IncomingItem>('incoming', {
         orderBy: 'created_at',
-        ascending: false
+        ascending: false,
+        selectCols: SUPABASE_TABLE_COLUMNS.incoming
       });
 
       if (Array.isArray(data)) {

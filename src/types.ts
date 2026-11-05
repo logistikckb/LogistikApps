@@ -27,17 +27,6 @@ export interface UserProfile {
 
 export const SEED_USERS: UserProfile[] = [];
 
-export interface LinkData {
-  id: string;
-  title: string;
-  url: string;
-  category: string;
-  subcategory?: string;
-  icon?: string;
-}
-
-export type TodoPriority = 'rendah' | 'sedang' | 'tinggi' | 'mendesak';
-
 export type BroadcastCategory = 'info' | 'urgent' | 'warning' | 'announcement' | 'Pengumuman' | 'Peringatan' | 'Inbound' | 'Maintenance' | 'Operasional';
 
 export interface BroadcastMessage {
@@ -53,68 +42,6 @@ export interface BroadcastMessage {
   is_pinned?: boolean;
   is_active?: boolean;
   created_at: string;
-}
-
-export interface TodoData {
-  id: string;
-  task: string;
-  status: 'no' | 'onproses' | 'close';
-  priority?: TodoPriority;
-  is_blinking?: boolean;
-}
-
-export interface ParsedTodoTask {
-  cleanTask: string;
-  priority: TodoPriority;
-  isBlinking: boolean;
-}
-
-export function parseTodoTask(rawTask: string, rawPriority?: string, rawBlinking?: boolean): ParsedTodoTask {
-  let task = rawTask || '';
-  let priority: TodoPriority = 'rendah';
-  let isBlinking = false;
-
-  if (rawPriority && ['rendah', 'sedang', 'tinggi', 'mendesak'].includes(rawPriority)) {
-    priority = rawPriority as TodoPriority;
-  }
-  if (rawBlinking !== undefined) {
-    isBlinking = !!rawBlinking;
-  }
-
-  const pMatch = task.match(/\[P:(rendah|sedang|tinggi|mendesak)\]/i);
-  if (pMatch) {
-    priority = pMatch[1].toLowerCase() as TodoPriority;
-    task = task.replace(pMatch[0], '');
-  }
-
-  if (/\[BLINK\]/i.test(task) || /\[BLINK:true\]/i.test(task)) {
-    isBlinking = true;
-    task = task.replace(/\[BLINK(:true)?\]/gi, '');
-  } else if (/\[BLINK:false\]/i.test(task)) {
-    isBlinking = false;
-    task = task.replace(/\[BLINK:false\]/gi, '');
-  }
-
-  if (priority === 'mendesak' && rawBlinking === undefined && !rawTask.includes('[BLINK:false]')) {
-    isBlinking = true;
-  }
-
-  return {
-    cleanTask: task.trim(),
-    priority,
-    isBlinking
-  };
-}
-
-export function formatTodoTask(cleanTask: string, priority: TodoPriority, isBlinking: boolean): string {
-  let result = cleanTask.trim();
-  if (priority && priority !== 'rendah') {
-    result = `[P:${priority}] ${result}`;
-  }
-  if (isBlinking) {
-    result = `[BLINK] ${result}`;
-  }
-  return result;
 }
 
 // Master Data Barang (Supabase table: public.data_barang)

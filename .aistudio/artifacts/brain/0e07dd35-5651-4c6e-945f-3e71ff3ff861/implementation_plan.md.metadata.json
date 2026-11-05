@@ -1,6 +1,6 @@
 {
-  "summary": "Rencana komprehensif penghapusan data dummy/mock, penyederhanaan kode, optimasi performa rendering UI, dan percepatan sinkronisasi real-time antar perangkat ke database Supabase.",
-  "updatedAt": "2026-11-05T06:09:06.674958551Z",
+  "summary": "Rencana audit dan pembersihan menyeluruh modul, komponen, hook, kalkulasi utilitas, serta file skrip di luar 7 Menu Operasional Utama aplikasi Logistik Cikembar tanpa mengubah tampilan maupun fungsi menu utama.",
+  "updatedAt": "2026-11-05T06:40:01.063573404Z",
   "requestFeedback": true,
   "userFacing": true
 }

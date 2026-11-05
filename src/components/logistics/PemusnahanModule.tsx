@@ -61,7 +61,8 @@ import {
   isSupabaseConfigured,
   fetchAllRowsFromSupabase,
   getCachedMasterBarangSync,
-  getSharedMasterBarang
+  getSharedMasterBarang,
+  SUPABASE_TABLE_COLUMNS
 } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -237,7 +238,8 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     try {
       const data = await fetchAllRowsFromSupabase<PemusnahanItem>('data_pemusnahan', {
         orderBy: 'created_at',
-        ascending: false
+        ascending: false,
+        selectCols: SUPABASE_TABLE_COLUMNS.data_pemusnahan
       });
 
       if (Array.isArray(data)) {

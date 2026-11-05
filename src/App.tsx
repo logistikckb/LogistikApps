@@ -1,23 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
-import { useNotification } from './context/NotificationContext';
 import { usePwa } from './context/PwaContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { Hero } from './components/Hero';
 import { ToolsGridMenu, ToolId, TOOLS_LIST } from './components/ToolsNavigation';
-import { PlaceholderTool } from './components/PlaceholderTool';
 import { InactivityWarningModal } from './components/auth/InactivityWarningModal';
 import { FloatingRobotBroadcast } from './components/broadcast/FloatingRobotBroadcast';
 import { NotificationPermissionBanner } from './components/broadcast/NotificationPermissionBanner';
 import { useBroadcast } from './hooks/useBroadcast';
 import { 
-  ArrowLeft, 
   Home, 
   Sparkles, 
   BookOpen, 
   Layers, 
-  LayoutGrid,
-  ShieldCheck,
   ShieldAlert,
   Mail
 } from 'lucide-react';
@@ -41,7 +36,6 @@ import { ConnectionWarningBanner } from './components/common/ConnectionWarningBa
 export default function App() {
   const { currentUser, isAdmin } = useAuth();
   const isSuperAdmin = isAdmin || currentUser?.role === 'Admin' || currentUser?.username?.toLowerCase() === 'superadmin';
-  const { showToast } = useNotification();
   const { isUpdateAvailable, updateInfo, setShowUpdateModal } = usePwa();
 
   // Navigation: 'home' (Daftar Menu Utama) / 'module' (Halaman Detail Modul)
@@ -106,8 +100,6 @@ export default function App() {
     setCurrentView('home');
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
-
-  const latestBroadcast = broadcastMessages.length > 0 ? broadcastMessages[0] : null;
 
   return (
     <div className="min-h-screen p-0 overflow-y-auto text-[13px] font-sans bg-slate-50 text-slate-800">
@@ -309,17 +301,7 @@ export default function App() {
                     />
                   ) : activeToolId === 'menu-sample' ? (
                     <MonitoringSampleModule />
-                  ) : (
-                    <PlaceholderTool
-                      id={currentTool.id}
-                      title={currentTool.title}
-                      subtitle={currentTool.shortDesc}
-                      category={currentTool.category}
-                      icon={currentTool.icon}
-                      colorClass={currentTool.colorBg}
-                      plannedFeatures={currentTool.plannedFeatures}
-                    />
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Guide for ED Checker */}

@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { InventoryItem, DataBarang } from '../../types';
-import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getCachedMasterBarangSync, getSharedMasterBarang } from '../../supabase';
+import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getCachedMasterBarangSync, getSharedMasterBarang, SUPABASE_TABLE_COLUMNS } from '../../supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { InventoryFormModal } from './inventory/InventoryFormModal';
@@ -178,7 +178,8 @@ export function InventoryModule({
 
       const allData = await fetchAllRowsFromSupabase<InventoryItem>('data_inventory', {
         orderBy: 'created_at',
-        ascending: false
+        ascending: false,
+        selectCols: SUPABASE_TABLE_COLUMNS.data_inventory
       });
 
       setInventoryList(allData);
