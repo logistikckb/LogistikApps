@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usePwa } from '../../context/PwaContext';
-import { ConnectionStatusBadge } from '../common/ConnectionStatusBadge';
 import { ConnectionWarningBanner } from '../common/ConnectionWarningBanner';
 import { 
   LogIn, 
@@ -17,7 +16,8 @@ import {
   Download,
   Smartphone,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  Delete
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -48,6 +48,24 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
 
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const pinInputRef = useRef<HTMLInputElement>(null);
+
+  const handleKeypadDigit = (digit: string) => {
+    if (isSubmitting) return;
+    if (errorMsg) setErrorMsg('');
+    setPin((prev) => (prev.length < 8 ? prev + digit : prev));
+  };
+
+  const handleKeypadBackspace = () => {
+    if (isSubmitting) return;
+    if (errorMsg) setErrorMsg('');
+    setPin((prev) => prev.slice(0, -1));
+  };
+
+  const handleKeypadClear = () => {
+    if (isSubmitting) return;
+    if (errorMsg) setErrorMsg('');
+    setPin('');
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,9 +123,6 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
           <p className="text-xs text-slate-500 font-medium">
             Masukkan Username dan Kode PIN untuk melanjutkan
           </p>
-          <div className="flex justify-center pt-1">
-            <ConnectionStatusBadge />
-          </div>
         </div>
 
         {/* Banner Peringatan Koneksi Terputus (Offline) */}
@@ -274,13 +289,13 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
             </div>
 
             {/* PIN Code Field */}
-            <div className="space-y-1.5">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <label htmlFor="login-pin-input" className="block text-xs font-bold text-slate-700">
                   Kode PIN
                 </label>
                 <span className="text-[10px] text-slate-400">
-                  Maks. 8 digit
+                  {pin.length > 0 ? `${pin.length} / 8 digit` : 'Maks. 8 digit'}
                 </span>
               </div>
 
@@ -304,7 +319,7 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                   data-form-type="other"
                   maxLength={8}
                   value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                   placeholder="Masukkan PIN..."
                   disabled={isSubmitting}
                   className={`w-full pl-10 pr-10 py-2.5 text-base bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent font-mono tracking-widest text-slate-800 transition-colors font-bold text-center placeholder:text-slate-400 placeholder:font-sans placeholder:tracking-normal placeholder:text-sm placeholder:font-normal ${
@@ -320,6 +335,52 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                 >
                   {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
+              </div>
+
+              {/* Papan Angka (Numeric Keypad) */}
+              <div className="p-2.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl">
+                <div className="grid grid-cols-3 gap-2">
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                    <button
+                      key={digit}
+                      type="button"
+                      disabled={isSubmitting || pin.length >= 8}
+                      onClick={() => handleKeypadDigit(digit)}
+                      className="h-11 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200/90 text-slate-800 font-bold text-base shadow-2xs transition-all cursor-pointer select-none active:scale-95 disabled:opacity-50"
+                    >
+                      {digit}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting || pin.length === 0}
+                    onClick={handleKeypadClear}
+                    className="h-11 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200/80 text-rose-700 font-bold text-xs shadow-2xs transition-all cursor-pointer select-none active:scale-95 disabled:opacity-40"
+                    title="Hapus semua PIN"
+                  >
+                    Ulang
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting || pin.length >= 8}
+                    onClick={() => handleKeypadDigit('0')}
+                    className="h-11 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200/90 text-slate-800 font-bold text-base shadow-2xs transition-all cursor-pointer select-none active:scale-95 disabled:opacity-50"
+                  >
+                    0
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSubmitting || pin.length === 0}
+                    onClick={handleKeypadBackspace}
+                    className="h-11 rounded-xl bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200/80 text-amber-800 font-bold text-xs shadow-2xs transition-all flex items-center justify-center cursor-pointer select-none active:scale-95 disabled:opacity-40"
+                    title="Hapus 1 digit terakhir"
+                  >
+                    <Delete size={17} />
+                  </button>
+                </div>
               </div>
             </div>
 

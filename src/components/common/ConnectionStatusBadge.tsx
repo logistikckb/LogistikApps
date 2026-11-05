@@ -20,27 +20,13 @@ export function ConnectionStatusBadge({ className = '', showLatency = true }: Co
     });
   };
 
+  if (status !== 'Offline' && !showModal) {
+    return null;
+  }
+
   return (
     <>
-      {status === 'Live' ? (
-        <button
-          type="button"
-          onClick={() => setShowModal(true)}
-          className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/90 text-xs font-bold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 ${className}`}
-          title={`Status Koneksi: Live (${latencyMs ? `${latencyMs}ms` : 'Aktif'}). Klik untuk melihat diagnostik server.`}
-        >
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="font-extrabold text-[11px] sm:text-xs tracking-wider">Live</span>
-          {showLatency && latencyMs !== null && (
-            <span className="text-[10px] text-emerald-700/80 font-mono hidden md:inline">
-              {latencyMs}ms
-            </span>
-          )}
-        </button>
-      ) : status === 'Offline' ? (
+      {status === 'Offline' && (
         <button
           type="button"
           onClick={() => setShowModal(true)}
@@ -50,15 +36,6 @@ export function ConnectionStatusBadge({ className = '', showLatency = true }: Co
           <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
           <span className="font-extrabold text-[11px] sm:text-xs tracking-wider">Offline</span>
           <RefreshCw size={11} className={`text-rose-600 ${isChecking ? 'animate-spin' : ''}`} />
-        </button>
-      ) : (
-        <button
-          type="button"
-          disabled
-          className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold ${className}`}
-        >
-          <RefreshCw size={11} className="animate-spin text-slate-500" />
-          <span className="text-[11px]">Memeriksa...</span>
         </button>
       )}
 
