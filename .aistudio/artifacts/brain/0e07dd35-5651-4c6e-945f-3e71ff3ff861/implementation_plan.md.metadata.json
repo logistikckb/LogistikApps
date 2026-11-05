@@ -1,6 +1,6 @@
 {
-  "summary": "Rencana audit dan pembersihan menyeluruh modul, komponen, hook, kalkulasi utilitas, serta file skrip di luar 7 Menu Operasional Utama aplikasi Logistik Cikembar tanpa mengubah tampilan maupun fungsi menu utama.",
-  "updatedAt": "2026-11-05T06:40:01.063573404Z",
+  "summary": "Rencana peningkatan akurasi Login Suara menggunakan koreksi kemiripan fonetik & Levenshtein/Fuse terhadap daftar user terdaftar, dukungan angka ejaan per digit maupun belasan/puluhan/ratusan, serta seleksi multi-alternatif SpeechRecognition.",
+  "updatedAt": "2026-11-05T09:30:09.086345420Z",
   "requestFeedback": true,
   "userFacing": true
 }
