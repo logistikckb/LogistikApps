@@ -399,21 +399,35 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
 
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const pinInputRef = useRef<HTMLInputElement>(null);
+  const voiceLoginBtnRef = useRef<HTMLButtonElement>(null);
   const recognitionRef = useRef<any>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startVoiceListeningRef = useRef<(preserveError?: boolean, initialUserOverride?: string) => void>(() => {});
   const latestParsedRef = useRef<{ username: string; pin: string; hasSpoken: boolean }>({
     username: '',
     pin: '',
     hasSpoken: false,
   });
 
-  // Fungsi Suara Balasan (Text-to-Speech Bahasa Indonesia)
-  const speakFeedback = useCallback((message: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  // Fungsi Suara Balasan (Text-to-Speech Bahasa Indonesia) dengan callback selesai bicara
+  const speakFeedback = useCallback((message: string, onComplete?: () => void) => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (onComplete) {
+        restartTimerRef.current = setTimeout(onComplete, 300);
+      }
+      return;
+    }
+
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(message);
       utterance.lang = 'id-ID';
-      utterance.rate = 1.02;
+      utterance.rate = 1.05;
       utterance.pitch = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
@@ -422,15 +436,44 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
         utterance.voice = idVoice;
       }
 
+      let callbackFired = false;
+      const triggerComplete = () => {
+        if (callbackFired) return;
+        callbackFired = true;
+        if (restartTimerRef.current) {
+          clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = null;
+        }
+        if (onComplete) {
+          restartTimerRef.current = setTimeout(onComplete, 200);
+        }
+      };
+
+      utterance.onend = triggerComplete;
+      utterance.onerror = triggerComplete;
+
+      // Fallback timer jika browser tidak memicu event onend pada TTS
+      if (onComplete) {
+        const estimatedMs = Math.min(5000, Math.max(1800, message.length * 65));
+        restartTimerRef.current = setTimeout(triggerComplete, estimatedMs);
+      }
+
       window.speechSynthesis.speak(utterance);
     } catch {
-      // Ignore speech synthesis errors on restricted browsers
+      if (onComplete) {
+        restartTimerRef.current = setTimeout(onComplete, 300);
+      }
     }
   }, []);
 
-  // Bersihkan mikrofon saat keluar dari halaman Login
+  // Standby fokus di tombol mikrofon saat pertama buka aplikasi (agar keyboard HP tidak muncul otomatis)
   useEffect(() => {
+    voiceLoginBtnRef.current?.focus();
+
     return () => {
+      if (restartTimerRef.current) {
+        clearTimeout(restartTimerRef.current);
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -636,15 +679,19 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
       if (!finalUsername) {
         const msg = 'Harap masukkan Username Anda!';
         setErrorMsg(msg);
-        speakFeedback('Harap masukkan atau ucapkan username Anda.');
-        usernameInputRef.current?.focus();
+        voiceLoginBtnRef.current?.focus();
+        speakFeedback('Harap ucapkan username dan kode PIN Anda.', () => {
+          startVoiceListeningRef.current(true, '');
+        });
         return;
       }
       if (!cleanPin) {
         const msg = 'Harap masukkan Kode PIN Anda!';
         setErrorMsg(msg);
-        speakFeedback('Harap masukkan atau ucapkan kode PIN Anda.');
-        pinInputRef.current?.focus();
+        voiceLoginBtnRef.current?.focus();
+        speakFeedback('Harap ucapkan kode PIN Anda.', () => {
+          startVoiceListeningRef.current(true, finalUsername);
+        });
         return;
       }
 
@@ -653,10 +700,17 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
         const res = await login(finalUsername, cleanPin);
         if (!res.success) {
           const failMessage = res.message || 'Login gagal. Periksa kembali Username dan PIN Anda.';
+          const isUserNotFound = failMessage.toLowerCase().includes('username');
           setErrorMsg(failMessage);
           setPin('');
-          speakFeedback(`Maaf, ${failMessage} Silakan coba lagi.`);
-          pinInputRef.current?.focus();
+          if (isUserNotFound) {
+            setUsername('');
+          }
+          voiceLoginBtnRef.current?.focus();
+          // Aktifkan kembali mikrofon secara otomatis setelah suara peringatan selesai
+          speakFeedback(`Maaf, ${failMessage} Silakan ucapkan kembali.`, () => {
+            startVoiceListeningRef.current(true, isUserNotFound ? '' : finalUsername);
+          });
         } else {
           setSuccessMsg('Login berhasil! Mengalihkan...');
           speakFeedback('Login berhasil, selamat bertugas.');
@@ -664,7 +718,10 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
       } catch (err: any) {
         const errText = err.message || 'Terjadi gangguan saat memverifikasi kredensial.';
         setErrorMsg(errText);
-        speakFeedback(`Maaf, ${errText}`);
+        voiceLoginBtnRef.current?.focus();
+        speakFeedback(`Maaf, ${errText} Silakan coba lagi.`, () => {
+          startVoiceListeningRef.current(true, finalUsername);
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -674,6 +731,10 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
     if (isListening && recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -682,9 +743,179 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
     await executeLogin(username, pin);
   };
 
+  // Fungsi untuk mengaktifkan mikrofon pengenalan suara
+  const startVoiceListening = useCallback(
+    (preserveError = false, initialUserOverride?: string) => {
+      if (isSubmitting) return;
+
+      const SpeechRecognitionAPI =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (!SpeechRecognitionAPI) {
+        const unsupportedMsg =
+          'Browser perangkat ini belum mendukung fitur pengenalan suara. Silakan ketik manual.';
+        setErrorMsg(unsupportedMsg);
+        speakFeedback(unsupportedMsg);
+        return;
+      }
+
+      if (!preserveError) {
+        setErrorMsg('');
+      }
+      setSuccessMsg('');
+      setVoiceTranscript('');
+      setMatchedAccountHint('');
+
+      const baseUsername =
+        initialUserOverride !== undefined ? initialUserOverride.trim() : username.trim();
+
+      latestParsedRef.current = {
+        username: baseUsername,
+        pin: '',
+        hasSpoken: false,
+      };
+
+      try {
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.abort();
+          } catch {}
+        }
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+
+        const recognition = new SpeechRecognitionAPI();
+        recognitionRef.current = recognition;
+        recognition.lang = 'id-ID';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 5;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          voiceLoginBtnRef.current?.focus();
+        };
+
+        recognition.onresult = (event: any) => {
+          const candidateTranscripts: string[] = [];
+          const maxAlt = event.results[0]?.length || 1;
+
+          for (let altIdx = 0; altIdx < maxAlt; altIdx++) {
+            let phrase = '';
+            for (let resIdx = 0; resIdx < event.results.length; resIdx++) {
+              const altItem = event.results[resIdx][altIdx] || event.results[resIdx][0];
+              if (altItem?.transcript) {
+                phrase += altItem.transcript + ' ';
+              }
+            }
+            const trimmed = phrase.trim();
+            if (trimmed && !candidateTranscripts.includes(trimmed)) {
+              candidateTranscripts.push(trimmed);
+            }
+          }
+
+          const primaryTranscript = candidateTranscripts[0] || '';
+          setVoiceTranscript(primaryTranscript);
+
+          let bestParsed = parseSingleTranscript(primaryTranscript, baseUsername);
+          for (let idx = 1; idx < candidateTranscripts.length; idx++) {
+            const candidateParsed = parseSingleTranscript(candidateTranscripts[idx], baseUsername);
+            if (candidateParsed.confidenceScore > bestParsed.confidenceScore) {
+              bestParsed = candidateParsed;
+            }
+          }
+
+          latestParsedRef.current = {
+            username: bestParsed.parsedUsername,
+            pin: bestParsed.parsedPin,
+            hasSpoken: true,
+          };
+
+          if (bestParsed.parsedUsername) {
+            setUsername(bestParsed.parsedUsername);
+            setMatchedAccountHint(
+              bestParsed.parsedPin
+                ? `Akun: ${bestParsed.parsedUsername} • PIN: ${bestParsed.parsedPin.length} digit`
+                : `Akun: ${bestParsed.parsedUsername}`
+            );
+          }
+          if (bestParsed.parsedPin) {
+            setPin(bestParsed.parsedPin);
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          setIsListening(false);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            const permMsg = 'Akses mikrofon ditolak. Izinkan mikrofon di browser atau ketik manual.';
+            setErrorMsg(permMsg);
+            speakFeedback(permMsg);
+          } else if (event.error === 'no-speech') {
+            const noSpeechMsg =
+              'Tidak ada suara terdengar. Silakan tekan mikrofon dan ucapkan Username beserta PIN.';
+            setErrorMsg(noSpeechMsg);
+            speakFeedback('Tidak ada suara yang terdengar, silakan coba lagi.');
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          const { username: finalUser, pin: finalPin, hasSpoken } = latestParsedRef.current;
+
+          if (!hasSpoken) return;
+
+          if (finalUser && finalPin.length >= 4) {
+            executeLogin(finalUser, finalPin);
+          } else if (finalUser && finalPin.length === 0) {
+            const msg = `Akun "${finalUser}" terdeteksi, namun Kode PIN belum terdengar. Silakan ucapkan Kode PIN.`;
+            setErrorMsg(msg);
+            voiceLoginBtnRef.current?.focus();
+            speakFeedback(`Akun ${finalUser} terdeteksi. Silakan ucapkan kode PIN Anda.`, () => {
+              startVoiceListeningRef.current(true, finalUser);
+            });
+          } else if (!finalUser && finalPin.length > 0) {
+            const msg =
+              'Kode PIN terdeteksi, namun Username belum disebutkan. Silakan ucapkan Username beserta PIN.';
+            setErrorMsg(msg);
+            setPin('');
+            voiceLoginBtnRef.current?.focus();
+            speakFeedback('Silakan ucapkan username diikuti kode PIN Anda.', () => {
+              startVoiceListeningRef.current(true, '');
+            });
+          } else {
+            const msg =
+              'Suara belum lengkap. Ucapkan Username lalu angka PIN (contoh: "admin 3 9 9 3 3 9").';
+            setErrorMsg(msg);
+            setPin('');
+            voiceLoginBtnRef.current?.focus();
+            speakFeedback('Suara belum lengkap. Silakan ucapkan username diikuti kode PIN Anda.', () => {
+              startVoiceListeningRef.current(true, finalUser);
+            });
+          }
+        };
+
+        recognition.start();
+      } catch {
+        setIsListening(false);
+        setErrorMsg('Gagal mengaktifkan mikrofon. Silakan coba lagi atau ketik manual.');
+      }
+    },
+    [isSubmitting, username, parseSingleTranscript, executeLogin, speakFeedback]
+  );
+
+  useEffect(() => {
+    startVoiceListeningRef.current = startVoiceListening;
+  }, [startVoiceListening]);
+
   // Toggle sistem pengenalan suara (One-Tap Voice Login dengan Multi-Alternative Fuzzy Matching)
   const handleToggleVoiceLogin = () => {
     if (isSubmitting) return;
+
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
 
     if (isListening && recognitionRef.current) {
       try {
@@ -694,137 +925,7 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
       return;
     }
 
-    const SpeechRecognitionAPI =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionAPI) {
-      const unsupportedMsg = 'Browser perangkat ini belum mendukung fitur pengenalan suara. Silakan ketik manual.';
-      setErrorMsg(unsupportedMsg);
-      speakFeedback(unsupportedMsg);
-      return;
-    }
-
-    setErrorMsg('');
-    setSuccessMsg('');
-    setVoiceTranscript('');
-    setMatchedAccountHint('');
-    latestParsedRef.current = {
-      username: username.trim(),
-      pin: '',
-      hasSpoken: false,
-    };
-
-    try {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-
-      const recognition = new SpeechRecognitionAPI();
-      recognitionRef.current = recognition;
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      // Ambil hingga 5 alternatif pendengaran terbaik untuk dicocokkan dengan daftar akun & PIN
-      recognition.maxAlternatives = 5;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event: any) => {
-        // Kumpulkan seluruh kombinasi alternatif transkrip dari hasil pengenalan suara
-        const candidateTranscripts: string[] = [];
-        const maxAlt = event.results[0]?.length || 1;
-
-        for (let altIdx = 0; altIdx < maxAlt; altIdx++) {
-          let phrase = '';
-          for (let resIdx = 0; resIdx < event.results.length; resIdx++) {
-            const altItem = event.results[resIdx][altIdx] || event.results[resIdx][0];
-            if (altItem?.transcript) {
-              phrase += altItem.transcript + ' ';
-            }
-          }
-          const trimmed = phrase.trim();
-          if (trimmed && !candidateTranscripts.includes(trimmed)) {
-            candidateTranscripts.push(trimmed);
-          }
-        }
-
-        const primaryTranscript = candidateTranscripts[0] || '';
-        setVoiceTranscript(primaryTranscript);
-
-        // Evaluasi seluruh alternatif dan pilih kandidat dengan kecocokan Username & PIN tertinggi
-        let bestParsed = parseSingleTranscript(primaryTranscript, username);
-        for (let idx = 1; idx < candidateTranscripts.length; idx++) {
-          const candidateParsed = parseSingleTranscript(candidateTranscripts[idx], username);
-          if (candidateParsed.confidenceScore > bestParsed.confidenceScore) {
-            bestParsed = candidateParsed;
-          }
-        }
-
-        latestParsedRef.current = {
-          username: bestParsed.parsedUsername,
-          pin: bestParsed.parsedPin,
-          hasSpoken: true,
-        };
-
-        if (bestParsed.parsedUsername) {
-          setUsername(bestParsed.parsedUsername);
-          setMatchedAccountHint(
-            bestParsed.parsedPin
-              ? `Akun: ${bestParsed.parsedUsername} • PIN: ${bestParsed.parsedPin.length} digit`
-              : `Akun: ${bestParsed.parsedUsername}`
-          );
-        }
-        if (bestParsed.parsedPin) {
-          setPin(bestParsed.parsedPin);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        setIsListening(false);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          const permMsg = 'Akses mikrofon ditolak. Izinkan mikrofon di browser atau ketik manual.';
-          setErrorMsg(permMsg);
-          speakFeedback(permMsg);
-        } else if (event.error === 'no-speech') {
-          const noSpeechMsg = 'Tidak ada suara terdengar. Silakan tekan mikrofon dan ucapkan Username beserta PIN.';
-          setErrorMsg(noSpeechMsg);
-          speakFeedback('Tidak ada suara yang terdengar, silakan coba lagi.');
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        const { username: finalUser, pin: finalPin, hasSpoken } = latestParsedRef.current;
-
-        if (!hasSpoken) return;
-
-        if (finalUser && finalPin.length >= 4) {
-          // Otomatis langsung masuk jika Username dan PIN sudah terisi
-          executeLogin(finalUser, finalPin);
-        } else if (finalUser && finalPin.length === 0) {
-          const msg = `Akun "${finalUser}" terdeteksi, namun Kode PIN belum terdengar. Ucapkan Username diikuti angka PIN.`;
-          setErrorMsg(msg);
-          speakFeedback(`Akun ${finalUser} terdeteksi. Silakan ucapkan atau masukkan kode PIN Anda.`);
-          pinInputRef.current?.focus();
-        } else if (!finalUser && finalPin.length > 0) {
-          const msg = 'Kode PIN terdeteksi, namun Username belum disebutkan. Silakan sebutkan Username beserta PIN.';
-          setErrorMsg(msg);
-          speakFeedback('Kode PIN terdeteksi, silakan sebutkan atau ketik username Anda.');
-          usernameInputRef.current?.focus();
-        } else {
-          const msg = 'Suara belum lengkap. Ucapkan Username lalu angka PIN (contoh: "admin 3 9 9 3 3 9").';
-          setErrorMsg(msg);
-          speakFeedback('Suara belum lengkap. Silakan ucapkan username diikuti kode PIN Anda.');
-        }
-      };
-
-      recognition.start();
-    } catch {
-      setIsListening(false);
-      setErrorMsg('Gagal mengaktifkan mikrofon. Silakan coba lagi atau ketik manual.');
-    }
+    startVoiceListening(false);
   };
 
   return (
@@ -1015,7 +1116,6 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Masukkan username..."
-                  autoFocus
                   disabled={isSubmitting}
                   className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent text-slate-800 transition-colors placeholder:text-slate-400 font-medium"
                 />
@@ -1074,11 +1174,13 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
               {/* Tombol Mikrofon Ringkas (One-Tap Voice Login) di bawah kolom PIN */}
               <div className="pt-0.5 flex flex-col items-center gap-1">
                 <button
+                  ref={voiceLoginBtnRef}
                   type="button"
                   id="voice-login-btn"
+                  autoFocus
                   disabled={isSubmitting}
                   onClick={handleToggleVoiceLogin}
-                  className={`w-full py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98 disabled:opacity-50 ${
+                  className={`w-full py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
                     isListening
                       ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300 ring-2 ring-rose-200/70'
                       : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/90'
