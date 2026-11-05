@@ -146,7 +146,6 @@ const resolvedKey = getResolvedKey();
 export const isSupabaseConfigured = Boolean(resolvedUrl && resolvedKey);
 export const supabaseUrl = resolvedUrl || 'https://placeholder.supabase.co';
 export const supabaseAnonKey = resolvedKey || '';
-export const isDatabaseSpreadsheetOnly = !isSupabaseConfigured;
 
 function createSafeDummyQueryBuilder() {
   const dummyResult = { data: [], error: null, count: 0 };

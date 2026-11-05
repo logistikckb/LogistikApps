@@ -116,50 +116,6 @@ export const BULK_DESTINATIONS_CEK_FISIK: BulkDestinationOption[] = [
     badgeBg: 'bg-rose-100',
     badgeText: 'text-rose-900 border-rose-300',
     borderColor: 'border-rose-500'
-  },
-  {
-    id: 'reco',
-    name: 'Reco (Permintaan Barang)',
-    tableName: 'data_reco',
-    idPrefix: 'REC-',
-    idField: 'id_reco',
-    defaultSloc: 'SL03',
-    defaultLocation: 'WH-RECO-01',
-    defaultLocationType: 'Floor',
-    defaultQcCode: 'QC-PASS',
-    defaultDestinationCode: 'DST-RECO',
-    defaultStatus: 'Permintaan Reco',
-    defaultTujuan: 'Permintaan Barang',
-    defaultCategory: 'Finished Good',
-    sourceStatusDefault: 'Terkirim ke Reco',
-    cacheKey: 'reco_cache_v1',
-    description: 'Tabel: public.data_reco - Permintaan Barang (Reco)',
-    colorClass: 'from-purple-600 to-indigo-800',
-    badgeBg: 'bg-purple-100',
-    badgeText: 'text-purple-900 border-purple-300',
-    borderColor: 'border-purple-500'
-  },
-  {
-    id: 'repack',
-    name: 'Repack',
-    tableName: 'data_repack',
-    idPrefix: 'RPK-',
-    idField: 'id_repack',
-    defaultSloc: 'SL02',
-    defaultLocation: 'WH-REPACK-01',
-    defaultLocationType: 'Staging',
-    defaultQcCode: 'QC-REPACK',
-    defaultDestinationCode: 'DST-REPACK',
-    defaultStatus: 'Siap Repack',
-    defaultTujuan: 'Repacking Produk',
-    defaultCategory: 'Raw Material',
-    sourceStatusDefault: 'Terkirim ke Repack',
-    cacheKey: 'repack_cache_v1',
-    description: 'Tabel: public.data_repack - Proses Repacking Barang',
-    colorClass: 'from-amber-600 to-orange-700',
-    badgeBg: 'bg-amber-100',
-    badgeText: 'text-amber-900 border-amber-300',
-    borderColor: 'border-amber-500'
   }
 ];
 
@@ -219,7 +175,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
-  const [showGSheetModal, setShowGSheetModal] = useState(false);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<CekFisikPemusnahanItem | null>(null);
@@ -270,33 +225,6 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     percentage: 0,
     statusText: ''
   });
-
-  // Google Sheets Webhook Sync Config
-  const [gSheetConfig, setGSheetConfig] = useState(() => {
-    const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
-    const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
-    try {
-      const saved = localStorage.getItem('CEK_FISIK_PEMUSNAHAN_GSHEET_CONFIG');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          webhookUrl: parsed.webhookUrl || defaultEnvUrl,
-          spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
-          sheetName: parsed.sheetName || 'cek_fisik_pemusnahan',
-          secretToken: parsed.secretToken || '',
-          mode: parsed.mode || 'append'
-        };
-      }
-    } catch {}
-    return {
-      webhookUrl: defaultEnvUrl,
-      spreadsheetId: defaultEnvSpreadsheetId,
-      sheetName: 'cek_fisik_pemusnahan',
-      secretToken: '',
-      mode: 'append'
-    };
-  });
-  const [isSyncingGSheet, setIsSyncingGSheet] = useState(false);
 
   // Generate QR Code dynamically when LPN / Serial Number changes
   useEffect(() => {
@@ -1024,7 +952,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const normalizeKey = (key: string) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const fieldSynonyms: { [colKey in keyof CekFisikPemusnahanItem | 'no']?: string[] } = {
-    id_cek_fisik: ['idcekfisik', 'id_cek_fisik', 'kodecekfisik', 'nocekfisik', 'idtransaksi', 'idpemusnahan', 'kodecek', 'id', 'idpenyiapan', 'idreco', 'idrepack'],
+    id_cek_fisik: ['idcekfisik', 'id_cek_fisik', 'kodecekfisik', 'nocekfisik', 'idtransaksi', 'idpemusnahan', 'kodecek', 'id', 'idpenyiapan'],
     status: ['status', 'statuscekfisik', 'status_cekfisik', 'statusbarang', 'st', 'kondisibarang', 'kondisi', 'qcstatus', 'statusqc'],
     location: ['location', 'lokasi', 'rak', 'bin', 'loc', 'lokasirak', 'posisi', 'tempat', 'nomorrak', 'storageloc', 'storagelocation', 'storage_location'],
     location_type: ['locationtype', 'location_type', 'tipelokasi', 'tipe_lokasi', 'jenislokasi', 'loctype', 'tipe', 'type'],
@@ -1968,7 +1896,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 ? 'bg-rose-700 hover:bg-rose-800 text-white animate-pulse'
                 : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
             }`}
-            title="Pindahkan Data Terpilih ke Data Pemusnahan Final / Reco / Repack"
+            title="Pindahkan Data Terpilih ke Data Pemusnahan Final"
           >
             <ArrowRightLeft size={13} />
             <span>Pindah Massal ({selectedIds.length})</span>
@@ -3138,7 +3066,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 <div>
                   <h3 className="font-black text-sm tracking-wide">Tambah Data Cek Fisik (Paste dari Excel)</h3>
                   <p className="text-[11px] text-rose-200">
-                    Copy baris data dari Excel / Spreadsheet lalu paste langsung di area teks di bawah
+                    Copy baris data dari Excel lalu paste langsung di area teks di bawah
                   </p>
                 </div>
               </div>
@@ -3158,7 +3086,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100/80 text-rose-800 font-bold text-xs">
                     <ClipboardPaste size={14} />
-                    <span>Paste dari Excel / Spreadsheet</span>
+                    <span>Paste dari Excel</span>
                   </span>
                   <span className="text-[11px] text-slate-500 hidden sm:inline">
                     Semua baris yang di-paste langsung masuk ke tabel mulai dari baris pertama.

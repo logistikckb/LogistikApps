@@ -230,8 +230,7 @@ export function simulateUpdateForTesting() {
     changelog: [
       'Fitur notifikasi pembaruan kode instan di PWA',
       'Penyegaran memori aplikasi otomatis saat update',
-      'Peningkatan kecepatan baca barcode Honeywell PM42',
-      'Sinkronisasi Google Spreadsheet latar belakang'
+      'Peningkatan kecepatan baca barcode Honeywell PM42'
     ],
     detectedAt: new Date(),
     isFromServiceWorker: false

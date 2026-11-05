@@ -53,7 +53,6 @@ import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
 import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
-import { syncDataToSpreadsheet, validateWebhookUrl } from '../../services/spreadsheetSyncService';
 
 // Helper function to normalize proses / status to 'open' | 'closedoretur' | 'closepg'
 export const normalizeProsesStatus = (status?: string): 'open' | 'closedoretur' | 'closepg' => {
@@ -157,73 +156,6 @@ export function IncomingModule() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showSqlSetupModal, setShowSqlSetupModal] = useState(false);
-  const [showGSheetModal, setShowGSheetModal] = useState(false);
-
-  // Google Sheets / Cloudflare Worker Webhook Sync State
-  const [gSheetConfig, setGSheetConfig] = useState(() => {
-    // Default from environment variables if set in project
-    const defaultEnvUrl = (import.meta.env.VITE_GSHEET_WEBHOOK_URL as string) || '';
-    const defaultEnvSpreadsheetId = (import.meta.env.VITE_GSHEET_SPREADSHEET_ID as string) || '';
-    const defaultEnvSheetName = (import.meta.env.VITE_GSHEET_SHEET_NAME as string) || 'Incoming';
-
-    try {
-      const saved = localStorage.getItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          webhookUrl: parsed.webhookUrl || defaultEnvUrl,
-          spreadsheetId: parsed.spreadsheetId || defaultEnvSpreadsheetId,
-          sheetName: parsed.sheetName || defaultEnvSheetName,
-          secretToken: parsed.secretToken || '',
-          mode: (parsed.mode || 'overwrite') as 'overwrite' | 'append'
-        };
-      }
-    } catch {}
-    return {
-      webhookUrl: defaultEnvUrl,
-      spreadsheetId: defaultEnvSpreadsheetId,
-      sheetName: defaultEnvSheetName,
-      secretToken: '',
-      mode: 'overwrite' as 'overwrite' | 'append'
-    };
-  });
-  const [isConfigFromSupabase, setIsConfigFromSupabase] = useState(false);
-  const [isSavingToSupabase, setIsSavingToSupabase] = useState(false);
-  const [showSqlHelp, setShowSqlHelp] = useState(false);
-  const [showGSheetAdvanced, setShowGSheetAdvanced] = useState(false);
-  const [isSyncingGSheet, setIsSyncingGSheet] = useState(false);
-  const [gSheetSyncResult, setGSheetSyncResult] = useState<{
-    success: boolean;
-    message: string;
-    spreadsheetUrl?: string;
-    updatedRows?: number;
-    timestamp?: string;
-  } | null>(null);
-
-  // Ambil Konfigurasi Webhook Global dari Database Supabase secara otomatis saat mount / modal dibuka
-  useEffect(() => {
-    let isMounted = true;
-    async function loadGlobalConfig() {
-      try {
-        const cloudConfig = await getAppSettingFromSupabase('gsheet_sync_config', null);
-        if (isMounted && cloudConfig && cloudConfig.webhookUrl) {
-          setGSheetConfig(prev => ({
-            ...prev,
-            webhookUrl: cloudConfig.webhookUrl || prev.webhookUrl,
-            spreadsheetId: cloudConfig.spreadsheetId !== undefined ? cloudConfig.spreadsheetId : prev.spreadsheetId,
-            sheetName: cloudConfig.sheetName || prev.sheetName,
-            secretToken: cloudConfig.secretToken || prev.secretToken,
-            mode: cloudConfig.mode || prev.mode
-          }));
-          setIsConfigFromSupabase(true);
-        }
-      } catch (e) {
-        console.warn('Gagal memuat setting cloud Spreadsheet:', e);
-      }
-    }
-    loadGlobalConfig();
-    return () => { isMounted = false; };
-  }, [showGSheetModal]);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<IncomingItem | null>(null);
@@ -237,10 +169,6 @@ export function IncomingModule() {
   const [isBarangDropdownOpen, setIsBarangDropdownOpen] = useState(false);
 
   // Speech-to-Text Voice Recognition States
-  const [isListeningBarang, setIsListeningBarang] = useState(false);
-  const [speechFeedbackBarang, setSpeechFeedbackBarang] = useState<string | null>(null);
-  const barangRecognitionRef = useRef<any>(null);
-
   const [isListeningDistributor, setIsListeningDistributor] = useState(false);
   const [speechFeedbackDistributor, setSpeechFeedbackDistributor] = useState<string | null>(null);
   const distributorRecognitionRef = useRef<any>(null);
@@ -259,11 +187,6 @@ export function IncomingModule() {
   // Cleanup speech recognition on unmount
   useEffect(() => {
     return () => {
-      if (barangRecognitionRef.current) {
-        try {
-          barangRecognitionRef.current.abort();
-        } catch {}
-      }
       if (distributorRecognitionRef.current) {
         try {
           distributorRecognitionRef.current.abort();
@@ -281,96 +204,6 @@ export function IncomingModule() {
       }
     };
   }, []);
-
-  // Voice handler for Produk Search in Form
-  const toggleSpeechToTextBarang = useCallback(() => {
-    if (!isSpeechSupported) {
-      showToast(
-        'Fitur Tidak Didukung',
-        'Browser Anda belum mendukung Web Speech Recognition. Gunakan browser modern seperti Chrome atau Microsoft Edge.',
-        'warning'
-      );
-      return;
-    }
-
-    if (isListeningBarang) {
-      if (barangRecognitionRef.current) {
-        try {
-          barangRecognitionRef.current.stop();
-        } catch {}
-      }
-      setIsListeningBarang(false);
-      setSpeechFeedbackBarang(null);
-      return;
-    }
-
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 3;
-
-      recognition.onstart = () => {
-        setIsListeningBarang(true);
-        setIsBarangDropdownOpen(true);
-        setSpeechFeedbackBarang('Mendengarkan suara... Sebutkan nama produk atau kode barang');
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        const spoken = (finalTranscript || interimTranscript).trim();
-        if (spoken) {
-          setBarangSearchText(spoken);
-          setIsBarangDropdownOpen(true);
-          setSpeechFeedbackBarang(`Terdeteksi: "${spoken}"`);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
-        setIsListeningBarang(false);
-        if (event.error === 'not-allowed') {
-          showToast(
-            'Izin Mikrofon Diperlukan',
-            'Izinkan akses mikrofon di browser untuk menggunakan fitur pencarian suara (Speech to Text).',
-            'danger'
-          );
-        } else if (event.error === 'no-speech') {
-          setSpeechFeedbackBarang('Tidak ada suara terdeteksi. Silakan coba klik mikrofon lagi.');
-          setTimeout(() => setSpeechFeedbackBarang(null), 2500);
-        } else {
-          showToast('Info Mikrofon', `Status suara: ${event.error}`, 'info');
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListeningBarang(false);
-        setTimeout(() => {
-          setSpeechFeedbackBarang(null);
-        }, 3000);
-      };
-
-      barangRecognitionRef.current = recognition;
-      recognition.start();
-    } catch (err: any) {
-      console.error('Failed to start speech recognition:', err);
-      setIsListeningBarang(false);
-      showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
-    }
-  }, [isSpeechSupported, isListeningBarang, showToast]);
 
   // Voice handler for Distributor Search in Form
   const toggleSpeechToTextDistributor = useCallback(() => {
@@ -690,21 +523,57 @@ export function IncomingModule() {
     return fuse.search(clean).map(r => r.item);
   }, [distributorList, distributorSearchText]);
 
+  // Pre-indexed Master Barang list for instant (<1ms) multi-token & prefix search
+  const indexedBarangList = useMemo(() => {
+    return barangList.map(b => {
+      const code = (b.item_code || '').trim().toLowerCase();
+      const name = (b.item_name || '').trim().toLowerCase();
+      const barcode = (b.barcode || '').trim().toLowerCase();
+      const category = (b.category || '').trim().toLowerCase();
+      const uom = (b.uom || '').trim().toLowerCase();
+      return {
+        item: b,
+        code,
+        name,
+        barcode,
+        searchStr: `${code} ${name} ${barcode} ${category} ${uom}`
+      };
+    });
+  }, [barangList]);
+
   const filteredBarangList = useMemo(() => {
-    const clean = barangSearchText.trim();
+    const clean = barangSearchText.trim().toLowerCase();
     if (!clean) return barangList;
 
-    const tokens = clean.toLowerCase().split(/\s+/).filter(Boolean);
-    const directMatches = barangList.filter(b => {
-      const combined = `${b.item_code || ''} ${b.item_name || ''} ${b.barcode || ''} ${b.category || ''} ${b.uom || ''}`.toLowerCase();
-      return tokens.every(token => combined.includes(token));
-    });
+    const tokens = clean.split(/\s+/).filter(Boolean);
+    const exactOrPrefixMatches: DataBarang[] = [];
+    const substringMatches: DataBarang[] = [];
 
-    if (directMatches.length > 0) return directMatches;
+    for (let i = 0; i < indexedBarangList.length; i++) {
+      const entry = indexedBarangList[i];
+      let allMatch = true;
+      for (let t = 0; t < tokens.length; t++) {
+        if (!entry.searchStr.includes(tokens[t])) {
+          allMatch = false;
+          break;
+        }
+      }
+      if (allMatch) {
+        if (entry.code.startsWith(clean) || entry.name.startsWith(clean) || entry.barcode === clean) {
+          exactOrPrefixMatches.push(entry.item);
+        } else {
+          substringMatches.push(entry.item);
+        }
+      }
+    }
 
-    // Fuse.js fuzzy search fallback for barang (voice & typo tolerant)
-    return fuzzySearchDataBarang(barangList, clean, 0.38);
-  }, [barangList, barangSearchText]);
+    return [...exactOrPrefixMatches, ...substringMatches];
+  }, [barangList, indexedBarangList, barangSearchText]);
+
+  // Capped list for dropdown rendering so DOM stays ultra-fast even with thousands of products
+  const displayedBarangList = useMemo(() => {
+    return filteredBarangList.slice(0, 60);
+  }, [filteredBarangList]);
 
   // Helper formatting Tanggal Input for table & filtering
   const getItemDateFormatted = useCallback((item: IncomingItem) => {
@@ -990,7 +859,7 @@ export function IncomingModule() {
     }
 
     const cleanItems = Array.from(uniqueMap.values()).map(item => {
-      if (tableName === 'incoming' || tableName === 'data_inventory' || tableName === 'penyiapan' || tableName === 'data_pemusnahan' || tableName === 'data_reco') {
+      if (tableName === 'incoming' || tableName === 'data_inventory' || tableName === 'penyiapan' || tableName === 'data_pemusnahan') {
         return {
           ...item,
           expired_date: normalizeToIsoDate(item.expired_date) || null
@@ -1040,28 +909,45 @@ export function IncomingModule() {
   // =========================================================================
   // CRUD OPERATIONS
   // =========================================================================
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = async () => {
     setIsEditMode(false);
     setSelectedItem(null);
     setDistributorSearchText('');
     setIsDistributorDropdownOpen(false);
     setBarangSearchText('');
     setIsBarangDropdownOpen(false);
-    fetchMasterData(); // Refresh master data immediately on open
+    if (barangList.length === 0 || distributorList.length === 0) {
+      fetchMasterData();
+    }
 
-    // Ambil data Distributor dan Rak terakhir yang pernah diisi user jika ada
-    const lastItemWithDist = incomingList.find(i => i.distributor && i.distributor !== '-' && i.distributor.trim() !== '');
+    // Urutkan salinan incomingList berdasarkan waktu terbaru (created_at / updated_at DESC)
+    // untuk mengambil data terakhir di tabel database
+    const sortedLatest = [...incomingList].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      const updA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const updB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return updB - updA;
+    });
+
+    const lastJenis = sortedLatest.find(i => i.jenis && i.jenis !== '-' && i.jenis.trim() !== '')?.jenis?.trim() || 'ADMK';
+    const lastQcCode = sortedLatest.find(i => i.qc_code && i.qc_code !== '-' && i.qc_code.trim() !== '')?.qc_code?.trim() || 'Lulus';
+
+    const lastItemWithDist = sortedLatest.find(i => i.distributor && i.distributor !== '-' && i.distributor.trim() !== '');
     const lastDistributorName = lastItemWithDist?.distributor?.trim() || '';
     const lastDistributorId = lastItemWithDist?.id_distributor?.trim() || '';
 
-    const lastLocation = incomingList.find(i => i.location && i.location !== '-' && i.location.trim() !== '')?.location || '';
+    const lastLocation = sortedLatest.find(i => i.location && i.location !== '-' && i.location.trim() !== '')?.location || '';
 
     setDistributorSearchText(lastDistributorName);
     setIsDistributorDropdownOpen(false);
 
+    const newIncomingId = generateIncomingId();
+
     setFormData({
-      id_incoming: generateIncomingId(),
-      jenis: 'ADMK',
+      id_incoming: newIncomingId,
+      jenis: lastJenis,
       id_distributor: lastDistributorId,
       distributor: lastDistributorName,
       item_code: '',
@@ -1080,7 +966,7 @@ export function IncomingModule() {
       sloc: '-',
       expired_date: '',
       destination_code: '-',
-      qc_code: 'Lulus',
+      qc_code: lastQcCode,
       user_tally: currentUser?.nama || '-',
       shelf_life: '-',
       source: '-',
@@ -1090,6 +976,41 @@ export function IncomingModule() {
       note: ''
     });
     setShowFormModal(true);
+
+    // Pastikan sinkron dengan baris paling terakhir langsung dari tabel database incoming
+    if (isSupabaseConfigured) {
+      try {
+        const { data: latestRow } = await supabase
+          .from('incoming')
+          .select('jenis, qc_code, id_distributor, distributor, location')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestRow) {
+          const dbJenis = latestRow.jenis && latestRow.jenis !== '-' && latestRow.jenis.trim() !== '' ? latestRow.jenis.trim() : null;
+          const dbQc = latestRow.qc_code && latestRow.qc_code !== '-' && latestRow.qc_code.trim() !== '' ? latestRow.qc_code.trim() : null;
+          const dbDist = latestRow.distributor && latestRow.distributor !== '-' && latestRow.distributor.trim() !== '' ? latestRow.distributor.trim() : null;
+          const dbDistId = latestRow.id_distributor && latestRow.id_distributor !== '-' && latestRow.id_distributor.trim() !== '' ? latestRow.id_distributor.trim() : '';
+          const dbLoc = latestRow.location && latestRow.location !== '-' && latestRow.location.trim() !== '' ? latestRow.location.trim() : null;
+
+          setFormData(prev => {
+            if (prev.id_incoming !== newIncomingId) return prev;
+            return {
+              ...prev,
+              jenis: dbJenis || prev.jenis || 'ADMK',
+              qc_code: dbQc || prev.qc_code || 'Lulus',
+              distributor: prev.distributor || dbDist || '',
+              id_distributor: prev.id_distributor || dbDistId || '',
+              location: prev.location || dbLoc || ''
+            };
+          });
+          if (!lastDistributorName && dbDist) {
+            setDistributorSearchText(dbDist);
+          }
+        }
+      } catch {}
+    }
   };
 
   const handleOpenEditModal = (item: IncomingItem) => {
@@ -1650,172 +1571,6 @@ export function IncomingModule() {
   };
 
   // =========================================================================
-  // GOOGLE SHEETS / CLOUDFLARE WORKER WEBHOOK SYNC
-  // =========================================================================
-  const handleSaveGSheetConfig = (newConfig: typeof gSheetConfig) => {
-    setGSheetConfig(newConfig);
-    try {
-      localStorage.setItem('LOGISTIK_GSHEET_WEBHOOK_CONFIG', JSON.stringify(newConfig));
-    } catch {}
-  };
-
-  const handleSaveConfigToSupabase = async () => {
-    const rawUrl = gSheetConfig.webhookUrl ? gSheetConfig.webhookUrl.trim() : '';
-    if (!rawUrl) {
-      showToast('URL Webhook Kosong', 'Harap masukkan URL Webhook sebelum menyimpan ke cloud.', 'warning');
-      return;
-    }
-
-    setIsSavingToSupabase(true);
-    handleSaveGSheetConfig(gSheetConfig);
-
-    const res = await saveAppSettingToSupabase(
-      'gsheet_sync_config',
-      gSheetConfig,
-      currentUser?.nama || currentUser?.username || 'Admin'
-    );
-    setIsSavingToSupabase(false);
-
-    if (res.success) {
-      setIsConfigFromSupabase(true);
-      showToast('Tersimpan di Cloud Database', res.message || 'Konfigurasi aktif untuk semua perangkat!', 'success');
-    } else {
-      showToast('Perhatian', res.message || 'Gagal menyimpan ke server pusat.', 'warning');
-      if (res.message?.includes('app_settings')) {
-        setShowSqlHelp(true);
-      }
-    }
-  };
-
-  const handleExecuteGSheetSync = async () => {
-    const { valid, cleanUrl, extractedSpreadsheetId, warning } = validateWebhookUrl(gSheetConfig.webhookUrl || '');
-    if (!valid) {
-      showToast('Perhatian', warning || 'URL Webhook Google Apps Script belum diisi.', 'warning');
-      return;
-    }
-
-    const itemsToSync = filteredIncoming.length > 0 ? filteredIncoming : incomingList;
-    if (itemsToSync.length === 0) {
-      showToast('Data Kosong', 'Tidak ada data kedatangan untuk dikirim ke Spreadsheet.', 'warning');
-      return;
-    }
-
-    setIsSyncingGSheet(true);
-    setGSheetSyncResult(null);
-
-    try {
-      const headers = [
-        'ID Incoming',
-        'Jenis',
-        'ID Distributor',
-        'Distributor',
-        'Item Code',
-        'Item Name',
-        'Kategori',
-        'Lokasi',
-        'Tipe Lokasi',
-        'Qty Awal',
-        'Qty Akhir',
-        'UOM',
-        'Qty Convert',
-        'UOM Convert',
-        'LPN / SN',
-        'Batch',
-        'Vendor Batch',
-        'SLOC',
-        'Expired Date',
-        'Kode Tujuan',
-        'Status QC',
-        'User Tally',
-        'Shelf Life',
-        'Sumber',
-        'User Input',
-        'Tanggal Update',
-        'Status',
-        'No. Dokumen (MatDoc)',
-        'Catatan / Note'
-      ];
-
-      const rows = itemsToSync.map(item => [
-        item.id_incoming || '-',
-        item.jenis || '-',
-        item.id_distributor || '-',
-        item.distributor || '-',
-        item.item_code || '-',
-        item.item_name || '-',
-        item.category || '-',
-        item.location || '-',
-        item.location_type || '-',
-        Number(item.first_qty) || 0,
-        Number(item.last_qty) || 0,
-        item.uom || '-',
-        Number(item.qty_convert) || 0,
-        item.uom_convert || '-',
-        item.lpn_serial_number || '-',
-        item.batch || '-',
-        item.vendor_batch || '-',
-        item.sloc || '-',
-        item.expired_date || '-',
-        item.destination_code || '-',
-        item.qc_code || '-',
-        item.user_tally || '-',
-        item.shelf_life || '-',
-        item.source || '-',
-        item.user_input || '-',
-        item.tanggal_update ? item.tanggal_update.substring(0, 10) : '-',
-        normalizeProsesStatus(item.status),
-        item.tujuan || '-',
-        item.note || '-'
-      ]);
-
-      const payload = {
-        action: 'sync_incoming',
-        mode: gSheetConfig.mode || 'overwrite',
-        sheetName: gSheetConfig.sheetName || 'Incoming',
-        spreadsheetId: gSheetConfig.spreadsheetId?.trim() || extractedSpreadsheetId || '',
-        secretToken: gSheetConfig.secretToken || '',
-        timestamp: new Date().toISOString(),
-        totalRows: itemsToSync.length,
-        headers,
-        rows,
-        data: itemsToSync
-      };
-
-      // Save latest config
-      handleSaveGSheetConfig({
-        ...gSheetConfig,
-        webhookUrl: cleanUrl,
-        spreadsheetId: gSheetConfig.spreadsheetId || extractedSpreadsheetId || ''
-      });
-
-      const result = await syncDataToSpreadsheet(
-        { ...gSheetConfig, webhookUrl: cleanUrl },
-        payload
-      );
-
-      setGSheetSyncResult({
-        success: true,
-        message: result.message,
-        spreadsheetUrl: result.spreadsheetUrl,
-        updatedRows: result.updatedRows ?? itemsToSync.length,
-        timestamp: result.timestamp || new Date().toLocaleTimeString('id-ID')
-      });
-
-      showToast('Sinkronisasi Berhasil', result.message, 'success');
-    } catch (err: any) {
-      console.error('Incoming GSheet sync error:', err);
-      const errMsg = err?.message || 'Gagal mengirim data ke Spreadsheet';
-      setGSheetSyncResult({
-        success: false,
-        message: errMsg
-      });
-      showToast('Gagal Sinkronisasi', errMsg, 'danger');
-    } finally {
-      setIsSyncingGSheet(false);
-    }
-  };
-
-  // =========================================================================
   // EXCEL UPLOAD & IMPORT
   // =========================================================================
   const handleOpenExcelModal = () => {
@@ -2330,17 +2085,6 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             >
               <Download size={13} />
               <span>Download Excel</span>
-            </button>
-
-            {/* Tombol Sinkron ke Spreadsheet / Cloudflare Worker */}
-            <button
-              type="button"
-              onClick={() => setShowGSheetModal(true)}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Kirim dan sinkronkan data langsung ke Spreadsheet melalui Webhook / Cloudflare Worker"
-            >
-              <Share2 size={13} />
-              <span>Sync Spreadsheet</span>
             </button>
 
             {/* Tombol Sinkron & Refresh Data (Tunggal & Terpadu) */}
@@ -2942,7 +2686,15 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             <form onSubmit={handleSaveForm} className="p-4 sm:p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto custom-scrollbar">
               {/* Row 1: Jenis Kedatangan */}
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Jenis Kedatangan *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-bold">Jenis Kedatangan *</label>
+                  {!isEditMode && formData.jenis && (
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200 flex items-center gap-1">
+                      <Clock size={10} />
+                      Terakhir: {formData.jenis}
+                    </span>
+                  )}
+                </div>
                 <select
                   value={formData.jenis || 'ADMK'}
                   onChange={e => setFormData({ ...formData, jenis: e.target.value })}
@@ -2951,6 +2703,9 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   <option value="ADMK">ADMK</option>
                   <option value="BTB">BTB</option>
                   <option value="RETUR">RETUR</option>
+                  {formData.jenis && !['ADMK', 'BTB', 'RETUR'].includes(formData.jenis) && (
+                    <option value={formData.jenis}>{formData.jenis}</option>
+                  )}
                 </select>
               </div>
 
@@ -3182,54 +2937,13 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 )}
               </div>
 
-              {/* Row 3: Produk (Pencarian Interaktif dengan Suara / Speech-to-Text) */}
+              {/* Row 3: Produk (Pencarian Cepat & Teroptimasi) */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-slate-700 font-bold">
                     Produk *
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    {/* Speech to text indicator / button */}
-                    <button
-                      type="button"
-                      onClick={toggleSpeechToTextBarang}
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
-                        isListeningBarang
-                          ? 'bg-rose-500 text-white animate-pulse ring-2 ring-rose-300'
-                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
-                      }`}
-                      title={isListeningBarang ? 'Klik untuk menghentikan pendengaran suara' : 'Klik untuk berbicara (Speech to Text) mencari produk'}
-                    >
-                      {isListeningBarang ? (
-                        <>
-                          <Radio size={12} className="animate-spin text-white" />
-                          <span>Mendengarkan Suara...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic size={12} className="text-emerald-700" />
-                          <span>Bicara / Suara</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
                 </div>
-
-                {/* Speech feedback banner when listening or just detected */}
-                {speechFeedbackBarang && (
-                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-2 text-xs animate-fade-in shadow-2xs">
-                    <div className="flex items-center gap-2 text-emerald-900 font-bold overflow-hidden">
-                      <Volume2 size={14} className={`shrink-0 ${isListeningBarang ? 'animate-bounce text-emerald-600' : 'text-emerald-600'}`} />
-                      <span className="truncate">{speechFeedbackBarang}</span>
-                    </div>
-                    {isListeningBarang && (
-                      <span className="flex h-2 w-2 relative shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                      </span>
-                    )}
-                  </div>
-                )}
 
                 {formData.item_name && formData.item_code ? (
                   <div className="p-3 bg-emerald-50/80 border border-emerald-300 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
@@ -3273,21 +2987,25 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         value={barangSearchText}
                         onChange={e => {
                           setBarangSearchText(e.target.value);
-                          setIsBarangDropdownOpen(true);
+                          if (!isBarangDropdownOpen) setIsBarangDropdownOpen(true);
                         }}
                         onFocus={() => {
-                          fetchMasterData();
+                          if (barangList.length === 0) fetchMasterData();
                           setIsBarangDropdownOpen(true);
                         }}
-                        placeholder="Ketik atau klik mikrofon untuk sebutkan nama produk..."
-                        className={`w-full bg-white text-slate-800 border rounded-xl pl-8.5 pr-16 py-2.5 outline-none focus:ring-2 font-semibold text-xs shadow-2xs transition-all ${
-                          isListeningBarang
-                            ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
-                            : 'border-slate-300 focus:ring-emerald-500'
-                        }`}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && displayedBarangList.length > 0) {
+                            e.preventDefault();
+                            handleSelectBarangItem(displayedBarangList[0]);
+                          } else if (e.key === 'Escape') {
+                            setIsBarangDropdownOpen(false);
+                          }
+                        }}
+                        placeholder="Ketik kode barang, nama produk, atau barcode..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-8.5 pr-9 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-xs shadow-2xs transition-all"
                       />
-                      <div className="absolute right-2 flex items-center gap-1">
-                        {barangSearchText && (
+                      {barangSearchText && (
+                        <div className="absolute right-2 flex items-center">
                           <button
                             type="button"
                             onClick={() => {
@@ -3299,20 +3017,8 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           >
                             <X size={13} />
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={toggleSpeechToTextBarang}
-                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                            isListeningBarang
-                              ? 'bg-rose-500 text-white shadow-xs animate-pulse'
-                              : 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900'
-                          }`}
-                          title={isListeningBarang ? 'Berhenti mendengarkan' : 'Pencarian Suara (Speech to Text)'}
-                        >
-                          <Mic size={14} />
-                        </button>
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {isBarangDropdownOpen && (
@@ -3323,7 +3029,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px] font-bold text-slate-700">
                           <span className="flex items-center gap-1.5">
                             <Package size={13} className="text-emerald-600" />
-                            Master Data Barang ({filteredBarangList.length} dari {barangList.length} Total)
+                            Master Data Barang ({filteredBarangList.length} cocok dari {barangList.length} Total)
                           </span>
                           <div className="flex items-center gap-2">
                             {barangSearchText && (
@@ -3332,7 +3038,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                                 onClick={() => setBarangSearchText('')}
                                 className="text-[10px] text-emerald-700 hover:underline font-semibold"
                               >
-                                Tampilkan Semua
+                                Reset Filter
                               </button>
                             )}
                             <button
@@ -3345,39 +3051,46 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           </div>
                         </div>
                         <div className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
-                          {filteredBarangList.length > 0 ? (
-                            filteredBarangList.map(b => (
-                              <button
-                                key={b.item_code}
-                                type="button"
-                                onMouseDown={e => e.preventDefault()}
-                                onClick={() => handleSelectBarangItem(b)}
-                                className="w-full text-left p-3 hover:bg-emerald-50/70 transition-colors flex items-center justify-between gap-2 text-xs cursor-pointer group"
-                              >
-                                <div className="truncate">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded text-[10px] border border-blue-200">
-                                      {b.item_code}
-                                    </span>
-                                    {b.barcode && (
-                                      <span className="text-[10px] font-mono text-slate-500">
-                                        Barcode: {b.barcode}
+                          {displayedBarangList.length > 0 ? (
+                            <>
+                              {displayedBarangList.map(b => (
+                                <button
+                                  key={b.item_code}
+                                  type="button"
+                                  onMouseDown={e => e.preventDefault()}
+                                  onClick={() => handleSelectBarangItem(b)}
+                                  className="w-full text-left p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between gap-2 text-xs cursor-pointer group"
+                                >
+                                  <div className="truncate">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded text-[10px] border border-blue-200">
+                                        {b.item_code}
                                       </span>
-                                    )}
-                                    <span className="text-[10px] text-slate-400">• {b.category || 'Finished Good'}</span>
-                                    {b.uom && (
-                                      <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1 py-0.2 rounded">
-                                        {b.uom}
-                                      </span>
-                                    )}
+                                      {b.barcode && (
+                                        <span className="text-[10px] font-mono text-slate-500">
+                                          Barcode: {b.barcode}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] text-slate-400">• {b.category || 'Finished Good'}</span>
+                                      {b.uom && (
+                                        <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1 py-0.2 rounded">
+                                          {b.uom}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="font-bold text-slate-800 group-hover:text-emerald-800 truncate mt-1">
+                                      {b.item_name}
+                                    </div>
                                   </div>
-                                  <div className="font-bold text-slate-800 group-hover:text-emerald-800 truncate mt-1">
-                                    {b.item_name}
-                                  </div>
+                                  <ChevronRight size={13} className="text-slate-400 group-hover:text-emerald-600 shrink-0" />
+                                </button>
+                              ))}
+                              {filteredBarangList.length > 60 && (
+                                <div className="p-2 text-center text-[10px] text-slate-500 bg-slate-50/80 font-medium">
+                                  Menampilkan 60 hasil teratas dari {filteredBarangList.length} produk — ketik kata kunci lebih spesifik untuk mempersempit
                                 </div>
-                                <ChevronRight size={13} className="text-slate-400 group-hover:text-emerald-600 shrink-0" />
-                              </button>
-                            ))
+                              )}
+                            </>
                           ) : (
                             <div className="p-4 text-center text-xs text-slate-500">
                               <p className="m-0 mb-2 font-semibold">Barang tidak ditemukan di Master Barang</p>
@@ -3640,7 +3353,15 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   </p>
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Status QC</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-700 font-bold">Status QC</label>
+                    {!isEditMode && formData.qc_code && (
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200 flex items-center gap-1">
+                        <Clock size={10} />
+                        Terakhir: {formData.qc_code}
+                      </span>
+                    )}
+                  </div>
                   <select
                     value={formData.qc_code || 'Lulus'}
                     onChange={e => setFormData({ ...formData, qc_code: e.target.value })}
@@ -4084,354 +3805,6 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-900 cursor-pointer"
               >
                 Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      , document.body)}
-
-      {/* ========================================================================= */}
-      {/* 9. MODAL: SPREADSHEET / CLOUDFLARE WORKER WEBHOOK SYNC */}
-      {/* ========================================================================= */}
-      {showGSheetModal && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-xl overflow-hidden my-6 animate-scale-in flex flex-col max-h-[92vh]">
-            
-            {/* Modal Header */}
-            <div className="px-5 py-4 bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 bg-white/10 backdrop-blur-xs rounded-xl text-emerald-300 shrink-0">
-                  <Share2 size={20} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold m-0 leading-tight text-white">
-                      Sync ke Spreadsheet
-                    </h3>
-                    <span className="text-[10px] font-bold tracking-wide uppercase bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/20">
-                      Webhook / Workers
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-100/75 m-0 mt-0.5 truncate">
-                    Sinkronisasi data kedatangan barang ke Spreadsheet secara realtime
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGSheetModal(false)}
-                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer shrink-0 ml-2"
-                title="Tutup Modal"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Scrollable Body */}
-            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-slate-700">
-              
-              {/* Summary Box: Total Data */}
-              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
-                    <FileSpreadsheet size={16} />
-                  </div>
-                  <div className="text-xs leading-tight min-w-0">
-                    <span className="text-slate-600 font-medium">Data Siap Dikirim: </span>
-                    <span className="font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                      {filteredIncoming.length > 0 ? filteredIncoming.length : incomingList.length} Baris
-                    </span>
-                  </div>
-                </div>
-                <span className="text-[11px] text-slate-500 hidden sm:inline-block shrink-0">
-                  (Sesuai filter & pencarian)
-                </span>
-              </div>
-
-              {/* Status Connection Box */}
-              {gSheetConfig.webhookUrl ? (
-                <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Webhook Siap
-                        </span>
-                        
-                        {isConfigFromSupabase && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                            <Database size={10} />
-                            Server Cloud Pusat
-                          </span>
-                        )}
-
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700">
-                          Tab: {gSheetConfig.sheetName || 'Incoming'}
-                        </span>
-                      </div>
-
-                      <p className="text-[11px] text-slate-500 font-mono truncate max-w-full m-0" title={gSheetConfig.webhookUrl}>
-                        {gSheetConfig.webhookUrl}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowGSheetAdvanced(!showGSheetAdvanced)}
-                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg shadow-2xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Settings size={13} className="text-slate-500" />
-                      <span>{showGSheetAdvanced ? 'Tutup' : 'Pengaturan'}</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900">
-                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-xs leading-relaxed">
-                    <span className="font-bold text-amber-900">URL Webhook Belum Diatur: </span>
-                    <span className="text-slate-600">
-                      Silakan isi URL Webhook di bawah ini. Anda dapat menyimpannya ke server cloud pusat agar otomatis terpasang di seluruh perangkat tim.
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Form Settings (Collapsible or visible if empty) */}
-              {(!gSheetConfig.webhookUrl || showGSheetAdvanced) && (
-                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3.5 animate-fade-in">
-                  
-                  {/* Settings Sub-Header */}
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                      <Settings size={14} className="text-slate-500" />
-                      <span>Konfigurasi Webhook & Spreadsheet</span>
-                    </span>
-
-                    <button
-                      type="button"
-                      disabled={isSavingToSupabase || !gSheetConfig.webhookUrl.trim()}
-                      onClick={handleSaveConfigToSupabase}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                      title="Simpan ke Server Cloud agar otomatis aktif di semua HP/Laptop tim"
-                    >
-                      {isSavingToSupabase ? (
-                        <>
-                          <RefreshCw size={12} className="animate-spin" />
-                          <span>Menyimpan...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Database size={12} />
-                          <span>Simpan ke Cloud</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Input: URL Webhook */}
-                  <div>
-                    <label className="block text-slate-700 font-bold text-xs mb-1">
-                      URL Webhook / Cloudflare Worker <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="url"
-                        value={gSheetConfig.webhookUrl}
-                        onChange={e => setGSheetConfig({ ...gSheetConfig, webhookUrl: e.target.value })}
-                        placeholder="https://... atau https://worker.dev/..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-3 pr-8 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
-                      />
-                      <Globe size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1 m-0">
-                      URL Web App Deployment dari Apps Script atau Cloudflare Worker.
-                    </p>
-                  </div>
-
-                  {/* Input: Spreadsheet ID & Sheet Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-700 font-bold text-xs mb-1">
-                        Spreadsheet ID <span className="text-slate-400 font-normal">(Opsional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={gSheetConfig.spreadsheetId}
-                        onChange={e => setGSheetConfig({ ...gSheetConfig, spreadsheetId: e.target.value })}
-                        placeholder="1BxiMVs0XRA5nFMd..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
-                      />
-                      <p className="text-[10px] text-slate-500 mt-1 m-0">
-                        ID dari URL spreadsheet (kosongkan jika script melekat pada sheet).
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-bold text-xs mb-1">
-                        Nama Tab / Sheet
-                      </label>
-                      <input
-                        type="text"
-                        value={gSheetConfig.sheetName}
-                        onChange={e => setGSheetConfig({ ...gSheetConfig, sheetName: e.target.value })}
-                        placeholder="Incoming"
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
-                      />
-                      <p className="text-[10px] text-slate-500 mt-1 m-0">
-                        Nama lembar kerja target (default: <span className="font-mono">Incoming</span>).
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Input: Mode & Secret Token */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-700 font-bold text-xs mb-1">
-                        Mode Pengiriman Data
-                      </label>
-                      <select
-                        value={gSheetConfig.mode}
-                        onChange={e => setGSheetConfig({ ...gSheetConfig, mode: e.target.value as any })}
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs cursor-pointer transition-all"
-                      >
-                        <option value="overwrite">🔄 Replace / Overwrite (Ganti Semua)</option>
-                        <option value="append">➕ Append (Tambah di Bawah)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-bold text-xs mb-1">
-                        Secret Token <span className="text-slate-400 font-normal">(Opsional)</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={gSheetConfig.secretToken}
-                        onChange={e => setGSheetConfig({ ...gSheetConfig, secretToken: e.target.value })}
-                        placeholder="Token otorisasi jika ada..."
-                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  {/* SQL Setup Helper Toggle */}
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowSqlHelp(!showSqlHelp)}
-                      className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <Info size={13} />
-                      <span>{showSqlHelp ? 'Sembunyikan Skema Tabel' : 'Petunjuk Inisialisasi Tabel (app_settings)'}</span>
-                    </button>
-
-                    {showSqlHelp && (
-                      <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] space-y-2 animate-fade-in border border-slate-800">
-                        <div className="flex items-center justify-between text-slate-400 font-sans text-xs pb-1 border-b border-slate-800">
-                          <span>Eksekusi pada konsol database:</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const sql = `CREATE TABLE IF NOT EXISTS app_settings (\n  key TEXT PRIMARY KEY,\n  value JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT NOW(),\n  updated_by TEXT\n);\nALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`;
-                              navigator.clipboard.writeText(sql);
-                              showToast('Skema Disalin', 'Skema konfigurasi telah disalin ke clipboard!', 'success');
-                            }}
-                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-sans font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Copy size={11} />
-                            <span>Salin Skema</span>
-                          </button>
-                        </div>
-                        <pre className="overflow-x-auto whitespace-pre-wrap text-emerald-400 text-[10px] leading-relaxed m-0">
-{`CREATE TABLE IF NOT EXISTS app_settings (
-  key TEXT PRIMARY KEY,
-  value JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by TEXT
-);
-ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on app_settings" ON app_settings FOR ALL USING (true) WITH CHECK (true);`}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Sync Result Status Box */}
-              {gSheetSyncResult && (
-                <div
-                  className={`p-3.5 rounded-xl border text-xs animate-fade-in ${
-                    gSheetSyncResult.success
-                      ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
-                      : 'bg-rose-50/90 border-rose-300 text-rose-950'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    {gSheetSyncResult.success ? (
-                      <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
-                    )}
-                    <div className="flex-1 space-y-1.5 min-w-0">
-                      <div className="font-bold flex items-center justify-between gap-2">
-                        <span>{gSheetSyncResult.success ? 'Sinkronisasi Berhasil!' : 'Gagal Sinkronisasi'}</span>
-                        {gSheetSyncResult.timestamp && (
-                          <span className="text-[10px] font-normal text-slate-500 shrink-0">
-                            {gSheetSyncResult.timestamp}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs leading-relaxed m-0 text-slate-700">
-                        {gSheetSyncResult.message}
-                      </p>
-                      {gSheetSyncResult.spreadsheetUrl && (
-                        <div className="pt-1">
-                          <a
-                            href={gSheetSyncResult.spreadsheetUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs"
-                          >
-                            <span>Buka Spreadsheet</span>
-                            <ExternalLink size={12} />
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-5 py-3.5 bg-slate-100/90 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowGSheetModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold transition-all cursor-pointer text-xs shadow-2xs"
-              >
-                Tutup
-              </button>
-
-              <button
-                type="button"
-                disabled={isSyncingGSheet || !gSheetConfig.webhookUrl.trim()}
-                onClick={handleExecuteGSheetSync}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold shadow-sm hover:shadow transition-all cursor-pointer flex items-center gap-2 text-xs"
-              >
-                {isSyncingGSheet ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    <span>Sedang Mengirim ke Spreadsheet...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send size={14} />
-                    <span>Kirim Data Sekarang</span>
-                  </>
-                )}
               </button>
             </div>
           </div>

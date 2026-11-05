@@ -26,13 +26,10 @@ import {
 import { EdCheckerModule } from './components/logistics/EdCheckerModule';
 import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModule';
 import { IncomingModule } from './components/logistics/IncomingModule';
-import { QrGeneratorHoneywellModule } from './components/logistics/QrGeneratorHoneywellModule';
 import { PenyiapanModule } from './components/logistics/PenyiapanModule';
 import { PemusnahanModule } from './components/logistics/PemusnahanModule';
-import { RecoModule } from './components/logistics/RecoModule';
 import { InventoryModule } from './components/logistics/InventoryModule';
-import { RepackModule } from './components/logistics/RepackModule';
-import { PickingModule } from './components/logistics/PickingModule';
+import { MonitoringSampleModule } from './components/logistics/MonitoringSampleModule';
 
 // Dialogs - Direct imports
 import { BroadcastModal } from './components/broadcast/BroadcastModal';
@@ -58,13 +55,9 @@ export default function App() {
       'incoming_cache_v1',
       'penyiapan_cache_v1',
       'ckb_penyiapan_deleted_ids',
-      'picking_spreadsheet_db',
-      'picking_cache_v1',
       'inventory_data_cache_v2',
       'inventory_cache_v1',
-      'reco_cache_v1',
       'pemusnahan_cache_v1',
-      'repack_cache_v1',
       'cek_fisik_pemusnahan_cache_v1',
       'ckb_app_setting_hidden_menu_ids'
     ];
@@ -94,7 +87,7 @@ export default function App() {
 
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
-  const [dbModalTab, setDbModalTab] = useState<'primary' | 'bridge'>('primary');
+  const [dbModalTab, setDbModalTab] = useState<'primary' | 'bridge' | 'rls'>('primary');
   const [replySender, setReplySender] = useState<string>('');
 
   const currentTool = TOOLS_LIST.find((t) => t.id === activeToolId) || TOOLS_LIST[0];
@@ -302,36 +295,20 @@ export default function App() {
                     <DatabaseMasterModule />
                   ) : activeToolId === 'menu-b' ? (
                     <IncomingModule />
-                  ) : activeToolId === 'menu-c' ? (
-                    <QrGeneratorHoneywellModule />
                   ) : activeToolId === 'menu-d' ? (
                     <PenyiapanModule 
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')} 
-                      onNavigateToReco={() => handleOpenTool('menu-f')}
                       onNavigateToInventory={() => handleOpenTool('menu-g')}
-                      onNavigateToRepack={() => handleOpenTool('menu-h')}
-                      onNavigateToPicking={() => handleOpenTool('menu-i')}
                     />
                   ) : activeToolId === 'menu-e' ? (
                     <PemusnahanModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
-                  ) : activeToolId === 'menu-f' ? (
-                    <RecoModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
                   ) : activeToolId === 'menu-g' ? (
                     <InventoryModule 
                       onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
-                      onNavigateToReco={() => handleOpenTool('menu-f')}
                     />
-                  ) : activeToolId === 'menu-h' ? (
-                    <RepackModule onNavigateToPenyiapan={() => handleOpenTool('menu-d')} />
-                  ) : activeToolId === 'menu-i' ? (
-                    <PickingModule 
-                      onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
-                      onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
-                      onNavigateToReco={() => handleOpenTool('menu-f')}
-                      onNavigateToInventory={() => handleOpenTool('menu-g')}
-                      onNavigateToRepack={() => handleOpenTool('menu-h')}
-                    />
+                  ) : activeToolId === 'menu-sample' ? (
+                    <MonitoringSampleModule />
                   ) : (
                     <PlaceholderTool
                       id={currentTool.id}

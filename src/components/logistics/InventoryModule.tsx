@@ -54,9 +54,6 @@ import {
 } from './inventory/InventoryBulkTransferModal';
 import { InventoryBulkLocationModal } from './inventory/InventoryBulkLocationModal';
 import { InventoryScannerModal } from './inventory/InventoryScannerModal';
-import { InventoryGSheetModal } from './inventory/InventoryGSheetModal';
-import { SpreadsheetLinkModal } from './inventory/SpreadsheetLinkModal';
-import { MenuPinAuthModal } from '../admin/MenuPinAuthModal';
 import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
 const INVENTORY_CACHE_KEY = 'ckb_inventory_data_cache_v1';
@@ -65,13 +62,11 @@ const INVENTORY_VIEW_MODE_KEY = 'ckb_inventory_view_mode_v1';
 interface InventoryModuleProps {
   onNavigateToPenyiapan?: () => void;
   onNavigateToPemusnahan?: () => void;
-  onNavigateToReco?: () => void;
 }
 
 export function InventoryModule({
   onNavigateToPenyiapan,
-  onNavigateToPemusnahan,
-  onNavigateToReco
+  onNavigateToPemusnahan
 }: InventoryModuleProps) {
   const { currentUser, isAdmin } = useAuth();
   const { showToast, showConfirm } = useNotification();
@@ -153,9 +148,6 @@ export function InventoryModule({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
-  const [showGSheetModal, setShowGSheetModal] = useState(false);
-  const [showSpreadsheetLinkModal, setShowSpreadsheetLinkModal] = useState(false);
-  const [showSpreadsheetPinModal, setShowSpreadsheetPinModal] = useState(false);
 
   // Column Visibility: Hide / Unhide Kolom Location
   const [showLocationColumn, setShowLocationColumn] = useState<boolean>(() => {
@@ -1298,28 +1290,6 @@ export function InventoryModule({
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-teal-700' : 'text-slate-500'} />
             <span className="hidden sm:inline">Sinkron</span>
-          </button>
-
-          {/* Upload ke Google Spreadsheet (Sheet: StockOpname) */}
-          <button
-            type="button"
-            onClick={() => setShowGSheetModal(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-teal-200 bg-teal-50/80 hover:bg-teal-100 text-teal-800 font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
-            title="Upload data inventory ke Google Spreadsheet (Sheet: StockOpname)"
-          >
-            <FileSpreadsheet size={13} className="text-teal-700" />
-            <span>Upload Spreadsheet</span>
-          </button>
-
-          {/* Buka Link Spreadsheet (dengan PIN Keamanan) */}
-          <button
-            type="button"
-            onClick={() => setShowSpreadsheetPinModal(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs shadow-2xs transition-colors cursor-pointer"
-            title="Buka file Google Spreadsheet (Memerlukan PIN Keamanan)"
-          >
-            <ExternalLink size={13} className="text-emerald-700" />
-            <span>Buka Link Spreadsheet</span>
           </button>
 
           {/* Export Excel - Desktop Only */}
@@ -2524,38 +2494,6 @@ export function InventoryModule({
           setDetailItem(item);
           setShowDetailModal(true);
         }}
-      />
-
-      {/* MODAL UPLOAD KE GOOGLE SPREADSHEET (SHEET: STOCKOPNAME) */}
-      <InventoryGSheetModal
-        isOpen={showGSheetModal}
-        onClose={() => setShowGSheetModal(false)}
-        inventoryList={inventoryList}
-        filteredList={filteredData}
-        currentUser={currentUser}
-        isSuperAdmin={isSuperAdmin}
-        showToast={showToast}
-      />
-
-      {/* MODAL LIHAT & BUKA LINK SPREADSHEET (SETELAH VERIFIKASI PIN) */}
-      <SpreadsheetLinkModal
-        isOpen={showSpreadsheetLinkModal}
-        onClose={() => setShowSpreadsheetLinkModal(false)}
-        showToast={showToast}
-        defaultSheetName=" StockOpname"
-      />
-
-      {/* MODAL VERIFIKASI PIN KEAMANAN UNTUK BUKA SPREADSHEET */}
-      <MenuPinAuthModal
-        isOpen={showSpreadsheetPinModal}
-        onClose={() => setShowSpreadsheetPinModal(false)}
-        onSuccess={() => {
-          setShowSpreadsheetPinModal(false);
-          setShowSpreadsheetLinkModal(true);
-          showToast('PIN Terverifikasi', 'Akses link Google Spreadsheet dibuka.', 'success');
-        }}
-        title="Verifikasi PIN Spreadsheet"
-        description="Masukkan PIN keamanan untuk membuka link Google Spreadsheet."
       />
 
     </div>

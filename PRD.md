@@ -1,67 +1,63 @@
-# Product Requirement Document (PRD) & Blueprint Arsitektur Sistem
-## LogistikApps (Aplikasi Logistik & Pergudangan Terintegrasi)
+# Product Requirement Document (PRD)
+# Logistik Cikembar (LogistikApps) — Sistem Operasional & Manajemen Pergudangan Terintegrasi
 
 ---
 
-## 1. Ringkasan Eksekutif & Visi Produk
+## 1. Identitas Dokumen & Metadata
 
-**LogistikApps** adalah platform manajemen logistik dan pergudangan modern berbasis web (Progressive Web Application - PWA) yang dirancang khusus untuk operasional pergudangan *Fast-Moving Consumer Goods (FMCG)*, farmasi, dan distribusi ritel. 
-
-Aplikasi ini mengintegrasikan alur kerja gudang dari hulu ke hilir:
-1. **Pemeriksaan & Kalkulasi Otomatis Expired Date (ED / SLED)** dari kode batch dan tanggal mixing/produksi (*Julian Day of Year*).
-2. **Pengelolaan Master Data Terpusat** (Master Barang & Master Distributor).
-3. **Transaksi Kedatangan / Inbound (Incoming)** dengan dukungan *Speech-to-Text* (pencarian suara), kalkulasi ED otomatis, pemindaian QR/Barcode, dan *real-time cloud synchronization* (Supabase).
-4. **Generator Label & QR Code Khusus Honeywell PM42 / Printer Industri** dengan dukungan *Direct Protocol (Intermec/Fingerprint)*, *Zebra Programming Language (ZPL II)*, dan *Direct Print Autosense Ready*.
-5. **Modul Operasional Lanjutan**: Penyiapan Barang (Outbound), Stock Opname (Agregasi SUMIFS), Pemusnahan (Disposal), Rekondisi (Reco), Repack / Bundling Promo, dan Generator Serial Number (LPN).
-6. **Sistem Notifikasi & Siaran Siaga (Broadcast)** dengan sintesis audio alarm dan prioritas tugas.
+* **Nama Produk**: Logistik Cikembar (LogistikApps)
+* **Versi Dokumen**: 2.5 (Comprehensive Production Edition)
+* **Kategori**: Warehouse Management System (WMS) & Logistics Execution Platform
+* **Target Pengguna**: Supervisor Gudang, Tim Inbound/Kedatangan, Petugas Tally, Tim QC (Quality Control), Tim Staging & Picking Outbound, Tim Inventory Control, Petugas Sampel, dan Kepala Gudang.
+* **Klasifikasi Distribusi**: Dokumen Teknis & Operasional Internal
 
 ---
 
-## 2. Arsitektur Teknologi & Tech Stack
+## 2. Ringkasan Eksekutif & Visi Produk
 
-### 2.1 Frontend & Runtime
-- **Framework & Core**: React 18+ dengan TypeScript (Strict Type Safety)
-- **Build Tool**: Vite 6+ (Fast ESM Bundler)
-- **Styling**: Tailwind CSS (Utility-First CSS) dengan palet warna korporat netral yang ergonomis bagi pekerja lapangan
-- **Animasi & Transisi**: `motion` (`motion/react`)
-- **Ikonografi**: `lucide-react` (Konsisten dan terstandardisasi)
-- **Pencarian Cerdas (Fuzzy Search)**: `fuse.js` (Toleran terhadap saltik/typo dan variasi input suara)
-- **Pengenalan Suara (Speech Recognition)**: Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`) dengan lokalisasi bahasa Indonesia (`id-ID`)
-- **Olah Data Spreadsheet**: `xlsx` (SheetJS) untuk impor/ekspor data ribuan baris tanpa lag
-- **Generator Barcode & QR Code**: `qrcode`, `jsbarcode`
-- **Kompresi Berkas**: `jszip` untuk ekspor label batch dalam format ZIP
-- **Audio Engine**: Web Audio API Synthesizer (`broadcastSound.ts`) untuk efek suara notifikasi, peringatan darurat, dan konfirmasi scanner
+**Logistik Cikembar (LogistikApps)** adalah platform manajemen pergudangan modern berbasis web (Progressive Web Application - PWA) yang dirancang khusus untuk memecahkan tantangan operasional pergudangan pada industri *Fast-Moving Consumer Goods (FMCG)*, farmasi, dan distribusi ritel.
 
-### 2.2 Backend & Database
-- **BaaS Database**: Supabase PostgreSQL Cloud Database
-- **Konektivitas**: `@supabase/supabase-js` dengan *chunked pagination* (tanpa batas 1000 baris bawaan)
-- **Offline-First Caching**: Dual-Layer Persistence (LocalStorage Fallback + Supabase Realtime Sync)
-- **Kemanan Akses**: Role-Based Access Control (Admin vs. Pelaksana/Operator)
+Aplikasi ini mengintegrasikan seluruh rantai operasional gudang dari hulu ke hilir:
+1. **Otomatisasi Urai Kode Batch & Tanggal Kedaluwarsa**: Mengeliminasi kesalahan manusia dalam membaca kode batch alfanumerik pabrik melalui algoritma *Unix Day of Year (DOY)*.
+2. **Pencatatan Cepat & Tanpa Ketik (Hands-Free Inbound)**: Penggunaan *Speech-to-Text* (input suara bahasa Indonesia) yang mengenali nama distributor, produk, dan nomor batch secara akurat di lantai gudang.
+3. **Cetak Label Mandiri Tanpa Lisensi Pihak Ketiga**: Kompatibilitas langsung dengan printer industri *Honeywell PM42* (ukuran 80x100mm landscape) menggunakan *Direct Protocol*, *Zebra ZPL II*, dan *Web Autosense Print* tanpa software perantara berbayar.
+4. **Ekosistem 11 Modul Terintegrasi**: Mengalirkan data secara mulus antara Kedatangan, Penyiapan, Pemusnahan, Reco, Repack, Inventory, Picking, hingga Monitoring Pengambilan Sample.
+5. **Keandalan Sistem Bertingkat (Hybrid Multi-Tier Database)**: Kombinasi *Supabase PostgreSQL Realtime*, *Google Spreadsheet Sync* melalui *Cloudflare Worker Reverse Proxy*, dan perlindungan sesi 30 menit.
 
 ---
 
-## 3. Skema & Struktur Database SQL (Supabase PostgreSQL)
+## 3. Arsitektur Teknologi & Tech Stack
 
-Berikut adalah struktur lengkap DDL SQL untuk seluruh tabel, indeks, trigger, dan view:
+Aplikasi dibangun menggunakan teknologi modern dengan standar ketahanan tinggi, performa ringan, dan ramah untuk perangkat lapangan (smartphone, tablet, maupun PDA scanner industri).
+
+### 3.1 Frontend & Runtime
+* **Bahasa Pemrograman**: TypeScript 5.8+ (Strict Type-Checking aktif) & JavaScript Modern (ESM).
+* **Framework UI**: React 19 (Hooks-based modular architecture).
+* **Build Tool & Bundler**: Vite 6 (Kompilasi cepat dan chunk splitting optimal).
+* **Desain & Styling**: Tailwind CSS v4 (Desain responsif, tata letak ergonomis, kontras warna yang nyaman untuk mata di area gudang).
+* **Animasi UI**: Motion (`motion/react`) untuk transisi modal dan notifikasi robot interaktif.
+* **Ikonografi**: Lucide React (Standardisasi ikon logistik, status QC, dan navigasi).
+* **Pencarian Cerdas (Fuzzy Search)**: Fuse.js (Toleran terhadap saltik/typo saat mencari nama produk atau kode vendor).
+* **Speech Recognition**: Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`) dengan lokalisasi bahasa Indonesia (`id-ID`) dan konversi angka otomatis.
+* **Olah Spreadsheet**: SheetJS (`xlsx`) & PapaParse untuk pengolahan berkas Excel ribuan baris di sisi klien tanpa jeda.
+* **Kamera & Scanner**: `html5-qrcode` untuk memindai barcode 1D dan QR Code 2D langsung dari kamera perangkat mobile/laptop.
+* **Generator Barcode/QR**: `qrcode` dan `jszip` untuk ekspor label batch dalam satu arsip ZIP.
+* **Audio Synthesizer Engine**: Web Audio API (`broadcastSound.ts`) untuk membangkitkan nada beeps frekuensi tinggi yang dapat didengar jelas di lingkungan gudang yang bising.
+
+### 3.2 Backend, Database & Proxy
+* **Primary Database (Cloud BaaS)**: Supabase PostgreSQL dengan dukungan Realtime WebSocket replication (*Change Data Capture*).
+* **Secondary / Backup Database**: Google Spreadsheet (ID: `1o8hWUAK6DO1rmggbiRaRNfT7On4c9RhrHR6X07nqZm4`) via Webhook Google Apps Script.
+* **CORS Proxy & API Gateway**: Cloudflare Worker Reverse Proxy (`logistikapps.cikembar.workers.dev`) yang menjembatani komunikasi browser ke Google Apps Script tanpa hambatan *CORS Blocking* atau *Failed to Fetch*.
+* **PWA Engine**: Service Worker kustom (`sw.js`) dan Web App Manifest (`manifest.json`) dengan deteksi pembaruan versi real-time (*In-App Auto-Update Prompt*).
+
+---
+
+## 4. Arsitektur Database & Skema Data
+
+### 4.1 Skema Database Supabase PostgreSQL
 
 ```sql
--- ==============================================================================
--- LOGISTIKAPPS DATABASE SCHEMA (SUPABASE POSTGRESQL)
--- ==============================================================================
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- Trigger Otomatis Pembaruan Kolom updated_at
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = TIMEZONE('utc'::text, NOW());
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- 1. TABEL USERS (Autentikasi Pengguna & Hak Akses)
+-- TABEL 1: USERS (Pengguna & Hak Akses)
 CREATE TABLE IF NOT EXISTS public.users (
     id TEXT PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
@@ -83,23 +79,20 @@ CREATE TABLE IF NOT EXISTS public.users (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_username ON public.users(username);
-CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
-
--- 2. TABEL DATA_BARANG (Master SKU & Barcode)
+-- TABEL 2: DATA_BARANG (Master SKU Produk)
 CREATE TABLE IF NOT EXISTS public.data_barang (
     item_code VARCHAR(100) PRIMARY KEY NOT NULL,
     barcode VARCHAR(100),
     item_name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Finished Good',
+    uom VARCHAR(50) DEFAULT 'CTN',
+    shelf_life VARCHAR(50) DEFAULT '36 Bulan',
     status VARCHAR(50) NOT NULL DEFAULT 'Aktif',
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_data_barang_barcode ON public.data_barang(barcode);
-CREATE INDEX IF NOT EXISTS idx_data_barang_status ON public.data_barang(status);
-
--- 3. TABEL DATA_DISTRIBUTOR (Master Distributor & Kode LD)
+-- TABEL 3: DATA_DISTRIBUTOR (Master Rekanan / Vendor)
 CREATE TABLE IF NOT EXISTS public.data_distributor (
     kode_ld VARCHAR(50) PRIMARY KEY NOT NULL,
     nama_distributor VARCHAR(255) NOT NULL,
@@ -108,12 +101,10 @@ CREATE TABLE IF NOT EXISTS public.data_distributor (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_data_distributor_nama ON public.data_distributor(nama_distributor);
-
--- 4. TABEL INCOMING (Transaksi Kedatangan Barang / Inbound)
+-- TABEL 4: INCOMING (Transaksi Kedatangan Inbound)
 CREATE TABLE IF NOT EXISTS public.incoming (
     id_incoming VARCHAR(100) PRIMARY KEY NOT NULL,
-    jenis VARCHAR(100) DEFAULT 'ADMK',           -- ADMK, BTB, RETUR
+    jenis VARCHAR(100) DEFAULT 'ADMK',             -- ADMK, BTB, RETUR
     id_distributor VARCHAR(50),
     distributor VARCHAR(255),
     item_code VARCHAR(100) NOT NULL,
@@ -132,23 +123,19 @@ CREATE TABLE IF NOT EXISTS public.incoming (
     sloc VARCHAR(50) DEFAULT 'SL01',
     expired_date DATE,
     destination_code VARCHAR(100) DEFAULT 'DST-01',
-    qc_code VARCHAR(50) DEFAULT 'Lulus',          -- Lulus, Karantina, Repack, Reject
+    qc_code VARCHAR(50) DEFAULT 'Lulus',            -- Lulus, Karantina, Reject
     user_tally VARCHAR(100) DEFAULT 'Tally 1',
-    shelf_life VARCHAR(50) DEFAULT '24 Bulan',
+    shelf_life VARCHAR(50) DEFAULT '36 Bulan',
     source VARCHAR(100) DEFAULT 'Supplier',
     user_input VARCHAR(100) DEFAULT 'Admin',
     tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
-    status VARCHAR(50) DEFAULT 'OPEN',            -- OPEN | CLOSE
-    tujuan VARCHAR(255) DEFAULT 'Warehouse Utama', -- Menampung catatan / tujuan internal
+    status VARCHAR(50) DEFAULT 'OPEN',              -- OPEN | CLOSE
+    tujuan VARCHAR(255) DEFAULT 'Warehouse Utama',
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_incoming_item_code ON public.incoming(item_code);
-CREATE INDEX IF NOT EXISTS idx_incoming_batch ON public.incoming(batch);
-CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at DESC);
-
--- 5. TABEL DATA_PENYIAPAN (Outbound Staging)
+-- TABEL 5: DATA_PENYIAPAN (Outbound Staging)
 CREATE TABLE IF NOT EXISTS public.data_penyiapan (
     id_penyiapan VARCHAR(100) PRIMARY KEY NOT NULL,
     tujuan VARCHAR(255) DEFAULT 'Pengiriman Cabang',
@@ -170,7 +157,7 @@ CREATE TABLE IF NOT EXISTS public.data_penyiapan (
     destination_code VARCHAR(100) DEFAULT 'DST-02',
     qc_code VARCHAR(50) DEFAULT 'QC-PASS',
     user_tally VARCHAR(100) DEFAULT 'Tally 2',
-    shelf_life VARCHAR(50) DEFAULT '24 Bulan',
+    shelf_life VARCHAR(50) DEFAULT '36 Bulan',
     source VARCHAR(100) DEFAULT 'Stok Gudang',
     user_input VARCHAR(100) DEFAULT 'Admin',
     tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
@@ -180,7 +167,7 @@ CREATE TABLE IF NOT EXISTS public.data_penyiapan (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 6. TABEL BROADCAST (Pemberitahuan & Pengumuman Gudang)
+-- TABEL 6: BROADCAST (Siaran Intercom & Pesan Siaga Gudang)
 CREATE TABLE IF NOT EXISTS public.broadcast (
     id TEXT PRIMARY KEY,
     sender_name VARCHAR(255) NOT NULL DEFAULT 'Pos Logistik',
@@ -196,208 +183,173 @@ CREATE TABLE IF NOT EXISTS public.broadcast (
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+```
 
--- Realtime Replication
-ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.data_barang;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.data_distributor;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.incoming;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.data_penyiapan;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcast;
+### 4.2 Skema Integrasi Google Spreadsheet & Webhook Apps Script
+* **ID Spreadsheet**: `1o8hWUAK6DO1rmggbiRaRNfT7On4c9RhrHR6X07nqZm4`
+* **Tab Terintegrasi**:
+  1. **Sheet "Sample"** (11 Kolom Wajib):
+     `STATUS` | `TANGGAL` | `NO. SPPJ` | `ID` | `DESKRIPSI` | `QTY` | `UNIT` | `WMS` | `SAP` | `PIC` | `NOTE`
+  2. **Sheet "Picking"** (26 Kolom Standar Logistik):
+     Menampung seluruh atribut picking outbound siap kirim lengkap dengan nomor LPN dan detail batch.
+
+---
+
+## 5. Sistem Hak Akses (RBAC), Autentikasi & Keamanan
+
+### 5.1 Peran Pengguna (Roles)
+1. **Administrator / Superadmin**:
+   * Hak akses seluruh menu dan konfigurasi sistem.
+   * Mengelola akun pengguna (tambah, edit nama/role, reset PIN, aktifkan/nonaktifkan user).
+   * Hak impor data massal via Excel (khusus master barang, kedatangan, dan penyiapan).
+   * Konfigurasi koneksi database dan jembatan webhook.
+2. **Pelaksana / Operator**:
+   * Menjalankan input transaksi operasional (Incoming, Picking, Sample, Cek ED, Cetak Label).
+   * Tidak dapat mengubah struktur master data barang atau menghapus user.
+
+### 5.2 Fitur Keamanan Operasional
+* **Autentikasi Cepat dengan PIN**: Memudahkan pekerja lapangan yang menggunakan sarung tangan atau perangkat layar sentuh kecil.
+* **Auto-Logout Sesi 30 Menit**: Melindungi sistem saat perangkat ditinggalkan tanpa pengawasan di workstation gudang.
+* **Modal Verifikasi PIN untuk Spreadsheet**: Membuka tautan eksternal database Google Spreadsheet wajib diverifikasi dengan PIN keamanan.
+* **Pembersihan Cache Transaksi Otomatis**: Menghindari anomali data di perangkat klien sehingga aplikasi selalu membaca data terbaru dari cloud.
+
+---
+
+## 6. Rincian 11 Modul Operasional Logistik
+
+### Modul 1: Cek Expired Date (ED Checker)
+* **Tujuan**: Mencegah lolosnya barang kedaluwarsa ke pasar dan mempercepat verifikasi kualitas.
+* **Logika Perhitungan**:
+  1. Ekstraksi karakter kode batch (menghilangkan prefix dan suffix huruf).
+  2. 3 digit pertama: *Day of Year* (DOY) hari ke-1 sampai 366.
+  3. 1 digit terakhir: Digit tahun produksi (misal: 6 $\rightarrow$ 2026 atau 2016).
+  4. Perhitungan tanggal mixing: 1 Januari Tahun Produksi + (DOY - 1) hari dengan presisi tahun kabisat (*Leap Year*).
+  5. Perhitungan tanggal SLED / Expired Date otomatis berdasarkan aturan kategori produk (*Shelf Life* 1 hingga 5 tahun, atau *Non-Expired*).
+* **Fitur**: Kalkulator interaktif instan, upload file Excel massal ribuan batch, dan ekspor laporan hasil kalkulasi.
+
+### Modul 2: Database Master
+* **Tujuan**: Menjaga integritas data referensi di seluruh gudang.
+* **Sub-Menu**:
+  * **Master Barang**: Kode SKU, barcode, nama barang, kategori, satuan, dan standar masa simpan.
+  * **Master Distributor**: Kode rekanan/vendor (LD) dan nama resmi perusahaan supplier.
+* **Fitur**: Pencarian Fuzzy (*typo tolerant*), formulir tambah/edit, template impor Excel standar, serta ekspor data.
+
+### Modul 3: Kedatangan (Inbound / Incoming)
+* **Tujuan**: Pencatatan fisik barang masuk dari supplier secara cepat, akurat, dan transparan.
+* **Fitur Utama**:
+  * **Input Suara Cerdas (Speech-to-Text)**: Mendukung pengisian Nama Distributor, Nama Barang, dan Nomor Batch hanya dengan perintah suara bahasa Indonesia.
+  * **Auto-Calculate ED**: Otomatis menghitung tanggal expired saat batch diinput.
+  * **Konversi Satuan Terpadu**: Menghitung otomatis total PCS dari jumlah karton (CTN) yang diterima.
+  * **Pemindaian Barcode Kamera**: Verifikasi SKU barang menggunakan pemindai kamera bawaan perangkat.
+  * **Tombol Cetak Label Cepat**: Membuka modul cetak label Honeywell PM42 dengan data yang langsung terisi.
+
+### Modul 4: Generator QR & Cetak Label Honeywell PM42
+* **Tujuan**: Menstandarkan penandaan palet dan karton dengan label QR Code industri.
+* **Spesifikasi Teknis**:
+  * **Ukuran Label**: 80 mm x 100 mm (Landscape).
+  * **Dimensi QR Code**: 40 mm, Error Correction Level M.
+  * **Direct Thermal Autosense Print**: CSS `@page { size: 100mm 80mm landscape; margin: 0; }` agar hasil cetak pas di printer thermal tanpa perlu penyetelan margin rumit di browser.
+  * **Format Raw Command**: Menyediakan skrip *Direct Protocol* (Intermec/Fingerprint) dan *Zebra ZPL II* untuk pengguna tingkat lanjut yang ingin membypass driver cetak Windows.
+  * **Massal & Unduh ZIP**: Menghasilkan puluhan hingga ratusan QR sekaligus dan mengunduhnya dalam berkas ZIP.
+
+### Modul 5: Penyiapan (Outbound Staging)
+* **Tujuan**: Mengorganisasi barang yang telah siap untuk dikirim ke cabang atau pelanggan.
+* **Fitur**: Pencatatan lokasi staging (`WH-B-01`), status kesiapan (*Ready*, *In Progress*), pengelompokan tujuan pengiriman, serta integrasi tombol alih tugas (kirim ke Pemusnahan, Reco, Inventory, Repack, atau Picking).
+
+### Modul 6: Pemusnahan (Disposal & Incinerator)
+* **Tujuan**: Mengontrol pembuangan barang rusak, pecah, kedaluwarsa, atau tidak layak jual.
+* **Fitur**:
+  * Pemindahan otomatis dari modul Penyiapan.
+  * Pelacakan lokasi karantina (`WH-REJECT-01`) dan storage location disposal (`SL99`).
+  * Pencatatan nomor Berita Acara Pemusnahan (BAP) dan metode pemusnahan (Incinerator/Daur Ulang) untuk kepatuhan audit.
+
+### Modul 7: Reco (Permintaan & Relokasi Barang)
+* **Tujuan**: Penanganan barang yang memerlukan penggantian kemasan sekunder atau rekondisi sebelum dapat dijual kembali.
+* **Fitur**: Pencatatan lokasi rekondisi (`WH-RECO-01`, `SL03`), tracking status perbaikan, dan relokasi kembali ke stok siap jual setelah lulus verifikasi QC.
+
+### Modul 8: Inventory Gudang
+* **Tujuan**: Menyajikan visibilitas stok real-time di seluruh rak dan lantai gudang.
+* **Fitur**:
+  * Monitoring stok per zona, lorong (*aisle*), rak (*rack*), level, dan bin.
+  * **Bulk Location Transfer**: Memindahkan banyak item atau palet sekaligus dari satu rak ke rak lain dalam satu klik.
+  * Scanner kamera untuk cek identitas dan jumlah fisik di lokasi rak.
+
+### Modul 9: Repack (Bundling & Promosi)
+* **Tujuan**: Pengelolaan proses perubahan bentuk kemasan produk untuk program promosi (misal: Paket 2-in-1, penambahan hadiah langsung).
+* **Fitur**: Pemindahan massal dari modul Penyiapan, tracking kode SKU baru hasil bundling, dan pencatatan lokasi kerja repack (`WH-REPACK-01`, `SL04`).
+
+### Modul 10: Picking (Outbound Order Fulfillment)
+* **Tujuan**: Mengarahkan petugas pengambil barang (*picker*) agar mengambil barang dengan rute paling efisien.
+* **Fitur**: Pengelompokan daftar ambil berdasarkan urutan lorong rak, verifikasi nomor lot/batch yang diambil, dan sinkronisasi berkala ke database Google Spreadsheet tab `"Picking"`.
+
+### Modul 11: Monitoring Pengambilan Sample
+* **Tujuan**: Mencegah ketidaksesuaian stok (*stock discrepancy*) akibat pengambilan barang untuk sample uji mutu (QC), laboratorium, atau tim promosi marketing.
+* **Fitur Utama**:
+  * Sinkronisasi dua arah real-time dengan Google Spreadsheet tab `"Sample"`.
+  * Pelacakan atribut: Status (OPEN/CLOSE), Tanggal, No. SPPJ, ID Barang, Deskripsi, Jumlah, Satuan, status verifikasi WMS, status posting SAP, PIC pemohon, dan catatan pendukung.
+  * Tombol sakelar status cepat (Quick Toggle Status) dari OPEN menjadi CLOSE saat barang telah diverifikasi selesai.
+
+---
+
+## 7. Fitur Cerdas & Interaktif
+
+1. **Robot Siaran Intercom (Broadcast System)**:
+   * Menampilkan robot/amplop animasi mengambang di layar.
+   * Menyiarkan pesan operasional mendesak ke seluruh staf yang sedang membuka aplikasi.
+   * Didukung audio synthesizer berbasis Web Audio API dengan frekuensi bunyi peringatan yang dapat dinyalakan/dimatikan.
+2. **Quran Running Ticker**:
+   * Menampilkan pesan inspiratif yang berjalan di bar bagian atas dashboard utama untuk menjaga semangat dan etos kerja staf gudang.
+3. **PWA In-App Auto-Update Notification**:
+   * Service worker memeriksa berkas `version.json` di server secara berkala.
+   * Muncul tombol animasi *"Update Siap"* sehingga staf cukup menekan tombol tersebut untuk memuat versi aplikasi paling baru tanpa repot menghapus cache browser.
+
+---
+
+## 8. Alur Kerja Operasional Antar-Modul (Workflow)
+
+```
+[ PABRIK / SUPPLIER ]
+         │
+         ▼
+[ Modul 3: KEDATANGAN / INCOMING ]
+   ├── Input Suara (Speech-to-Text) & Cek Master SKU
+   ├── Auto-Calculate ED & Validasi Kualitas (QC)
+   └── Cetak Label QR [ Modul 4: CETAK PM42 ]
+         │
+         ▼ (Barang Diterima & Masuk Rak)
+[ Modul 8: INVENTORY GUDANG ]
+         │
+         ├────────────────┬─────────────────┬────────────────┐
+         │                │                 │                │
+         ▼                ▼                 ▼                ▼
+[ Modul 5: PENYIAPAN ] [ Modul 11: SAMPLE ] [ Modul 7: RECO ] [ Modul 9: REPACK ]
+         │
+         ├────────────────┬─────────────────┐
+         ▼                ▼                 ▼
+[ Modul 10: PICKING ] [ Modul 6: PEMUSNAHAN ] [ Cabang / Konsumen ]
 ```
 
 ---
 
-## 4. Struktur Folder & Organisasi Modul
+## 9. Panduan Konfigurasi Lingkungan (.env)
 
-```text
-├── public/
-│   ├── favicon.svg
-│   ├── icon-192.png
-│   ├── icon-512.png
-│   └── manifest.json                # Web App Manifest (PWA)
-├── src/
-│   ├── components/
-│   │   ├── logistics/
-│   │   │   ├── BatchCheckerModule.tsx       # Cek batch massal & interpretasi tanggal
-│   │   │   ├── DatabaseMasterModule.tsx     # Master Data Barang & Distributor
-│   │   │   ├── EdCheckerModule.tsx          # Kalkulator Expired Date interaktif
-│   │   │   ├── IncomingModule.tsx           # Inbound, Voice Input, QR & Excel Import
-│   │   │   ├── LogisticsModal.tsx           # Container modal & detail view
-│   │   │   ├── PenyiapanModule.tsx          # Outbound & Penyiapan Barang
-│   │   │   ├── PromosiModule.tsx            # Pengelolaan stok item promosi
-│   │   │   ├── QrGeneratorHoneywellModule.tsx # Generator QR & Direct Print PM42
-│   │   │   ├── SnGeneratorModule.tsx        # Generator Serial Number / LPN otomatis
-│   │   │   ├── StockOpnameModule.tsx        # Agregasi stok & audit gudang
-│   │   │   └── SuratJalanModule.tsx         # Pembuatan & cetak dokumen jalan
-│   │   ├── BroadcastBar.tsx                 # Banner pengumuman berjalan
-│   │   └── Header.tsx                       # Navigasi utama, sinkronisasi & profil
-│   ├── context/
-│   │   ├── AuthContext.tsx                  # Context login & izin hak akses
-│   │   └── NotificationContext.tsx          # Context toast & alarm audio
-│   ├── utils/
-│   │   ├── broadcastSound.ts                # Audio Synthesizer (Web Audio API)
-│   │   ├── fuseSearch.ts                    # Fuzzy search helper (Fuse.js)
-│   │   ├── logisticsCalculations.ts         # Rumus ED, DOY, Kabisat, SLED
-│   │   └── systemNotification.ts            # PWA Web Push notification
-│   ├── App.tsx                              # Entry component & routing modul
-│   ├── index.css                            # Tailwind CSS styling & print stylesheet
-│   ├── main.tsx                             # React DOM bootstrap
-│   ├── pwa.ts                               # Service worker registration
-│   ├── supabase.ts                          # Supabase Client & chunk fetcher
-│   └── types.ts                             # Global TypeScript Interfaces
-├── supabase_schema.sql                      # Script migrasi database Supabase
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
-```
+| Variabel Lingkungan | Deskripsi | Contoh Nilai |
+| :--- | :--- | :--- |
+| `VITE_SUPABASE_URL` | URL endpoint proyek Supabase | `https://xyzproject.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Public Anon API Key Supabase | `eyJhbGciOi...` |
+| `VITE_SPREADSHEET_ID` | ID Google Spreadsheet Master | `1o8hWUAK6DO1rmggbiRaRNfT7On4c9RhrHR6X07nqZm4` |
+| `VITE_WORKER_PROXY_URL` | Endpoint Cloudflare Worker Proxy | `https://logistikapps.cikembar.workers.dev/` |
 
 ---
 
-## 5. Logika Bisnis & Algoritma Inti
+## 10. Kesimpulan & Roadmap Masa Depan
 
-### 5.1 Algoritma Dekode Batch & Perhitungan Expired Date (ED / SLED)
-Pada industri manufaktur FMCG dan farmasi, kode batch dicetak dengan format Unix Julian:
-`[Prefix/Mesin][Nomor Batch][3 Digit DOY - Hari ke-N][1 Digit Akhir Tahun Produksi][Suffix Huruf]`
-Contoh: **`L911346N`**
+Aplikasi **Logistik Cikembar (LogistikApps)** memberikan solusi komprehensif bagi operasional gudang dengan menghilangkan ketergantungan pada software proprietary yang mahal, memangkas waktu pencatatan barang melalui teknologi suara, dan mengunci akurasi stok melalui integrasi multi-database.
 
-#### Langkah Perhitungan Matematis:
-1. **Pembersihan Suffix**:
-   Karakter huruf di akhir dihilangkan sehingga `L911346N` $\rightarrow$ `911346`.
-2. **Ekstraksi 4 Digit Terakhir**:
-   - 4 Digit Terakhir: `1346`
-   - `DOY` (Day of Year): $\lfloor 1346 / 10 \rfloor = 134$ (Hari ke-134 dalam kalender tahunan).
-   - `Digit Tahun Produksi`: $1346 \pmod{10} = 6$.
-3. **Kalkulasi Tahun Produksi Aktual**:
-   Menghitung tahun produksi terdekat yang tidak melebihi tahun berjalan:
-   $$\text{Tahun} = \text{Tahun Berjalan} - (((\text{Tahun Berjalan} - \text{Digit Tahun}) \bmod 10) + 10) \bmod 10$$
-   *(Jika tahun berjalan 2026, digit 6 diterjemahkan menjadi 2026 atau 2016 tergantung selisih terdekat)*.
-4. **Kalkulasi Tanggal Mixing (Produksi)**:
-   $$\text{Tgl Mixing} = \text{1 Januari Tahun Produksi} + (\text{DOY} - 1) \text{ hari}$$
-5. **Penentuan Masa Simpan (Shelf Life)**:
-   - Produk mengandung kata `PAPER` $\rightarrow$ Masa simpan 5 Tahun (60 Bulan).
-   - Produk mengandung kata `OLIVE OIL` $\rightarrow$ Masa simpan 4 Tahun (48 Bulan).
-   - Produk mengandung kata `Q-LIFE`, `KESET`, atau `SAMANTHA 20` $\rightarrow$ Masa simpan 2 Tahun (24 Bulan).
-   - Produk mengandung kata `PIA` $\rightarrow$ Masa simpan 1 Tahun (12 Bulan).
-   - Produk mengandung kata `ABSTRACT` $\rightarrow$ Non-Expired (`9999-12-31`).
-   - Default Produk Lainnya $\rightarrow$ 3 Tahun (36 Bulan).
-6. **Penanganan Tahun Kabisat (Leap Year)**:
-   Jika tanggal jatuh pada `29 Februari` di tahun non-kabisat, tanggal otomatis disesuaikan ke hari terakhir bulan Februari (`28 Februari`).
+**Rencana Pengembangan Berikutnya (Future Roadmap)**:
+* Integrasi antarmuka Bluetooth langsung ke printer thermal portabel (Mobile Bluetooth Printer).
+* Visualisasi denah tata letak rak 2D/3D interaktif (*Warehouse Digital Twin*).
+* Integrasi pembacaan RFID reader untuk penerimaan palet berkecepatan tinggi.
 
 ---
-
-### 5.2 Fitur Speech-to-Text (Pencarian & Input Suara Cerdas)
-Fitur input suara diterapkan pada 3 field utama di form penerimaan barang (Inbound):
-1. **Pencarian Nama Produk**: Menyebutkan nama barang atau kode SKU untuk memfilter data master barang secara interaktif.
-2. **Pencarian Distributor**: Menyebutkan nama vendor atau kode distributor (LD) yang terhubung langsung ke master distributor.
-3. **Nomor Batch**: Operator menyebutkan huruf dan angka (misal: *"L sembilan satu satu tiga empat enam"*), sistem secara otomatis mengonversi sebutan angka bahasa Indonesia (*kosong, nol, satu, dua, ...*) menjadi karakter alfanumerik kapital (*`L911346`*) dan langsung memicu kalkulasi Expired Date tanpa mengetik.
-
----
-
-### 5.3 Generator Label & Spesifikasi Printer Honeywell PM42
-Modul ini dirancang agar kompatibel dengan printer barcode industri Honeywell PM42 dengan spesifikasi:
-- **Ukuran Label Standar**: `80 x 100 mm` (Orientasi Landscape: `100 mm` Lebar $\times$ `80 mm` Tinggi).
-- **Dimensi Barcode QR Code**: `40 mm` dengan koreksi kesalahan standar Level `M` (15%).
-- **Margin Standar**: Atas `10 mm`, Kiri `2 mm`, Ukuran Font `8 px` tebal.
-- **Dukungan Perintah Bahasa Printer**:
-  1. **Direct Protocol (Fingerprint / Intermec)**:
-     ```text
-     CLL
-     OPTIMIZE "BATCH" ON
-     BARFONT OFF
-     PRPOS 20, 80
-     DIR 1
-     BARCODE "QR", "LPN00123984", 6, 2, "M"
-     PRTXT 220, 80, "ITEM: 21104501 - KINO SAMANTHA"
-     PRTXT 220, 110, "BATCH: L911346N | ED: 2029-05-14"
-     PRINT 1
-     ```
-  2. **Zebra ZPL II**:
-     ```text
-     ^XA
-     ^PW800
-     ^LL640
-     ^FO40,60^BQN,2,6^FDMM,LPN00123984^FS
-     ^FO240,60^A0N,28,28^FDITEM: 21104501 - KINO SAMANTHA^FS
-     ^FO240,100^A0N,24,24^FDBATCH: L911346N | ED: 2029-05-14^FS
-     ^XZ
-     ```
-- **Direct Print Web Driver**: Menggunakan CSS `@page { size: 100mm 80mm landscape; margin: 0; }` sehingga operator dapat langsung mencetak dari browser ke Honeywell PM42 tanpa kalibrasi margin ulang.
-
----
-
-## 6. Alur Operasional (Step-by-Step User Flow)
-
-```mermaid
-flowchart TD
-    A[Buka LogistikApps] --> B{Pilih Modul}
-    
-    B -->|Cek ED| C[Input Nama Barang & Batch]
-    C --> D[Hitung DOY & Tanggal Mixing]
-    D --> E[Tampilkan Masa Simpan & SLED ED]
-    
-    B -->|Kedatangan / Inbound| F[Buka Form Transaksi Kedatangan]
-    F --> G[Pilih Jenis: ADMK/BTB/RETUR]
-    G --> H[Input / Bicara Suara Distributor]
-    H --> I[Input / Bicara Suara Nama Produk]
-    I --> J[Input / Bicara Suara No. Batch]
-    J --> K[Otomatis Hitung Expired Date]
-    K --> L[Isi Qty, Rak, Status QC & Note]
-    L --> M[Simpan ke Supabase Cloud & Cache Lokal]
-    
-    M --> N[Cetak Label QR Honeywell PM42]
-    N --> O[Tempel Label LPN pada Pallet/Karton]
-    
-    B -->|Database Master| P[Kelola Master Barang & Distributor]
-    P --> Q[Impor / Ekspor Excel]
-    
-    B -->|Penyiapan / Outbound| R[Pilih Barang Siap Kirim]
-    R --> S[Update Status Penyiapan]
-```
-
----
-
-## 7. Petunjuk Instalasi & Deployment (Dari Nol)
-
-### 7.1 Persyaratan Sistem
-- Node.js versi 18.x atau 20.x LTS
-- Package Manager: `npm` atau `bun`
-
-### 7.2 Langkah Instalasi Lokal
-```bash
-# 1. Clone repositori
-git clone <repository-url>
-cd logistikapps
-
-# 2. Instal dependensi
-npm install
-
-# 3. Buat berkas konfigurasi .env
-cp .env.example .env
-# Isi kredensial Supabase (VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY)
-
-# 4. Jalankan development server
-npm run dev
-```
-
-### 7.3 Pengaturan Database Supabase
-1. Masuk ke dashboard [Supabase](https://supabase.com).
-2. Buat proyek baru dan buka menu **SQL Editor**.
-3. Salin seluruh isi berkas `supabase_schema.sql` dan jalankan (*Run*).
-4. Pastikan tabel `users`, `data_barang`, `data_distributor`, `incoming`, `data_penyiapan`, dan `broadcast` berhasil terbuat.
-5. Salin *Project URL* dan *Anon Key* dari menu **Project Settings > API** ke dalam berkas `.env`.
-
-### 7.4 Build untuk Produksi
-```bash
-npm run build
-```
-Output static build akan berada di direktori `dist/` dan siap dideploy ke Vercel, Netlify, Cloud Run, atau server Nginx.
-
----
-
-## 8. Ringkasan Fitur Terbaru yang Diimplementasikan
-- ✅ **Penyederhanaan Navigasi**: Tombol ganda diganti dengan single Home Icon yang ergonomis.
-- ✅ **Tombol Terpadu Sinkron & Refresh**: Menggabungkan aksi sinkronisasi offline-cache dan pembaruan data real-time dalam 1 klik.
-- ✅ **Integrasi Speech-to-Text Lengkap**: Mendukung input suara pada pencarian produk, distributor, dan nomor batch dengan parsing angka otomatis.
-- ✅ **Pembersihan UI & Form Inbound**: Menghilangkan istilah database teknis dan menyederhanakan kolom Catatan/Note secara intuitif.
-- ✅ **Dukungan Cetak Label Honeywell PM42**: Kompatibilitas autosense ready 80x100mm landscape.
+*Dokumen ini dibuat dan divalidasi sebagai acuan standar arsitektur dan fungsionalitas sistem LogistikApps.*

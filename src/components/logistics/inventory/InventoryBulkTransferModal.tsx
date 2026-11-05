@@ -77,25 +77,6 @@ export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
     colorClass: 'from-rose-600 to-red-800'
   },
   {
-    id: 'reco',
-    name: 'Reco',
-    tableName: 'data_reco',
-    idPrefix: 'REC-',
-    idField: 'id_reco',
-    defaultSloc: 'SL03',
-    defaultLocation: 'WH-RECO-01',
-    defaultLocationType: 'Floor',
-    defaultQcCode: 'QC-PASS',
-    defaultDestinationCode: 'DST-RECO',
-    defaultStatus: '',
-    defaultTujuan: 'Permintaan Barang',
-    defaultCategory: 'Finished Good',
-    sourceStatusDefault: 'Terkirim ke Reco',
-    cacheKey: 'reco_cache_v1',
-    description: 'Tabel: public.data_reco - Permintaan Barang Reco',
-    colorClass: 'from-purple-600 to-indigo-800'
-  },
-  {
     id: 'incoming',
     name: 'Kedatangan / Inbound',
     tableName: 'incoming',
@@ -113,25 +94,6 @@ export const INVENTORY_TRANSFER_DESTINATIONS: TransferDestination[] = [
     cacheKey: 'ckb_incoming_cache_v1',
     description: 'Tabel: public.incoming - Transaksi Inbound Kedatangan Barang',
     colorClass: 'from-emerald-600 to-teal-800'
-  },
-  {
-    id: 'repack',
-    name: 'Repack / Bundling',
-    tableName: 'data_repack',
-    idPrefix: 'RPK-',
-    idField: 'id_repack',
-    defaultSloc: 'SL04',
-    defaultLocation: 'WH-REPACK-01',
-    defaultLocationType: 'Rack',
-    defaultQcCode: 'QC-PASS',
-    defaultDestinationCode: 'PROMO-BUNDLING',
-    defaultStatus: '',
-    defaultTujuan: 'Repacking Promo Bundle',
-    defaultCategory: 'Repack',
-    sourceStatusDefault: 'Terkirim ke Repack',
-    cacheKey: 'repack_cache_v1',
-    description: 'Tabel: public.data_repack - Repacking & Bundling Produk Promo',
-    colorClass: 'from-amber-600 to-orange-700'
   }
 ];
 

@@ -206,39 +206,6 @@ export interface PenyiapanItem {
   updated_at?: string;
 }
 
-// Transaksi Picking Barang Outbound (Supabase table: public.data_picking)
-// Struktur tabel, kolom dan fungsi role sama persis dengan Penyiapan
-// Sheet di Google Spreadsheet: Picking
-export interface PickingItem {
-  id_picking: string;
-  tujuan?: string;
-  item_code: string;
-  item_name: string;
-  category?: string;
-  location?: string;
-  location_type?: string;
-  first_qty?: number;
-  last_qty?: number;
-  uom?: string;
-  qty_convert?: number;
-  uom_convert?: string;
-  lpn_serial_number?: string;
-  batch?: string;
-  vendor_batch?: string;
-  sloc?: string;
-  expired_date?: string;
-  destination_code?: string;
-  qc_code?: string;
-  user_tally?: string;
-  shelf_life?: string;
-  source?: string;
-  user_input?: string;
-  tanggal_update?: string;
-  status?: string;
-  note?: string;
-  created_at?: string;
-  updated_at?: string;
-}
 
 // Transaksi Cek Fisik / Penyiapan Pemusnahan (Supabase table: public.data_cek_fisik_pemusnahan)
 // Struktur logika dan kolom sama persis 100% dengan data_penyiapan untuk staging check fisik pemusnahan
@@ -305,38 +272,6 @@ export interface PemusnahanItem {
   updated_at?: string;
 }
 
-// Transaksi Reco / Permintaan Barang (Supabase table: public.data_reco)
-// Reco adalah untuk permintaan barang
-export interface RecoItem {
-  id_reco: string;
-  tujuan?: string;
-  item_code: string;
-  item_name: string;
-  category?: string;
-  location?: string;
-  location_type?: string;
-  first_qty?: number;
-  last_qty?: number;
-  uom?: string;
-  qty_convert?: number;
-  uom_convert?: string;
-  lpn_serial_number?: string;
-  batch?: string;
-  vendor_batch?: string;
-  sloc?: string;
-  expired_date?: string;
-  destination_code?: string;
-  qc_code?: string;
-  user_tally?: string;
-  shelf_life?: string;
-  source?: string;
-  user_input?: string;
-  tanggal_update?: string;
-  status?: string;
-  note?: string;
-  created_at?: string;
-  updated_at?: string;
-}
 
 // Transaksi Data Inventory (Supabase table: public.data_inventory)
 // Struktur sama persis dengan data_penyiapan TANPA kolom tanggal_update
@@ -372,35 +307,19 @@ export interface InventoryItem {
   child_count?: number;
 }
 
-// Transaksi Repacking / Bundling Produk (Supabase table: public.data_repack)
-export interface RepackItem {
-  id_repack: string;
-  tujuan?: string;
-  item_code: string;
-  item_name: string;
-  category?: string;
-  location?: string;
-  location_type?: string;
-  first_qty?: number;
-  last_qty?: number;
-  uom?: string;
-  qty_convert?: number;
-  uom_convert?: string;
-  lpn_serial_number?: string;
-  batch?: string;
-  vendor_batch?: string;
-  sloc?: string;
-  expired_date?: string;
-  destination_code?: string;
-  qc_code?: string;
-  user_tally?: string;
-  shelf_life?: string;
-  source?: string;
-  user_input?: string;
-  tanggal_update?: string;
-  status?: string;
-  note?: string;
-  created_at?: string;
-  updated_at?: string;
+// Transaksi Monitoring Pengambilan Sample
+export interface MonitoringSampleItem {
+  status: string; // STATUS proses, misalnya OPEN, CLOSE
+  tanggal: string; // TANGGAL transaksi/proses
+  no_sppj: string; // NO. SPPJ
+  id_barang: string; // ID barang
+  deskripsi: string; // DESKRIPSI barang atau pekerjaan
+  qty: number | string; // QTY
+  unit: string; // UNIT (CAR, PCS, dll)
+  wms: string; // WMS status/proses
+  sap: string; // SAP status/proses
+  pic: string; // PIC (Person in Charge)
+  note: string; // NOTE (Catatan/keterangan)
+  _rowIndex?: number;
 }
 

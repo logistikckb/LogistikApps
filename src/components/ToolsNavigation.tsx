@@ -1,15 +1,12 @@
 import React from 'react';
 import { 
   CalendarCheck2, 
-  Sparkles,
   Database,
   Boxes,
   Truck,
-  QrCode,
   Flame,
-  ClipboardList,
   Package,
-  PackageCheck
+  FlaskConical
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -17,13 +14,10 @@ export type ToolId =
   | 'ed-checker' 
   | 'menu-a' 
   | 'menu-b' 
-  | 'menu-c' 
   | 'menu-d' 
   | 'menu-e'
-  | 'menu-f'
   | 'menu-g'
-  | 'menu-h'
-  | 'menu-i';
+  | 'menu-sample';
 
 export interface ToolItem {
   id: ToolId;
@@ -94,24 +88,7 @@ export const TOOLS_LIST: ToolItem[] = [
       'Manajemen Status QC (QC-PASS, QC-HOLD, QC-REJECT) & Petugas Tally'
     ]
   },
-  {
-    id: 'menu-c',
-    title: 'Generator QR & Print PM42',
-    shortDesc: 'Generator Multi QR Code & Direct Thermal Label Print Honeywell PM42 (Autosense Ready)',
-    category: 'Label & Barcode',
-    icon: QrCode,
-    isReady: true,
-    requiresAdmin: false,
-    colorBg: 'bg-amber-50 text-amber-700 border border-amber-200/80',
-    colorBorder: 'border-amber-200',
-    colorIcon: 'text-amber-700',
-    plannedFeatures: [
-      'Generate QR Massal dari banyak baris teks (Judul + QR Code + Teks)',
-      'Direct Thermal Label Print khusus Honeywell PM42 (Autosense 0-Margin)',
-      'Bypass software LARGO & Dukungan Raw Direct Protocol / ZSim ZPL',
-      'Unduh ZIP gambar QR, Ekspor Excel, dan Custom Dimensi Label'
-    ]
-  },
+
   {
     id: 'menu-d',
     title: 'Penyiapan',
@@ -148,24 +125,7 @@ export const TOOLS_LIST: ToolItem[] = [
       'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
     ]
   },
-  {
-    id: 'menu-f',
-    title: 'Reco',
-    shortDesc: 'Permintaan Barang - Dikelola & Dipindahkan dari Modul Penyiapan',
-    category: 'Permintaan & Relokasi',
-    icon: ClipboardList,
-    isReady: true,
-    requiresAdmin: false,
-    colorBg: 'bg-purple-50 text-purple-600 border border-purple-200/80',
-    colorBorder: 'border-purple-200',
-    colorIcon: 'text-purple-600',
-    plannedFeatures: [
-      'Manajemen Permintaan Barang & Relokasi',
-      'Pindah Massal & Terintegrasi dari Modul Penyiapan',
-      'Tracking Lokasi (WH-RECO-01), SLOC (SL03) & Status Permintaan',
-      'Upload & Export File Excel (.xlsx) dengan Template Standar & QR Code LPN'
-    ]
-  },
+
   {
     id: 'menu-g',
     title: 'Inventory',
@@ -185,39 +145,21 @@ export const TOOLS_LIST: ToolItem[] = [
     ]
   },
   {
-    id: 'menu-h',
-    title: 'Repack',
-    shortDesc: 'Manajemen Repacking Produk & Promo Bundling dari Modul Penyiapan',
-    category: 'Repack & Bundling',
-    icon: Boxes,
+    id: 'menu-sample',
+    title: 'Monitoring Sample',
+    shortDesc: 'Monitoring Pengambilan Sample Gudang (STATUS, SPPJ, WMS, SAP, PIC & Note)',
+    category: 'Monitoring & Sample',
+    icon: FlaskConical,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-amber-50 text-amber-600 border border-amber-200/80',
-    colorBorder: 'border-amber-200',
-    colorIcon: 'text-amber-600',
+    colorBg: 'bg-teal-50 text-teal-700 border border-teal-200/80',
+    colorBorder: 'border-teal-200',
+    colorIcon: 'text-teal-700',
     plannedFeatures: [
-      'Manajemen Data Repack & Bundling Produk',
-      'Transfer Massal Otomatis dari Modul Penyiapan Outbound',
-      'Tracking Lokasi Repack (WH-REPACK-01), SLOC (SL04) & Destinasi Promo',
-      'Upload & Export Laporan Excel (.xlsx) dengan Template Standar'
-    ]
-  },
-  {
-    id: 'menu-i',
-    title: 'Picking',
-    shortDesc: 'Manajemen Data Picking Outbound, Upload Excel & Sinkronisasi Cloud',
-    category: 'Outbound & Picking',
-    icon: PackageCheck,
-    isReady: true,
-    requiresAdmin: false,
-    colorBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200/80',
-    colorBorder: 'border-indigo-200',
-    colorIcon: 'text-indigo-600',
-    plannedFeatures: [
-      'Manajemen Data Picking Outbound Realtime',
-      'Upload File Excel Massal Khusus Role Admin (20 Kolom Standar Logistik)',
-      'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/QC',
-      'Export Laporan Excel (.xlsx) & Sinkronisasi Spreadsheet Tab "Picking"'
+      'Monitoring Realtime Pengambilan Sample Gudang',
+      'Tracking Status (OPEN/CLOSE), WMS, SAP, No. SPPJ & PIC',
+      'Sinkronisasi Database Cloud Terpusat',
+      'Form Tambah/Edit Data Sample, Export Excel & Quick Status Toggle'
     ]
   }
 ];

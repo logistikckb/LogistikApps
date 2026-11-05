@@ -1,5 +1,5 @@
 import React from 'react';
-import { QrCode, Wrench, Sparkles, Layers, Calendar, Barcode, ArrowRightLeft, PackageCheck, FileText, ExternalLink, Download, Smartphone } from 'lucide-react';
+import { Wrench, Sparkles, Layers, Calendar, Barcode, ArrowRightLeft, PackageCheck, FileText, ExternalLink } from 'lucide-react';
 import { MainToolTab } from './EmbeddedToolsWorkspace';
 import { usePwa } from '../context/PwaContext';
 import { InstallPwaButton } from './common/InstallPwaButton';
@@ -19,13 +19,6 @@ export function ToolsGrid({ activeTool, onSelectTool, onOpenModal }: ToolsGridPr
     icon: React.ReactNode;
     style: string;
   }[] = [
-    {
-      id: 'qr-generator',
-      title: 'Generator QR Code',
-      category: 'Satuan & Massal',
-      icon: <QrCode size={24} className="text-indigo-600" />,
-      style: 'bg-indigo-50 border border-indigo-200/80 text-indigo-600'
-    },
     {
       id: 'ed-checker',
       title: 'Cek Expired Date',

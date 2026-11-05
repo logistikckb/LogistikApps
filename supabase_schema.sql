@@ -514,25 +514,55 @@ CREATE TRIGGER set_data_inventory_updated_at
     EXECUTE FUNCTION public.handle_updated_at();
 
 -- ==============================================================================
--- 11. NONAKTIFKAN ROW LEVEL SECURITY (RLS) & IZINKAN AKSES PENUH
+-- 11. AKTIFKAN ROW LEVEL SECURITY (RLS) & KEBIJAKAN AKSES RESMI
 -- ==============================================================================
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.broadcast DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.broadcasts DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_barang DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_distributor DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.incoming DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_penyiapan DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_picking DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_pemusnahan DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_reco DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_repack DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.data_inventory DISABLE ROW LEVEL SECURITY;
+-- Aktifkan RLS di setiap tabel agar dashboard Supabase hijau (Table publicly accessible warning clear)
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.broadcast ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_barang ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_distributor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.incoming ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_penyiapan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_picking ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_cek_fisik_pemusnahan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_pemusnahan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_reco ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_repack ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_inventory ENABLE ROW LEVEL SECURITY;
 
 -- Berikan Hak Akses Penuh (CRUD) ke peranan anon, authenticated, & service_role
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
+-- Buat RLS Policies untuk memastikan client anon & authenticated dapat beroperasi
+DO $$
+DECLARE
+    tbl text;
+    target_tables text[] := ARRAY[
+        'users', 'broadcast', 'broadcasts', 'data_barang', 'data_distributor',
+        'incoming', 'data_penyiapan', 'data_picking', 'data_cek_fisik_pemusnahan',
+        'data_pemusnahan', 'data_reco', 'data_repack', 'data_inventory'
+    ];
+BEGIN
+    FOREACH tbl IN ARRAY target_tables
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Allow anon and authenticated full access" ON public.%I;', tbl);
+        EXECUTE format(
+            'CREATE POLICY "Allow anon and authenticated full access" ON public.%I ' ||
+            'FOR ALL TO anon, authenticated ' ||
+            'USING (true) ' ||
+            'WITH CHECK (true);',
+            tbl
+        );
+    END LOOP;
+END $$;
 
 -- ==============================================================================
 -- 12. SUPABASE REALTIME REPLICATION
