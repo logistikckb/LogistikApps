@@ -523,22 +523,12 @@ export function IncomingModule() {
     return fuse.search(clean).map(r => r.item);
   }, [distributorList, distributorSearchText]);
 
-  // Pre-indexed Master Barang list for instant (<1ms) multi-token & prefix search
+  // Pre-indexed Master Barang list reading ONLY 1 column (item_name) for ultra-fast search
   const indexedBarangList = useMemo(() => {
-    return barangList.map(b => {
-      const code = (b.item_code || '').trim().toLowerCase();
-      const name = (b.item_name || '').trim().toLowerCase();
-      const barcode = (b.barcode || '').trim().toLowerCase();
-      const category = (b.category || '').trim().toLowerCase();
-      const uom = (b.uom || '').trim().toLowerCase();
-      return {
-        item: b,
-        code,
-        name,
-        barcode,
-        searchStr: `${code} ${name} ${barcode} ${category} ${uom}`
-      };
-    });
+    return barangList.map(b => ({
+      item: b,
+      name: (b.item_name || '').trim().toLowerCase()
+    }));
   }, [barangList]);
 
   const filteredBarangList = useMemo(() => {
@@ -553,13 +543,13 @@ export function IncomingModule() {
       const entry = indexedBarangList[i];
       let allMatch = true;
       for (let t = 0; t < tokens.length; t++) {
-        if (!entry.searchStr.includes(tokens[t])) {
+        if (!entry.name.includes(tokens[t])) {
           allMatch = false;
           break;
         }
       }
       if (allMatch) {
-        if (entry.code.startsWith(clean) || entry.name.startsWith(clean) || entry.barcode === clean) {
+        if (entry.name.startsWith(clean)) {
           exactOrPrefixMatches.push(entry.item);
         } else {
           substringMatches.push(entry.item);
@@ -1018,9 +1008,11 @@ export function IncomingModule() {
     setSelectedItem(item);
     setDistributorSearchText(item.distributor || '');
     setIsDistributorDropdownOpen(false);
-    setBarangSearchText(item.item_code ? `${item.item_code} - ${item.item_name}` : '');
+    setBarangSearchText(item.item_name || '');
     setIsBarangDropdownOpen(false);
-    fetchMasterData(); // Refresh master data immediately on open
+    if (barangList.length === 0 || distributorList.length === 0) {
+      fetchMasterData();
+    }
     setFormData({
       ...item,
       status: normalizeProsesStatus(item.status),
@@ -1130,7 +1122,7 @@ export function IncomingModule() {
         shelf_life: autoShelf
       };
     });
-    setBarangSearchText(`${b.item_code} - ${b.item_name}`);
+    setBarangSearchText(b.item_name);
     setIsBarangDropdownOpen(false);
   };
 
@@ -2952,15 +2944,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         <Package size={16} />
                       </div>
                       <div className="truncate">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="bg-emerald-100 text-emerald-900 font-mono font-black px-1.5 py-0.5 rounded text-[10px] border border-emerald-300">
-                            {formData.item_code}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-semibold">
-                            {formData.category || 'Finished Good'} • UOM: {formData.uom || 'CTN'}
-                          </span>
-                        </div>
-                        <div className="font-extrabold text-slate-900 text-xs truncate mt-0.5" title={formData.item_name}>
+                        <div className="font-extrabold text-slate-900 text-xs truncate" title={formData.item_name}>
                           {formData.item_name}
                         </div>
                       </div>
@@ -3001,7 +2985,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                             setIsBarangDropdownOpen(false);
                           }
                         }}
-                        placeholder="Ketik kode barang, nama produk, atau barcode..."
+                        placeholder="Ketik nama produk..."
                         className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-8.5 pr-9 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-xs shadow-2xs transition-all"
                       />
                       {barangSearchText && (
@@ -3029,7 +3013,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                         <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px] font-bold text-slate-700">
                           <span className="flex items-center gap-1.5">
                             <Package size={13} className="text-emerald-600" />
-                            Master Data Barang ({filteredBarangList.length} cocok dari {barangList.length} Total)
+                            Nama Produk ({filteredBarangList.length} dari {barangList.length})
                           </span>
                           <div className="flex items-center gap-2">
                             {barangSearchText && (
@@ -3059,29 +3043,11 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                                   type="button"
                                   onMouseDown={e => e.preventDefault()}
                                   onClick={() => handleSelectBarangItem(b)}
-                                  className="w-full text-left p-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between gap-2 text-xs cursor-pointer group"
+                                  className="w-full text-left px-3 py-2.5 hover:bg-emerald-50/70 transition-colors flex items-center justify-between gap-2 text-xs cursor-pointer group"
                                 >
-                                  <div className="truncate">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded text-[10px] border border-blue-200">
-                                        {b.item_code}
-                                      </span>
-                                      {b.barcode && (
-                                        <span className="text-[10px] font-mono text-slate-500">
-                                          Barcode: {b.barcode}
-                                        </span>
-                                      )}
-                                      <span className="text-[10px] text-slate-400">• {b.category || 'Finished Good'}</span>
-                                      {b.uom && (
-                                        <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1 py-0.2 rounded">
-                                          {b.uom}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="font-bold text-slate-800 group-hover:text-emerald-800 truncate mt-1">
-                                      {b.item_name}
-                                    </div>
-                                  </div>
+                                  <span className="font-bold text-slate-800 group-hover:text-emerald-800 truncate">
+                                    {b.item_name}
+                                  </span>
                                   <ChevronRight size={13} className="text-slate-400 group-hover:text-emerald-600 shrink-0" />
                                 </button>
                               ))}
