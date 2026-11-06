@@ -21,6 +21,7 @@ import {
 import { EdCheckerModule } from './components/logistics/EdCheckerModule';
 import { DatabaseMasterModule } from './components/logistics/DatabaseMasterModule';
 import { IncomingModule } from './components/logistics/IncomingModule';
+import { AdmkModule } from './components/logistics/AdmkModule';
 import { PenyiapanModule } from './components/logistics/PenyiapanModule';
 import { PemusnahanModule } from './components/logistics/PemusnahanModule';
 import { InventoryModule } from './components/logistics/InventoryModule';
@@ -47,6 +48,7 @@ export default function App() {
   useEffect(() => {
     const TRANSACTION_CACHE_KEYS = [
       'incoming_cache_v1',
+      'admk_cache_v1',
       'penyiapan_cache_v1',
       'ckb_penyiapan_deleted_ids',
       'inventory_data_cache_v2',
@@ -287,6 +289,8 @@ export default function App() {
                     <DatabaseMasterModule />
                   ) : activeToolId === 'menu-b' ? (
                     <IncomingModule />
+                  ) : activeToolId === 'menu-admk' ? (
+                    <AdmkModule />
                   ) : activeToolId === 'menu-d' ? (
                     <PenyiapanModule 
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')} 

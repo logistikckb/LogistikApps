@@ -67,6 +67,7 @@ DECLARE
         'data_barang',
         'data_distributor',
         'incoming',
+        'admk',
         'data_penyiapan',
         'data_cek_fisik_pemusnahan',
         'data_pemusnahan',

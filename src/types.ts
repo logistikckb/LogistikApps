@@ -101,6 +101,9 @@ export interface IncomingItem {
   updated_at?: string;
 }
 
+// Transaksi ADMK (Supabase table: public.admk - Duplikat 100% dari public.incoming)
+export type AdmkItem = IncomingItem;
+
 // Transaksi Penyiapan Barang Outbound (Supabase table: public.data_penyiapan)
 export interface PenyiapanItem {
   id_penyiapan: string;

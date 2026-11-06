@@ -1,78 +1,100 @@
-# Peningkatan Akurasi Kemiripan Suara (Fuzzy & Phonetic Voice Login)
+# Modul ADMK (Duplikat 100% Modul Kedatangan) & File SQL Editor Khusus `public.admk`
 
-Meningkatkan akurasi pengenalan suara pada form login dengan **3 lapis kecerdasan pencocokan kemiripan (Phonetic Normalization, Fuzzy Matching ke akun terdaftar, dan Parser Angka Bahasa Indonesia Lengkap)** sehingga pengucapan yang sedikit meleset karena kebisingan gudang atau logat bicara tetap otomatis terkoreksi ke Username dan Kode PIN yang tepat.
+Penambahan menu operasional baru bernama **ADMK** yang menduplikasi 100% alur kerja, struktur kode, tampilan antarmuka, serta aturan hak akses (role) dari menu **Kedatangan**, dengan penyimpanan database mandiri pada tabel `public.admk` beserta file skrip SQL khusus untuk dieksekusi di SQL Editor Supabase.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Berikut adalah keputusan peningkatan akurasi yang telah dikonfirmasi dari jawaban Anda:
+> Berikut adalah keputusan teknis yang telah dikonfirmasi dari hasil klarifikasi:
 
-- **Koreksi Otomatis ke Akun Terdaftar Paling Mirip**: Jika ucapan Username terdengar sedikit meleset (seperti *"atmin"*, *"amin"*, *"adnin"* -> **`admin`**, atau *"logistic"*, *"logisti"* -> **`logistik`**), sistem otomatis mencocokkan dan mengoreksinya ke akun terdaftar yang paling mendekati berdasarkan kemiripan huruf (Levenshtein + Fuse) dan kemiripan bunyi fonetik bahasa Indonesia.
-- **Dukungan Ejaan Per Digit & Angka Gabungan (Belasan, Puluhan, Ratusan)**: Mendukung baik pengucapan per digit (*"tiga sembilan sembilan tiga tiga sembilan"*) maupun pengucapan angka gabungan (*"tiga puluh sembilan"*, *"sembilan belas"*, *"tiga ratus sembilan puluh sembilan"*) serta variasi bunyi mirip (homofon seperti *"tuju"* -> `7`, *"lapan"* -> `8`, *"nam"* -> `6`, *"pat"* -> `4`, *"kosong/null"* -> `0`).
-- **Seleksi Multi-Alternatif (`maxAlternatives = 5`)**: Mengaktifkan hingga 5 kandidat transkrip suara dari mesin pengenal suara browser dan memilih kandidat yang menghasilkan kecocokan Username & PIN terbaik dengan data pengguna di sistem.
+- **Tabel Database Mandiri (`public.admk`)**: Seluruh transaksi pada menu ADMK disimpan secara terpisah di tabel `public.admk` dengan struktur kolom, tipe data, indeks, dan trigger yang 100% identik dengan tabel `public.incoming`.
+- **Kesetaraan Role & Struktur Kode 100%**: Tidak ada perbedaan pembatasan role (`requiresAdmin: false`, seluruh pengguna baik Admin maupun Pelaksana memiliki akses yang sama persis seperti pada menu Kedatangan) dan struktur kode komponen ADMK dibuat 100% identik dengan modul Kedatangan.
+- **SQL Editor di File Terpisah (Bukan di UI Aplikasi)**: Skrip SQL lengkap untuk pembuatan tabel `public.admk`, migrasi kolom, indeks, trigger `updated_at`, serta kebijakan RLS disediakan dalam file SQL khusus di repositori (serta diperbarui pada file skema utama) tanpa menambahkan menu SQL Editor baru di antarmuka aplikasi.
+
+---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Memproses hasil rekaman suara melalui mesin normalisasi fonetik bahasa Indonesia, algoritma pencocokan kemiripan kata (Fuzzy/Levenshtein Similarity), dan pengurai angka bahasa Indonesia (satuan, belasan, puluhan, ratusan) sebelum menjalankan auto-login.
-- **Target Audience / Persona**: Staf operasional gudang dan administrator Logistik Cikembar yang menggunakan fitur Login Suara di lingkungan kerja nyata yang mungkin memiliki variasi pelafalan atau kebisingan latar.
-- **Key Value**: Mengurangi kegagalan login akibat salah dengar mesin Speech-to-Text (misalnya huruf `d`/`t`, `k`/`g`, `f`/`p`, atau angka yang digabung menjadi puluhan/belasan oleh browser).
+- **What It Does**: Menyediakan modul operasional **ADMK** yang memiliki fitur pencatatan transaksi realtime, pencarian cepat (termasuk *Speech-to-Text* suara), filter multi-kriteria (Proses `open`/`closedoretur`/`closepg`, Tanggal, Status QC, Jenis), kalkulasi otomatis Shelf Life & Expired Date dari kode Batch, serta batch import/export Excel (.xlsx/.xls/.csv) yang identik 100% dengan modul **Kedatangan**.
+- **Target Audience / Persona**: Seluruh tim operasional gudang dan logistik (baik role `Admin` maupun `Pelaksana`) yang menangani pencatatan dan monitoring transaksi ADMK.
+- **Key Value**: Memisahkan pencatatan transaksi ADMK dari transaksi Kedatangan reguler ke dalam tabel database tersendiri (`public.admk`) tanpa mengubah kebiasaan kerja operator karena antarmuka dan fitur sama persis 100%.
+
+---
 
 ## 2. User Experience & Visual Design
 
 - **Key User Flows**:
-  1. **Ucap Username & PIN**: Pengguna menekan tombol **Login Suara** lalu mengucapkan kredensialnya (misal: *"atmin tiga puluh sembilan sembilan puluh tiga tiga sembilan"* atau *"admin tiga sembilan sembilan tiga tiga sembilan"*).
-  2. **Koreksi Cerdas & Pratinjau**: Sistem otomatis mengoreksi `"atmin"` -> `"admin"` dan `"tiga puluh sembilan..."` -> `"399339"`, menampilkan hasil koreksi di bawah tombol mikrofon (`Terdengar: "..." → Dikoreksi: admin • 6 digit PIN`), lalu langsung memverifikasi login.
-  3. **Pencocokan Berlapis saat Verifikasi**: Jika terdapat beberapa kandidat transkrip dari browser, sistem memprioritaskan kandidat yang cocok dengan pasangan Username dan PIN di database sehingga login berhasil dalam sekali ucap.
+  1. **Navigasi Menu Utama**: Pengguna melihat kartu menu **ADMK** pada grid *Menu Operasional* di halaman utama (sejajar dengan menu Kedatangan dan modul aktif lainnya, tanpa pembatasan khusus Admin).
+  2. **Tabel & Filter Realtime**: Saat membuka menu ADMK, pengguna disajikan daftar transaksi dari tabel `public.admk` dengan filter default `Proses: open`, pencarian teks/suara, filter Tanggal, Status QC, dan Jenis, serta pengurutan kolom dan paginasi (`50` baris atau `Semua Data`).
+  3. **Input & Edit Transaksi**: Pengguna dapat menambah atau mengedit transaksi dengan *autocomplete* Master Barang dan Master Distributor, kalkulasi otomatis tanggal kedaluwarsa (ED) & masa simpan dari nomor batch, serta pengubahan cepat (*quick toggle*) status proses (`open`, `closedoretur`, `closepg`) dan pengisian `matdoc` / `note` langsung dari tabel.
+  4. **Batch Excel & Sinkronisasi Cloud**: Pengguna dapat mengunduh template Excel standar, mengunggah ribuan baris sekaligus dari Excel, mengekspor data terfilter ke Excel, dan menyinkronkan data secara *real-time* antar-perangkat melalui Supabase.
 - **Visual Identity & Theme**:
-  - *Aesthetic Direction*: Tetap mempertahankan tombol mikrofon ringkas di bawah kolom PIN dengan tambahan indikator teks kecil yang menampilkan hasil koreksi kemiripan secara transparan.
-  - *Color Palette & Mood*: Konsisten menggunakan warna netral `slate` saat siaga, `rose` saat mendengarkan, dan `emerald` saat kredensial berhasil dikenali.
-  - *Typography & Hierarchy*: Teks pratinjau transkrip dan hasil koreksi berukuran ringkas (`text-[11px]`) di bawah tombol mikrofon tanpa mengubah tinggi kartu login.
-- **Interactive Feedback & Motion**:
-  - Tetap dilengkapi **Suara Balasan Otomatis (TTS Bahasa Indonesia)** yang memberi tahu pengguna secara lisan apabila Username/PIN masih keliru atau saat login berhasil.
+  - *Aesthetic Direction*: Utilitarian SaaS Logistik berdensitas tinggi (*High-Density Data Grid*) yang bersih, konsisten 100% dengan modul Kedatangan.
+  - *Color Palette & Mood*: Kanvas netral terang (`bg-slate-50`, permukaan kartu `bg-white` dengan border halus `border-slate-200/90`), aksen utama hijau zamrud (`bg-emerald-600`, `text-emerald-700`) dan biru tua (`bg-blue-900`) untuk aksi utama serta indikator status semantik (`amber` untuk *open*, `orange` untuk *closedoretur*, `emerald` untuk *closepg*).
+  - *Typography & Hierarchy*: Sans-serif fungsional yang tajam untuk label dan navigasi, dipadukan dengan font *monospace tabular* (`font-mono tabular-nums`) untuk kode SKU, nomor batch, kuantitas fisik, dan tanggal kedaluwarsa.
+  - *Component Styling & Layout*: Kontainer maksimal `1440px` dengan satu tingkat elevasi kartu, toolbar aksi responsif, dan tabel *scrollable* dengan *sticky header*.
+- **Interactive Feedback & Motion**: Indikator pemuatan (*spinner* sinkronisasi), umpan balik mikrofon *Speech-to-Text* secara langsung, notifikasi *toast* saat simpan/hapus/impor berhasil, serta pembaruan instan (*optimistic & realtime subscription*) ketika ada perubahan data di tabel `public.admk`.
+
+---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Normalisasi Fonetik Bahasa Indonesia + Skor Kemiripan Levenshtein**
-  - *Chosen Approach*: Menyetarakan huruf yang sering tertukar saat diucapkan dalam bahasa Indonesia (`d`/`t`, `b`/`p`, `g`/`k`, `v`/`f`, `z`/`s`, `j`/`c`, serta penghilangan huruf ganda) lalu menghitung persentase kemiripan dengan setiap `username` dan `nama` di `usersList`.
-  - *Why*: Mesin pengenal suara sering menangkap konsonan akhir atau tengah yang mirip bunyinya (contoh: `"atmin"` vs `"admin"`, `"pelaksana"` vs `"plaksana"`).
-- **Decision 2: Parser Kata Bilangan Bahasa Indonesia Lengkap (Satuan, Belasan, Puluhan, Ratusan + Homofon)**
-  - *Chosen Approach*: Mengonversi rangkaian kata angka seperti `"sepuluh"` (`10`), `"sebelas"` (`11`), `"dua belas"` (`12`), `"dua puluh lima"` (`25`), `"tiga ratus"` (`300`), serta kata mirip bunyi (`"sato"`/`"atu"` -> `1`, `"duwa"`/`"tua"` -> `2`, `"tika"`/`"tega"` -> `3`, `"pat"`/`"ampat"` -> `4`, `"limo"` -> `5`, `"nam"`/`"nem"` -> `6`, `"tuju"` -> `7`, `"lapan"` -> `8`, `"semilan"`/`"milan"` -> `9`, `"osong"`/`"null"` -> `0`).
-  - *Why*: Pengguna bisa mengucapkan PIN baik digit demi digit maupun per dua/tiga angka sekaligus secara alami.
+- **Decision 1: Duplikasi Komponen Secara Mandiri (100% Identik dengan Kedatangan)**
+  - *Chosen Approach*: Membangun modul ADMK dengan struktur logika, *state*, *hooks*, *handler*, dan elemen JSX yang 100% identik dengan modul Kedatangan, hanya mengarahkan target tabel Supabase dan *channel* realtime ke `public.admk`.
+  - *Why*: Menjamin tidak ada perbedaan perilaku, validasi, struktur kolom Excel, maupun pembatasan role antara menu Kedatangan dan menu ADMK sesuai instruksi pengguna.
+  - *Alternatives Considered*: Menggunakan satu tabel yang sama dengan filter kategori (ditolak karena pengguna mengonfirmasi penggunaan tabel terpisah `public.admk`).
+- **Decision 2: Penyediaan SQL Editor Script di File Khusus (Di Luar Aplikasi)**
+  - *Chosen Approach*: Menyediakan file skrip SQL khusus yang siap disalin dan dijalankan langsung pada SQL Editor Supabase untuk membangun tabel `public.admk`, indeks pencarian, *trigger* `updated_at`, serta kebijakan *Row-Level Security (RLS)*.
+  - *Why*: Sesuai keputusan pengguna agar SQL Editor khusus tabel database menu ADMK dibuat di dalam file tersendiri dan tidak ditambahkan sebagai menu/editor baru di dalam aplikasi.
+
+---
 
 ## 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
 - **Architecture & Component Diagram**:
+
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                       SpeechRecognition (id-ID)                        │
-│                 (Mengambil hingga 5 Kandidat Alternatif)               │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│               Indonesian Voice Credential Smart Matcher                │
-│                                                                        │
-│  1. Phonetic & Number Tokenizer                                        │
-│     • Homofon Angka ("tuju"->7, "lapan"->8, "pat"->4, "nam"->6, dll.)  │
-│     • Komposisi Belasan/Puluhan/Ratusan ("tiga puluh sembilan" -> 39)  │
-│                                                                        │
-│  2. Fuzzy & Phonetic Username Resolver                                 │
-│     • Normalisasi Fonetik Konsonan (d≈t, k≈g, p≈b, f≈v)                │
-│     • Skor Kemiripan Levenshtein & Substring ke daftar `usersList`     │
-│     • Pilih Akun Terdaftar Paling Mirip                                │
-│                                                                        │
-│  3. Multi-Alternative Best Candidate Selector                          │
-│     • Evaluasi semua kandidat alternatif transkrip                     │
-│     • Prioritaskan kandidat yang cocok dengan User + PIN valid         │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│              Auto-Submit Login & Suara Balasan (TTS id-ID)             │
-└────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                        PORTAL LOGISTIK CIKEMBAR (App)                      │
+├────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                       ToolsGridMenu (Navigasi)                       │  │
+│  │   [Cek ED]  [Database Master]  [Kedatangan]  [ADMK]  [Penyiapan]...  │  │
+│  └──────────────────────────┬──────────────────────┬────────────────────┘  │
+│                             │                      │                       │
+│                             ▼                      ▼                       │
+│             ┌───────────────────────┐  ┌───────────────────────┐           │
+│             │    IncomingModule     │  │      AdmkModule       │           │
+│             │   (100% Identical)    │  │   (100% Identical)    │           │
+│             └───────────┬───────────┘  └───────────┬───────────┘           │
+│                         │                          │                       │
+│     ┌───────────────────┼──────────────────────────┼───────────────────┐   │
+│     │                   ▼                          ▼                   │   │
+│     │        ┌─────────────────────┐    ┌─────────────────────┐        │   │
+│     │        │  Supabase Realtime  │    │  Supabase Realtime  │        │   │
+│     │        │   & CRUD Client     │    │   & CRUD Client     │        │   │
+│     │        │  (public.incoming)  │    │    (public.admk)    │        │   │
+│     │        └─────────────────────┘    └─────────────────────┘        │   │
+│     │                                                                  │   │
+│     │        ┌────────────────────────────────────────────────┐        │   │
+│     └───────►│      Shared In-Memory Master Data Cache        │◄───────┘   │
+│              │  (public.data_barang & public.data_distributor)│            │
+│              └────────────────────────────────────────────────┘            │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Data Model & State**:
-  - `HOMOPHONE_DIGIT_MAP`: Peta kata bilangan dan kata mirip bunyi ke nilai numerik `0–9`.
-  - `parseIndonesianNumberTokens(tokens)`: Fungsi pengurai deretan kata angka satuan, `belas`, `puluh`, dan `ratus` menjadi string digit PIN yang presisi.
-  - `findBestMatchingUser(spokenWord, usersList)`: Fungsi pencari akun terdaftar paling mirip menggunakan kombinasi skor karakter dan kemiripan fonetik.
+  - **Tabel `public.admk`**: Memiliki struktur kolom yang 100% sama dengan `public.incoming`:
+    - `id_incoming` (VARCHAR(100) PRIMARY KEY — dipertahankan agar struktur kode & payload 100% identik dengan modul Kedatangan)
+    - `jenis`, `id_distributor`, `distributor`, `item_code`, `item_name`, `category`, `location`, `location_type`
+    - `first_qty`, `last_qty`, `uom`, `qty_convert`, `uom_convert`
+    - `lpn_serial_number`, `batch`, `vendor_batch`, `sloc`, `expired_date`, `destination_code`
+    - `qc_code`, `user_tally`, `shelf_life`, `source`, `user_input`, `tanggal_update`
+    - `status` (`open` / `closedoretur` / `closepg`), `tujuan` (`matdoc`), `note`
+    - `created_at`, `updated_at`
+  - **Master Data Cache**: Menggunakan *shared cache* `data_barang` dan `data_distributor` yang sama dengan modul Kedatangan untuk pencarian produk dan distributor 0ms.
 - **Interactive Component & State Mapping**:
-  - Saat pengguna berbicara, seluruh alternatif transkrip dari `event.results` dievaluasi oleh `selectBestVoiceCredential()`, menampilkan hasil koreksi terbaik langsung di kolom input Username & PIN, dan mengeksekusi login otomatis saat pengucapan selesai.
+  - **Pencarian & Filter**: State `searchQuery`, `prosesFilter` (default `'open'`), `dateFilter`, `qcFilter`, `jenisFilter`, serta pengurutan `sortField` / `sortOrder` memfilter daftar transaksi secara reaktif.
+  - **Inline Table Actions**: Dropdown *Proses* (`handleQuickStatusChange`), input inline *No. Dokumen (matdoc)* (`handleQuickTujuanChange`), dan input inline *Note* (`handleQuickNoteChange`) langsung memperbarui state dan melakukan `update` ke tabel `public.admk`.
+  - **Modal Transaksi & Excel**: Modal tambah/edit transaksi (`showFormModal`), detail transaksi (`showDetailModal`), konfirmasi hapus (`showDeleteModal`), dan batch import Excel (`showExcelModal`) bekerja dengan validasi dan kalkulasi SLED/DOY yang sama persis.
+  - **Skrip SQL Database**: File SQL khusus berisi perintah DDL `CREATE TABLE IF NOT EXISTS public.admk`, `ALTER TABLE`, `CREATE INDEX`, `CREATE TRIGGER`, serta konfigurasi `ENABLE ROW LEVEL SECURITY` dan `CREATE POLICY` untuk `anon` dan `authenticated`.

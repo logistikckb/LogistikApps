@@ -14,6 +14,7 @@ export type ToolId =
   | 'ed-checker' 
   | 'menu-a' 
   | 'menu-b' 
+  | 'menu-admk'
   | 'menu-d' 
   | 'menu-e'
   | 'menu-g'
@@ -83,6 +84,24 @@ export const TOOLS_LIST: ToolItem[] = [
     colorIcon: 'text-emerald-600',
     plannedFeatures: [
       'Pencatatan Transaksi Kedatangan Barang Realtime',
+      'Upload & Batch Import Excel (.xlsx/.xls/.csv) Cepat',
+      'Download Template Excel Standar & Export Laporan Excel',
+      'Manajemen Status QC (QC-PASS, QC-HOLD, QC-REJECT) & Petugas Tally'
+    ]
+  },
+  {
+    id: 'menu-admk',
+    title: 'ADMK',
+    shortDesc: 'Pencatatan & Manajemen Transaksi ADMK (Inbound/ADMK)',
+    category: 'Inbound & Logistik',
+    icon: Truck,
+    isReady: true,
+    requiresAdmin: false,
+    colorBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200/80',
+    colorBorder: 'border-emerald-200',
+    colorIcon: 'text-emerald-600',
+    plannedFeatures: [
+      'Pencatatan Transaksi ADMK Realtime',
       'Upload & Batch Import Excel (.xlsx/.xls/.csv) Cepat',
       'Download Template Excel Standar & Export Laporan Excel',
       'Manajemen Status QC (QC-PASS, QC-HOLD, QC-REJECT) & Petugas Tally'

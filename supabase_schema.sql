@@ -199,6 +199,55 @@ CREATE TRIGGER set_incoming_updated_at
     EXECUTE FUNCTION public.handle_updated_at();
 
 -- ==============================================================================
+-- 5B. TABEL ADMK (Transaksi Inbound ADMK - Duplikat 100% dari public.incoming)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.admk (
+    id_incoming VARCHAR(100) PRIMARY KEY NOT NULL,
+    jenis VARCHAR(100) DEFAULT 'ADMK',
+    id_distributor VARCHAR(50),
+    distributor VARCHAR(255),
+    item_code VARCHAR(100) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Finished Good',
+    location VARCHAR(100) DEFAULT 'WH-A-01',
+    location_type VARCHAR(50) DEFAULT 'Rack',
+    first_qty NUMERIC(12,2) DEFAULT 0,
+    last_qty NUMERIC(12,2) DEFAULT 0,
+    uom VARCHAR(50) DEFAULT 'CTN',
+    qty_convert NUMERIC(12,2) DEFAULT 0,
+    uom_convert VARCHAR(50) DEFAULT 'PCS',
+    lpn_serial_number VARCHAR(100),
+    batch VARCHAR(100),
+    vendor_batch VARCHAR(100),
+    sloc VARCHAR(50) DEFAULT 'SL01',
+    expired_date DATE,
+    destination_code VARCHAR(100) DEFAULT 'DST-01',
+    qc_code VARCHAR(50) DEFAULT 'QC-PASS',
+    user_tally VARCHAR(100) DEFAULT 'Tally 1',
+    shelf_life VARCHAR(50) DEFAULT '24 Bulan',
+    source VARCHAR(100) DEFAULT 'Supplier',
+    user_input VARCHAR(100) DEFAULT 'Admin',
+    tanggal_update TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
+    status VARCHAR(100) DEFAULT 'open',
+    tujuan VARCHAR(255) DEFAULT '-',
+    note VARCHAR(255) DEFAULT '-',
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_admk_item_code ON public.admk(item_code);
+CREATE INDEX IF NOT EXISTS idx_admk_distributor ON public.admk(id_distributor);
+CREATE INDEX IF NOT EXISTS idx_admk_batch ON public.admk(batch);
+CREATE INDEX IF NOT EXISTS idx_admk_status ON public.admk(status);
+CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);
+
+DROP TRIGGER IF EXISTS set_admk_updated_at ON public.admk;
+CREATE TRIGGER set_admk_updated_at
+    BEFORE UPDATE ON public.admk
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+-- ==============================================================================
 -- 6. TABEL DATA_PENYIAPAN (Transaksi Penyiapan Barang Outbound)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.data_penyiapan (
