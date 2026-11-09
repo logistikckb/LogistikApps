@@ -44,7 +44,10 @@ import {
   ExternalLink,
   Send,
   Globe,
-  Settings
+  Settings,
+  CheckSquare,
+  Square,
+  MinusSquare
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 import {
@@ -104,8 +107,13 @@ export function IncomingModule() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showSqlSetupModal, setShowSqlSetupModal] = useState(false);
+
+  // Bulk Selection & Bulk Delete States
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
   // Selected & Form Data
   const [selectedItem, setSelectedItem] = useState<IncomingItem | null>(null);
@@ -1001,10 +1009,6 @@ export function IncomingModule() {
   };
 
   const handleOpenDeleteModal = (item: IncomingItem) => {
-    if (!isSuperAdmin) {
-      showToast('Akses Ditolak', 'Aksi hapus data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
-      return;
-    }
     setSelectedItem(item);
     setShowDeleteModal(true);
   };
@@ -1227,18 +1231,18 @@ export function IncomingModule() {
   };
 
   const handleDeleteItem = async () => {
-    if (!isSuperAdmin) {
-      showToast('Akses Ditolak', 'Aksi hapus data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
-      setShowDeleteModal(false);
-      return;
-    }
-
     if (!selectedItem) return;
 
     const idToDelete = selectedItem.id_incoming;
 
     // Update Local State
     setIncomingList(prev => prev.filter(item => item.id_incoming !== idToDelete));
+    setSelectedIds(prev => {
+      if (!prev.has(idToDelete)) return prev;
+      const next = new Set(prev);
+      next.delete(idToDelete);
+      return next;
+    });
     setShowDeleteModal(false);
     showToast('Terhapus', `Data kedatangan ${idToDelete} berhasil dihapus`, 'info');
 
@@ -1810,6 +1814,149 @@ export function IncomingModule() {
     });
   }, [incomingList, searchQuery, dateFilter, qcFilter, jenisFilter, prosesFilter, sortField, sortOrder, getItemDateFormatted]);
 
+  // =========================================================================
+  // BULK SELECTION & BULK DELETE (HAPUS MASSAL)
+  // =========================================================================
+  const isAllFilteredSelected = useMemo(() => {
+    return filteredIncoming.length > 0 && filteredIncoming.every(item => selectedIds.has(item.id_incoming));
+  }, [filteredIncoming, selectedIds]);
+
+  const isSomeFilteredSelected = useMemo(() => {
+    return filteredIncoming.some(item => selectedIds.has(item.id_incoming)) && !isAllFilteredSelected;
+  }, [filteredIncoming, selectedIds, isAllFilteredSelected]);
+
+  const handleToggleSelectRow = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAll = useCallback(() => {
+    if (isAllFilteredSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredIncoming.forEach(item => next.delete(item.id_incoming));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredIncoming.forEach(item => next.add(item.id_incoming));
+        return next;
+      });
+    }
+  }, [isAllFilteredSelected, filteredIncoming]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const bulkDeleteTargetItems = useMemo(() => {
+    if (selectedIds.size > 0) {
+      return incomingList.filter(item => selectedIds.has(item.id_incoming));
+    }
+    return filteredIncoming;
+  }, [selectedIds, incomingList, filteredIncoming]);
+
+  const selectedSummary = useMemo(() => {
+    const items = incomingList.filter(item => selectedIds.has(item.id_incoming));
+    const totalQty = items.reduce((sum, item) => sum + (Number(item.last_qty) || 0), 0);
+    return {
+      count: items.length,
+      totalQty
+    };
+  }, [incomingList, selectedIds]);
+
+  const handleOpenBulkDeleteModal = () => {
+    if (bulkDeleteTargetItems.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data kedatangan yang dipilih atau terfilter untuk dihapus.', 'warning');
+      return;
+    }
+    setShowBulkDeleteModal(true);
+  };
+
+  const handleBulkDelete = async () => {
+    const targetIds = bulkDeleteTargetItems.map(i => i.id_incoming);
+    if (targetIds.length === 0) {
+      showToast('Data Kosong', 'Tidak ada data kedatangan untuk dihapus.', 'warning');
+      setShowBulkDeleteModal(false);
+      return;
+    }
+
+    setIsDeletingBulk(true);
+    const targetIdSet = new Set(targetIds);
+
+    // 1. Optimistic Local State Update
+    setIncomingList(prev => prev.filter(item => !targetIdSet.has(item.id_incoming)));
+
+    // 2. Supabase Cloud Deletion in chunks
+    let cloudError = false;
+    if (isSupabaseConfigured) {
+      try {
+        const chunkSize = 50;
+        for (let i = 0; i < targetIds.length; i += chunkSize) {
+          const chunk = targetIds.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('incoming')
+            .delete()
+            .in('id_incoming', chunk);
+
+          if (error) {
+            console.error('Error deleting chunk from incoming:', error);
+            cloudError = true;
+          }
+        }
+      } catch (err: any) {
+        console.error('Unexpected error in bulk delete incoming:', err);
+        cloudError = true;
+      }
+    }
+
+    if (cloudError) {
+      showToast('Peringatan', 'Data dihapus dari tabel lokal, namun terjadi kendala saat menghapus sebagian di database cloud.', 'warning');
+    } else {
+      showToast('Hapus Massal Berhasil', `Sebanyak ${targetIds.length} data kedatangan berhasil dihapus permanen dari Tabel & Database!`, 'success');
+    }
+
+    setSelectedIds(new Set());
+    setShowBulkDeleteModal(false);
+    setIsDeletingBulk(false);
+  };
+
+  const handleBulkUpdateProsesStatus = async (newStatus: 'open' | 'closedoretur' | 'closepg') => {
+    if (selectedIds.size === 0) return;
+    const targetIds = Array.from(selectedIds);
+    const targetSet = new Set(targetIds);
+    const nowIso = new Date().toISOString();
+
+    setIncomingList(prev =>
+      prev.map(item => (targetSet.has(item.id_incoming) ? { ...item, status: newStatus, updated_at: nowIso } : item))
+    );
+
+    showToast('Status Massal Diperbarui', `${targetIds.length} data kedatangan diubah menjadi "${newStatus}"`, 'success');
+
+    if (isSupabaseConfigured) {
+      try {
+        const chunkSize = 50;
+        for (let i = 0; i < targetIds.length; i += chunkSize) {
+          const chunk = targetIds.slice(i, i + chunkSize);
+          await supabase
+            .from('incoming')
+            .update({ status: newStatus, updated_at: nowIso })
+            .in('id_incoming', chunk);
+        }
+      } catch (err) {
+        console.error('Error bulk updating status in incoming:', err);
+      }
+    }
+  };
+
   // Statistics KPI
   const stats = useMemo(() => {
     const totalTransactions = incomingList.length;
@@ -2026,6 +2173,20 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               <RefreshCw size={13} className={isRefreshing || isPushing ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
               <span className="hidden sm:inline">{isRefreshing || isPushing ? 'Menyinkronkan...' : 'Sinkron & Refresh'}</span>
             </button>
+
+            {/* Tombol Hapus Massal (Bulk Delete) */}
+            <button
+              type="button"
+              onClick={handleOpenBulkDeleteModal}
+              disabled={filteredIncoming.length === 0 && selectedIds.size === 0}
+              className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+              title="Hapus massal data kedatangan yang dipilih atau seluruh hasil filter saat ini"
+            >
+              <Trash2 size={13} />
+              <span>
+                Hapus Massal {selectedIds.size > 0 ? `(${selectedIds.size})` : filteredIncoming.length > 0 ? `(${filteredIncoming.length})` : ''}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -2130,12 +2291,105 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
       </div>
 
       {/* ========================================================================= */}
+      {/* 2B. CONTEXTUAL BULK ACTION BAR (MUNCUL SAAT ADA BARIS DIPILIH) */}
+      {/* ========================================================================= */}
+      {selectedIds.size > 0 && (
+        <div className="p-2.5 bg-rose-50/95 border border-rose-300 shadow-sm rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs animate-fade-in">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black text-xs shadow-2xs">
+              <CheckSquare size={13} />
+              <span>{selectedIds.size} Baris Dipilih</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-slate-800 font-bold border border-rose-200 text-[11px]">
+              <span>Total Qty Terpilih:</span>
+              <strong className="text-emerald-700 font-mono font-black">{selectedSummary.totalQty.toLocaleString('id-ID')}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+            <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-500 mr-1">Set Proses:</span>
+              <button
+                type="button"
+                onClick={() => handleBulkUpdateProsesStatus('open')}
+                className="px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-mono font-bold text-[10px] cursor-pointer transition-colors"
+              >
+                open
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkUpdateProsesStatus('closedoretur')}
+                className="px-2 py-0.5 rounded bg-orange-600 hover:bg-orange-700 text-white font-mono font-bold text-[10px] cursor-pointer transition-colors"
+              >
+                closedoretur
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkUpdateProsesStatus('closepg')}
+                className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-mono font-bold text-[10px] cursor-pointer transition-colors"
+              >
+                closepg
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenBulkDeleteModal}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Hapus semua baris kedatangan yang dipilih secara permanen"
+            >
+              <Trash2 size={13} />
+              <span>Hapus Terpilih ({selectedIds.size})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs transition-all flex items-center gap-1 cursor-pointer"
+              title="Batalkan semua pilihan baris"
+            >
+              <X size={13} />
+              <span>Batal Pilihan</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* 3. INCOMING TABLE & LIST VIEW */}
       {/* ========================================================================= */}
       <div className="glass-box bg-white/95 border border-slate-200/90 shadow-md rounded-2xl overflow-hidden">
         {/* Table Toolbar */}
         <div className="px-4 py-2.5 bg-slate-50/90 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              disabled={filteredIncoming.length === 0}
+              className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 ${
+                isAllFilteredSelected
+                  ? 'bg-rose-600 border-rose-700 text-white shadow-2xs'
+                  : isSomeFilteredSelected
+                  ? 'bg-rose-100 border-rose-300 text-rose-900 font-black'
+                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+              }`}
+              title={isAllFilteredSelected ? 'Batalkan pilihan semua baris' : 'Pilih semua baris dalam daftar ini'}
+            >
+              {isAllFilteredSelected ? (
+                <CheckSquare size={13} className="text-white" />
+              ) : isSomeFilteredSelected ? (
+                <MinusSquare size={13} className="text-rose-700" />
+              ) : (
+                <Square size={13} className="text-slate-400" />
+              )}
+              <span>
+                {selectedIds.size > 0
+                  ? `${selectedIds.size} Dipilih`
+                  : `Pilih Semua (${filteredIncoming.length})`}
+              </span>
+            </button>
+
+            <span className="text-slate-300 hidden sm:inline">|</span>
             <span className="font-bold text-slate-700">Tampilan Data:</span>
             <div className="inline-flex p-0.5 bg-slate-200/80 rounded-xl">
               <button
@@ -2210,6 +2464,17 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-100/95 text-slate-700 font-black border-b border-slate-200 select-none">
+                  {/* 0. Checkbox Pilih Baris */}
+                  <th className="py-3 px-3 text-center w-9">
+                    <input
+                      type="checkbox"
+                      checked={isAllFilteredSelected}
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer w-3.5 h-3.5"
+                      title={isAllFilteredSelected ? 'Batalkan pilihan semua baris' : 'Pilih semua baris'}
+                    />
+                  </th>
+
                   {/* 1. Jenis */}
                   <th
                     onClick={() => handleSort('jenis')}
@@ -2383,6 +2648,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                   const currentStatus = normalizeProsesStatus(item.status);
                   const isClosePg = currentStatus === 'closepg';
                   const isCloseDoRetur = currentStatus === 'closedoretur';
+                  const isChecked = selectedIds.has(item.id_incoming);
 
                   return (
                     <tr
@@ -2390,13 +2656,26 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                       onClick={() => handleOpenDetailModal(item)}
                       title="Klik baris untuk melihat detail transaksi"
                       className={`cursor-pointer transition-colors ${
-                        isClosePg
+                        isChecked
+                          ? 'bg-rose-50/90 hover:bg-rose-100/80 border-l-4 border-l-rose-500'
+                          : isClosePg
                           ? 'bg-emerald-50/70 hover:bg-emerald-100/90 border-l-4 border-l-emerald-500'
                           : isCloseDoRetur
                           ? 'bg-orange-50/70 hover:bg-orange-100/90 border-l-4 border-l-orange-500'
                           : 'hover:bg-blue-50/70'
                       }`}
                     >
+                      {/* 0. Checkbox Pilih Baris */}
+                      <td className="py-2.5 px-3 text-center" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelectRow(item.id_incoming)}
+                          className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer w-3.5 h-3.5"
+                          title="Pilih baris ini untuk aksi massal"
+                        />
+                      </td>
+
                       {/* 1. Jenis Kedatangan */}
                       <td className="py-2.5 px-3">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -2504,18 +2783,16 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           >
                             <Edit2 size={13} />
                           </button>
-                          {isSuperAdmin && (
-                            <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                handleOpenDeleteModal(item);
-                              }}
-                              className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
-                              title="Hapus Transaksi (Khusus Admin)"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleOpenDeleteModal(item);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Hapus Transaksi"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -3466,22 +3743,33 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               </div>
             </div>
 
-            <div className="p-4 bg-slate-100/80 border-t border-slate-200 flex justify-end gap-2">
+            <div className="p-4 bg-slate-100/80 border-t border-slate-200 flex justify-between items-center gap-2">
               <button
                 onClick={() => {
                   setShowDetailModal(false);
-                  handleOpenEditModal(selectedItem);
+                  handleOpenDeleteModal(selectedItem);
                 }}
-                className="px-4 py-2 rounded-xl bg-blue-900 text-white font-bold text-xs hover:bg-blue-800 cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs hover:bg-rose-100 cursor-pointer flex items-center gap-1.5"
               >
-                <Edit2 size={13} /> Edit Data Ini
+                <Trash2 size={13} /> Hapus Data
               </button>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 cursor-pointer"
-              >
-                Tutup
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    handleOpenEditModal(selectedItem);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-900 text-white font-bold text-xs hover:bg-blue-800 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Edit2 size={13} /> Edit Data Ini
+                </button>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3624,7 +3912,7 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
       , document.body)}
 
       {/* ========================================================================= */}
-      {/* 7. MODAL: DELETE CONFIRMATION */}
+      {/* 7. MODAL: DELETE CONFIRMATION (SINGLE ITEM) */}
       {/* ========================================================================= */}
       {showDeleteModal && selectedItem && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
@@ -3650,6 +3938,92 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                 className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs shadow-md cursor-pointer"
               >
                 Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* ========================================================================= */}
+      {/* 7B. MODAL: BULK DELETE CONFIRMATION (HAPUS MASSAL) */}
+      {/* ========================================================================= */}
+      {showBulkDeleteModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-rose-900 m-0">Hapus Massal Data Kedatangan?</h3>
+                <p className="text-xs text-slate-500 m-0 mt-0.5">
+                  Tindakan ini akan menghapus data secara permanen dari <strong>Tabel & Database Cloud</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-2xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-rose-900 font-bold">Mode Penghapusan:</span>
+                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[10px]">
+                  {selectedIds.size > 0 ? 'Baris Terpilih (Checklist)' : 'Semua Baris Sesuai Filter'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-semibold">Total Baris Dihapus:</span>
+                <span className="font-mono font-black text-rose-700 text-sm">{bulkDeleteTargetItems.length} Baris</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-semibold">Total Qty Barang:</span>
+                <span className="font-mono font-black text-slate-800">
+                  {bulkDeleteTargetItems.reduce((acc, item) => acc + (Number(item.last_qty) || 0), 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+            </div>
+
+            {bulkDeleteTargetItems.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-600">
+                  Ringkasan Data yang Akan Dihapus ({Math.min(5, bulkDeleteTargetItems.length)} dari {bulkDeleteTargetItems.length}):
+                </div>
+                <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-slate-50/70 text-[11px] custom-scrollbar">
+                  {bulkDeleteTargetItems.slice(0, 5).map(item => (
+                    <div key={item.id_incoming} className="px-3 py-1.5 flex items-center justify-between gap-2">
+                      <div className="truncate">
+                        <span className="font-bold text-slate-800">{item.item_name}</span>
+                        <span className="text-[10px] font-mono text-slate-500 ml-1.5">({item.batch || '-'})</span>
+                      </div>
+                      <span className="font-mono font-bold text-rose-700 shrink-0">
+                        {item.last_qty} {item.uom || 'CTN'}
+                      </span>
+                    </div>
+                  ))}
+                  {bulkDeleteTargetItems.length > 5 && (
+                    <div className="px-3 py-1.5 text-center text-[10px] text-slate-500 font-semibold bg-slate-100/60">
+                      ...dan {bulkDeleteTargetItems.length - 5} baris data kedatangan lainnya
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={isDeletingBulk}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={isDeletingBulk}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isDeletingBulk ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span>{isDeletingBulk ? 'Menghapus...' : `Ya, Hapus Massal (${bulkDeleteTargetItems.length} Data)`}</span>
               </button>
             </div>
           </div>
