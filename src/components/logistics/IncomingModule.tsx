@@ -1009,6 +1009,10 @@ export function IncomingModule() {
   };
 
   const handleOpenDeleteModal = (item: IncomingItem) => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
     setSelectedItem(item);
     setShowDeleteModal(true);
   };
@@ -1231,6 +1235,12 @@ export function IncomingModule() {
   };
 
   const handleDeleteItem = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      setShowDeleteModal(false);
+      return;
+    }
+
     if (!selectedItem) return;
 
     const idToDelete = selectedItem.id_incoming;
@@ -1874,6 +1884,10 @@ export function IncomingModule() {
   }, [incomingList, selectedIds]);
 
   const handleOpenBulkDeleteModal = () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus massal data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      return;
+    }
     if (bulkDeleteTargetItems.length === 0) {
       showToast('Data Kosong', 'Tidak ada data kedatangan yang dipilih atau terfilter untuk dihapus.', 'warning');
       return;
@@ -1882,6 +1896,12 @@ export function IncomingModule() {
   };
 
   const handleBulkDelete = async () => {
+    if (!isSuperAdmin) {
+      showToast('Akses Ditolak', 'Aksi hapus massal data kedatangan hanya dapat dilakukan oleh pengguna dengan role Admin!', 'danger');
+      setShowBulkDeleteModal(false);
+      return;
+    }
+
     const targetIds = bulkDeleteTargetItems.map(i => i.id_incoming);
     if (targetIds.length === 0) {
       showToast('Data Kosong', 'Tidak ada data kedatangan untuk dihapus.', 'warning');
@@ -2174,19 +2194,21 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               <span className="hidden sm:inline">{isRefreshing || isPushing ? 'Menyinkronkan...' : 'Sinkron & Refresh'}</span>
             </button>
 
-            {/* Tombol Hapus Massal (Bulk Delete) */}
-            <button
-              type="button"
-              onClick={handleOpenBulkDeleteModal}
-              disabled={filteredIncoming.length === 0 && selectedIds.size === 0}
-              className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
-              title="Hapus massal data kedatangan yang dipilih atau seluruh hasil filter saat ini"
-            >
-              <Trash2 size={13} />
-              <span>
-                Hapus Massal {selectedIds.size > 0 ? `(${selectedIds.size})` : filteredIncoming.length > 0 ? `(${filteredIncoming.length})` : ''}
-              </span>
-            </button>
+            {/* Tombol Hapus Massal (Bulk Delete - Khusus Admin) */}
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={handleOpenBulkDeleteModal}
+                disabled={filteredIncoming.length === 0 && selectedIds.size === 0}
+                className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                title="Hapus massal data kedatangan yang dipilih atau seluruh hasil filter saat ini (Khusus Admin)"
+              >
+                <Trash2 size={13} />
+                <span>
+                  Hapus Massal {selectedIds.size > 0 ? `(${selectedIds.size})` : filteredIncoming.length > 0 ? `(${filteredIncoming.length})` : ''}
+                </span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -2332,15 +2354,17 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleOpenBulkDeleteModal}
-              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Hapus semua baris kedatangan yang dipilih secara permanen"
-            >
-              <Trash2 size={13} />
-              <span>Hapus Terpilih ({selectedIds.size})</span>
-            </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={handleOpenBulkDeleteModal}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Hapus semua baris kedatangan yang dipilih secara permanen (Khusus Admin)"
+              >
+                <Trash2 size={13} />
+                <span>Hapus Terpilih ({selectedIds.size})</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -2783,16 +2807,18 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
                           >
                             <Edit2 size={13} />
                           </button>
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleOpenDeleteModal(item);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
-                            title="Hapus Transaksi"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleOpenDeleteModal(item);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Hapus Transaksi (Khusus Admin)"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -3744,15 +3770,19 @@ CREATE INDEX IF NOT EXISTS idx_incoming_created_at ON public.incoming(created_at
             </div>
 
             <div className="p-4 bg-slate-100/80 border-t border-slate-200 flex justify-between items-center gap-2">
-              <button
-                onClick={() => {
-                  setShowDetailModal(false);
-                  handleOpenDeleteModal(selectedItem);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs hover:bg-rose-100 cursor-pointer flex items-center gap-1.5"
-              >
-                <Trash2 size={13} /> Hapus Data
-              </button>
+              <div>
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      handleOpenDeleteModal(selectedItem);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs hover:bg-rose-100 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 size={13} /> Hapus Data
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
