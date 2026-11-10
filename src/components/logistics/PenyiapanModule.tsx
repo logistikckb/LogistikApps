@@ -70,7 +70,7 @@ import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSetting
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PenyiapanItem, DataBarang } from '../../types';
-import { getEdIsoDateString } from '../../utils/logisticsCalculations';
+import { getEdIsoDateString, matchesRakLocation, isRakSearchQuery } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 // Reusable high-speed Collator for Indonesian text & numeric comparison
@@ -1007,65 +1007,55 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
         return false;
       }
 
-      // Location
-      if (locationFilter && !(item.location || '').toLowerCase().includes(locationFilter.toLowerCase())) {
+      // Location (Akurat dengan matchesRakLocation)
+      if (locationFilter && !matchesRakLocation(item.location, locationFilter)) {
         return false;
       }
 
       return true;
     });
 
-    // 2. Search Query Filtering (Multi-token Substring with Fuse.js Fuzzy Fallback)
+    // 2. Search Query Filtering (Akurat untuk Rak & Multi-token tanpa false positive dari prefix CKB-FG1-)
     const cleanSearch = searchQuery.trim();
     let searchedList = baseList;
 
     if (cleanSearch) {
-      const tokens = cleanSearch.toLowerCase().split(/\s+/).filter(Boolean);
-      
-      // Step A: Try exact multi-token substring match
-      const exactMatches = baseList.filter(item => {
-        const combined = [
-          item.id_penyiapan,
-          item.item_code,
-          item.item_name,
-          item.category,
-          item.location,
-          item.location_type,
-          item.lpn_serial_number,
-          item.batch,
-          item.vendor_batch,
-          item.sloc,
-          item.expired_date,
-          item.destination_code,
-          item.qc_code,
-          item.user_tally,
-          item.shelf_life,
-          item.source,
-          item.status,
-          item.tujuan
-        ].filter(Boolean).join(' ').toLowerCase();
-
-        return tokens.every(token => combined.includes(token));
-      });
-
-      if (exactMatches.length > 0) {
-        searchedList = exactMatches;
+      const q = cleanSearch.toLowerCase();
+      if (isRakSearchQuery(cleanSearch)) {
+        searchedList = baseList.filter(item =>
+          matchesRakLocation(item.location, cleanSearch) ||
+          (item.id_penyiapan || '').toLowerCase().includes(q) ||
+          (item.item_code || '').toLowerCase().includes(q) ||
+          (item.batch || '').toLowerCase().includes(q) ||
+          (item.lpn_serial_number || '').toLowerCase().includes(q)
+        );
       } else {
-        // Step B: Fuse.js Fuzzy Search fallback (handles voice recognition typos/accents)
-        const fuse = new Fuse(baseList, {
-          threshold: 0.38,
-          ignoreLocation: true,
-          keys: [
-            { name: 'item_name', weight: 0.4 },
-            { name: 'item_code', weight: 0.25 },
-            { name: 'location', weight: 0.15 },
-            { name: 'batch', weight: 0.1 },
-            { name: 'lpn_serial_number', weight: 0.05 },
-            { name: 'user_tally', weight: 0.05 }
-          ]
+        const tokens = q.split(/\s+/).filter(Boolean);
+        searchedList = baseList.filter(item => {
+          const combinedNonLocation = [
+            item.id_penyiapan,
+            item.item_code,
+            item.item_name,
+            item.category,
+            item.location_type,
+            item.lpn_serial_number,
+            item.batch,
+            item.vendor_batch,
+            item.sloc,
+            item.expired_date,
+            item.destination_code,
+            item.qc_code,
+            item.user_tally,
+            item.shelf_life,
+            item.source,
+            item.status,
+            item.tujuan
+          ].filter(Boolean).join(' ').toLowerCase();
+
+          return tokens.every(token =>
+            combinedNonLocation.includes(token) || matchesRakLocation(item.location, token)
+          );
         });
-        const results = fuse.search(cleanSearch);
-        searchedList = results.map(r => r.item);
       }
     }
 
@@ -1254,7 +1244,7 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
       if (!rowLoc || rowLoc === '-') return false;
 
       if (filterLoc) {
-        return rowLoc.includes(filterLoc.toLowerCase());
+        return matchesRakLocation(item.location, filterLoc);
       }
       return rowLoc === activeLocLower;
     });

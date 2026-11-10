@@ -65,7 +65,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { IncomingItem, DataBarang, DataDistributor } from '../../types';
-import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, normalizeToIsoDate } from '../../utils/logisticsCalculations';
+import { edComputeExpiredRow, getEdIsoDateString, EdComputeResult, formatRakLocation, matchesRakLocation, isRakSearchQuery, normalizeToIsoDate } from '../../utils/logisticsCalculations';
 
 // Helper function to normalize proses / status to 'open' | 'closedoretur' | 'closepg'
 export const normalizeProsesStatus = (status?: string): 'open' | 'closedoretur' | 'closepg' => {
@@ -92,6 +92,9 @@ export function AdmkModule() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
+  const [rakFilter, setRakFilter] = useState<string>('');
+  const [isRakDropdownOpen, setIsRakDropdownOpen] = useState(false);
+  const rakDropdownRef = useRef<HTMLDivElement>(null);
   const [dateFilter, setDateFilter] = useState<string>('ALL');
   const [qcFilter, setQcFilter] = useState<string>('ALL');
   const [jenisFilter, setJenisFilter] = useState<string>('ALL');
@@ -126,335 +129,16 @@ export function AdmkModule() {
   const [barangSearchText, setBarangSearchText] = useState('');
   const [isBarangDropdownOpen, setIsBarangDropdownOpen] = useState(false);
 
-  // Speech-to-Text Voice Recognition States
-  const [isListeningDistributor, setIsListeningDistributor] = useState(false);
-  const [speechFeedbackDistributor, setSpeechFeedbackDistributor] = useState<string | null>(null);
-  const distributorRecognitionRef = useRef<any>(null);
-
-  const [isListeningBatch, setIsListeningBatch] = useState(false);
-  const [speechFeedbackBatch, setSpeechFeedbackBatch] = useState<string | null>(null);
-  const batchRecognitionRef = useRef<any>(null);
-
-  const [isListeningSearch, setIsListeningSearch] = useState(false);
-  const [speechFeedbackSearch, setSpeechFeedbackSearch] = useState<string | null>(null);
-  const searchRecognitionRef = useRef<any>(null);
-
-  // Check if browser supports Web Speech API
-  const isSpeechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
-
-  // Cleanup speech recognition on unmount
+  // Click outside listener for Rak filter dropdown
   useEffect(() => {
-    return () => {
-      if (distributorRecognitionRef.current) {
-        try {
-          distributorRecognitionRef.current.abort();
-        } catch {}
-      }
-      if (batchRecognitionRef.current) {
-        try {
-          batchRecognitionRef.current.abort();
-        } catch {}
-      }
-      if (searchRecognitionRef.current) {
-        try {
-          searchRecognitionRef.current.abort();
-        } catch {}
+    const handleClickOutside = (e: MouseEvent) => {
+      if (rakDropdownRef.current && !rakDropdownRef.current.contains(e.target as Node)) {
+        setIsRakDropdownOpen(false);
       }
     };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Voice handler for Distributor Search in Form
-  const toggleSpeechToTextDistributor = useCallback(() => {
-    if (!isSpeechSupported) {
-      showToast(
-        'Fitur Tidak Didukung',
-        'Browser Anda belum mendukung Web Speech Recognition. Gunakan browser modern seperti Chrome atau Microsoft Edge.',
-        'warning'
-      );
-      return;
-    }
-
-    if (isListeningDistributor) {
-      if (distributorRecognitionRef.current) {
-        try {
-          distributorRecognitionRef.current.stop();
-        } catch {}
-      }
-      setIsListeningDistributor(false);
-      setSpeechFeedbackDistributor(null);
-      return;
-    }
-
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 3;
-
-      recognition.onstart = () => {
-        setIsListeningDistributor(true);
-        setIsDistributorDropdownOpen(true);
-        setSpeechFeedbackDistributor('Mendengarkan suara... Sebutkan nama distributor atau kode LD');
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        const spoken = (finalTranscript || interimTranscript).trim();
-        if (spoken) {
-          setDistributorSearchText(spoken);
-          setIsDistributorDropdownOpen(true);
-          setSpeechFeedbackDistributor(`Terdeteksi: "${spoken}"`);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error on distributor:', event.error);
-        setIsListeningDistributor(false);
-        if (event.error === 'not-allowed') {
-          showToast(
-            'Izin Mikrofon Diperlukan',
-            'Izinkan akses mikrofon di browser untuk menggunakan fitur suara.',
-            'danger'
-          );
-        } else if (event.error === 'no-speech') {
-          setSpeechFeedbackDistributor('Tidak ada suara terdeteksi. Silakan coba klik mikrofon lagi.');
-          setTimeout(() => setSpeechFeedbackDistributor(null), 2500);
-        } else {
-          showToast('Info Mikrofon', `Status suara: ${event.error}`, 'info');
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListeningDistributor(false);
-        setTimeout(() => {
-          setSpeechFeedbackDistributor(null);
-        }, 3000);
-      };
-
-      distributorRecognitionRef.current = recognition;
-      recognition.start();
-    } catch (err: any) {
-      console.error('Failed to start speech recognition on distributor:', err);
-      setIsListeningDistributor(false);
-      showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
-    }
-  }, [isSpeechSupported, isListeningDistributor, showToast]);
-
-  // Voice handler for Batch Input in Form
-  const toggleSpeechToTextBatch = useCallback(() => {
-    if (!isSpeechSupported) {
-      showToast(
-        'Fitur Tidak Didukung',
-        'Browser Anda belum mendukung Web Speech Recognition. Gunakan browser modern seperti Chrome atau Microsoft Edge.',
-        'warning'
-      );
-      return;
-    }
-
-    if (isListeningBatch) {
-      if (batchRecognitionRef.current) {
-        try {
-          batchRecognitionRef.current.stop();
-        } catch {}
-      }
-      setIsListeningBatch(false);
-      setSpeechFeedbackBatch(null);
-      return;
-    }
-
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 3;
-
-      recognition.onstart = () => {
-        setIsListeningBatch(true);
-        setSpeechFeedbackBatch('Mendengarkan suara... Sebutkan nomor batch');
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        const rawSpoken = (finalTranscript || interimTranscript).trim();
-        if (rawSpoken) {
-          let cleanBatch = rawSpoken
-            .replace(/\bkosong\b/gi, '0')
-            .replace(/\bnol\b/gi, '0')
-            .replace(/\bsatu\b/gi, '1')
-            .replace(/\bdua\b/gi, '2')
-            .replace(/\btiga\b/gi, '3')
-            .replace(/\bempat\b/gi, '4')
-            .replace(/\blima\b/gi, '5')
-            .replace(/\benam\b/gi, '6')
-            .replace(/\btujuh\b/gi, '7')
-            .replace(/\bdelapan\b/gi, '8')
-            .replace(/\bsembilan\b/gi, '9')
-            .replace(/\s+/g, '')
-            .toUpperCase();
-
-          setSpeechFeedbackBatch(`Terdeteksi: "${cleanBatch}"`);
-
-          setFormData(prev => {
-            const currentItemName = prev.item_name || barangSearchText || '';
-            const currentItemCode = prev.item_code || '';
-            
-            let nextEd = prev.expired_date;
-            let nextShelfLife = prev.shelf_life;
-            
-            if (cleanBatch.trim() && currentItemName.trim()) {
-              const comp = getEdIsoDateString(currentItemCode, currentItemName, cleanBatch.trim());
-              if (comp && comp.isoDate) {
-                nextEd = comp.isoDate;
-                nextShelfLife = comp.result.sledEd?.getFullYear() === 9999 ? 'Non-Expired' : `${comp.result.lamaEdTahun * 12} Bulan`;
-              }
-            }
-            
-            return {
-              ...prev,
-              batch: cleanBatch,
-              vendor_batch: cleanBatch,
-              expired_date: nextEd,
-              shelf_life: nextShelfLife
-            };
-          });
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error on batch:', event.error);
-        setIsListeningBatch(false);
-        if (event.error === 'not-allowed') {
-          showToast(
-            'Izin Mikrofon Diperlukan',
-            'Izinkan akses mikrofon di browser untuk menggunakan fitur suara.',
-            'danger'
-          );
-        } else if (event.error === 'no-speech') {
-          setSpeechFeedbackBatch('Tidak ada suara terdeteksi. Silakan coba klik mikrofon lagi.');
-          setTimeout(() => setSpeechFeedbackBatch(null), 2500);
-        } else {
-          showToast('Info Mikrofon', `Status suara: ${event.error}`, 'info');
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListeningBatch(false);
-        setTimeout(() => {
-          setSpeechFeedbackBatch(null);
-        }, 3000);
-      };
-
-      batchRecognitionRef.current = recognition;
-      recognition.start();
-    } catch (err: any) {
-      console.error('Failed to start speech recognition on batch:', err);
-      setIsListeningBatch(false);
-      showToast('Gagal Memulai Suara', 'Tidak dapat mengaktifkan mikrofon.', 'danger');
-    }
-  }, [isSpeechSupported, isListeningBatch, barangSearchText, showToast]);
-
-  // Voice handler for Main Table Search
-  const toggleSpeechToTextSearch = useCallback(() => {
-    if (!isSpeechSupported) {
-      showToast(
-        'Fitur Tidak Didukung',
-        'Browser ini belum mendukung Web Speech Recognition. Gunakan Chrome atau browser modern.',
-        'warning'
-      );
-      return;
-    }
-
-    if (isListeningSearch) {
-      if (searchRecognitionRef.current) {
-        try {
-          searchRecognitionRef.current.stop();
-        } catch {}
-      }
-      setIsListeningSearch(false);
-      setSpeechFeedbackSearch(null);
-      return;
-    }
-
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-
-      recognition.onstart = () => {
-        setIsListeningSearch(true);
-        setSpeechFeedbackSearch('Mendengarkan... Sebutkan kata kunci pencarian');
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        const spoken = (finalTranscript || interimTranscript).trim();
-        if (spoken) {
-          setSearchQuery(spoken);
-          setCurrentPage(1);
-          setSpeechFeedbackSearch(`Mencari: "${spoken}"`);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech search error:', event.error);
-        setIsListeningSearch(false);
-        if (event.error === 'not-allowed') {
-          showToast('Izin Mikrofon Ditolak', 'Izinkan akses mikrofon pada browser Anda.', 'danger');
-        }
-        setSpeechFeedbackSearch(null);
-      };
-
-      recognition.onend = () => {
-        setIsListeningSearch(false);
-        setTimeout(() => setSpeechFeedbackSearch(null), 3000);
-      };
-
-      searchRecognitionRef.current = recognition;
-      recognition.start();
-    } catch (err: any) {
-      console.error('Failed to start speech search:', err);
-      setIsListeningSearch(false);
-    }
-  }, [isSpeechSupported, isListeningSearch, showToast]);
 
   // Multi-token intelligent filtered master lists with Fuse.js Fuzzy Search fallback
   const filteredDistributors = useMemo(() => {
@@ -591,6 +275,22 @@ export function AdmkModule() {
     }
     return Array.from(jenisSet).sort();
   }, [incomingList]);
+
+  const uniqueRaks = useMemo(() => {
+    const rakSet = new Set<string>();
+    incomingList.forEach(item => {
+      const loc = item.location?.trim();
+      if (loc && loc !== '-') {
+        rakSet.add(loc);
+      }
+    });
+    return Array.from(rakSet).sort((a, b) => a.localeCompare(b, 'id-ID', { numeric: true, sensitivity: 'base' }));
+  }, [incomingList]);
+
+  const filteredRakSuggestions = useMemo(() => {
+    if (!rakFilter.trim()) return uniqueRaks;
+    return uniqueRaks.filter(loc => matchesRakLocation(loc, rakFilter));
+  }, [uniqueRaks, rakFilter]);
 
   // Excel Import States
   const [parsedExcelRows, setParsedExcelRows] = useState<IncomingItem[]>([]);
@@ -1717,15 +1417,20 @@ export function AdmkModule() {
   };
 
   // =========================================================================
-  // FILTERING, SORTING & STATS (with Fuse.js Fuzzy Matching)
+  // FILTERING, SORTING & STATS
   // =========================================================================
   const filteredIncoming = useMemo(() => {
-    // 1. Base filter by Date, QC, Jenis, and Status Proses
+    // 1. Base filter by Date, QC, Jenis, Rak, and Status Proses
     const baseList = incomingList.filter(item => {
       // Tanggal Input filter
       if (dateFilter !== 'ALL') {
         const itemDate = getItemDateFormatted(item);
         if (itemDate !== dateFilter) return false;
+      }
+
+      // Rak / Lokasi filter
+      if (rakFilter.trim()) {
+        if (!matchesRakLocation(item.location, rakFilter)) return false;
       }
 
       // QC filter
@@ -1761,47 +1466,41 @@ export function AdmkModule() {
       return true;
     });
 
-    // 2. Search Query Filtering with Fuse.js fallback
+    // 2. Search Query Filtering (Akurat untuk Rak & Multi-token tanpa false positive)
     const cleanSearch = searchQuery.trim();
     let searchedList = baseList;
 
     if (cleanSearch) {
       const q = cleanSearch.toLowerCase();
-      const directMatches = baseList.filter(item => {
-        return (
+      const queryLooksLikeRak = isRakSearchQuery(cleanSearch);
+
+      if (queryLooksLikeRak) {
+        // Jika kata kunci berbentuk kode rak (cth: CKB-FG1-AE-22-1A, AE-22-1A, ae221a, AE-22),
+        // filter secara presisi menggunakan pencocokan rak atau kecocokan persis di kolom lain
+        searchedList = baseList.filter(item =>
+          matchesRakLocation(item.location, cleanSearch) ||
           item.id_incoming.toLowerCase().includes(q) ||
           item.item_code.toLowerCase().includes(q) ||
-          item.item_name.toLowerCase().includes(q) ||
-          (item.distributor && item.distributor.toLowerCase().includes(q)) ||
-          (item.id_distributor && item.id_distributor.toLowerCase().includes(q)) ||
           (item.batch && item.batch.toLowerCase().includes(q)) ||
-          (item.location && item.location.toLowerCase().includes(q)) ||
-          (item.tujuan && item.tujuan.toLowerCase().includes(q)) ||
-          (item.note && item.note.toLowerCase().includes(q)) ||
-          (item.user_tally && item.user_tally.toLowerCase().includes(q)) ||
           (item.lpn_serial_number && item.lpn_serial_number.toLowerCase().includes(q))
         );
-      });
-
-      if (directMatches.length > 0) {
-        searchedList = directMatches;
       } else {
-        // Fuse.js fuzzy fallback
-        const fuse = new Fuse(baseList, {
-          threshold: 0.38,
-          ignoreLocation: true,
-          keys: [
-            { name: 'item_name', weight: 0.35 },
-            { name: 'item_code', weight: 0.2 },
-            { name: 'tujuan', weight: 0.15 },
-            { name: 'distributor', weight: 0.1 },
-            { name: 'location', weight: 0.05 },
-            { name: 'batch', weight: 0.05 },
-            { name: 'note', weight: 0.05 },
-            { name: 'user_tally', weight: 0.05 }
-          ]
+        const tokens = q.split(/\s+/).filter(Boolean);
+        searchedList = baseList.filter(item => {
+          return tokens.every(token =>
+            item.id_incoming.toLowerCase().includes(token) ||
+            item.item_code.toLowerCase().includes(token) ||
+            item.item_name.toLowerCase().includes(token) ||
+            (item.distributor && item.distributor.toLowerCase().includes(token)) ||
+            (item.id_distributor && item.id_distributor.toLowerCase().includes(token)) ||
+            (item.batch && item.batch.toLowerCase().includes(token)) ||
+            matchesRakLocation(item.location, token) ||
+            (item.tujuan && item.tujuan.toLowerCase().includes(token)) ||
+            (item.note && item.note.toLowerCase().includes(token)) ||
+            (item.user_tally && item.user_tally.toLowerCase().includes(token)) ||
+            (item.lpn_serial_number && item.lpn_serial_number.toLowerCase().includes(token))
+          );
         });
-        searchedList = fuse.search(cleanSearch).map(r => r.item);
       }
     }
 
@@ -1820,7 +1519,7 @@ export function AdmkModule() {
       if (strA > strB) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [incomingList, searchQuery, dateFilter, qcFilter, jenisFilter, prosesFilter, sortField, sortOrder, getItemDateFormatted]);
+  }, [incomingList, searchQuery, rakFilter, dateFilter, qcFilter, jenisFilter, prosesFilter, sortField, sortOrder, getItemDateFormatted]);
 
   // =========================================================================
   // BULK SELECTION & BULK DELETE (HAPUS MASSAL)
@@ -2096,45 +1795,113 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
       {/* ========================================================================= */}
       <div className="glass-box p-2 sm:p-2.5 bg-white/90 border border-slate-200/90 shadow-2xs rounded-xl space-y-1.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-1.5 flex-wrap">
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Cari ID Incoming, Item Code, Nama Barang, Batch, Distributor, Tally..."
-              className={`w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-800 text-xs pl-8 pr-16 py-1.5 rounded-lg border focus:ring-2 outline-none transition-all shadow-2xs ${
-                isListeningSearch
-                  ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
-                  : 'border-slate-300/80 focus:border-blue-500 focus:ring-blue-100'
-              }`}
-            />
-            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {/* Search Box & Rak Search */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 flex-1 min-w-[240px]">
+            {/* Main Search Box (Tanpa Pencarian Suara) */}
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Cari Produk, SKU, Batch, Distributor, Rak (cth: AE-22-1A / ae221a)..."
+                className="w-full bg-slate-50 hover:bg-white focus:bg-white text-slate-800 text-xs pl-8 pr-8 py-1.5 rounded-lg border border-slate-300/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-2xs"
+              />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 cursor-pointer"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 cursor-pointer"
                   title="Hapus pencarian"
                 >
                   <X size={12} />
                 </button>
               )}
-              <button
-                type="button"
-                onClick={toggleSpeechToTextSearch}
-                className={`p-1 rounded-md transition-all cursor-pointer ${
-                  isListeningSearch
-                    ? 'bg-rose-500 text-white shadow-xs animate-pulse'
-                    : 'text-slate-500 hover:text-blue-900 hover:bg-slate-200/60'
+            </div>
+
+            {/* Dedicated Accurate Rak Search / Filter Box */}
+            <div className="relative sm:w-56" ref={rakDropdownRef}>
+              <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 text-blue-600 pointer-events-none" size={13} />
+              <input
+                type="text"
+                value={rakFilter}
+                onChange={e => {
+                  setRakFilter(e.target.value.toUpperCase());
+                  setIsRakDropdownOpen(true);
+                  setCurrentPage(1);
+                }}
+                onFocus={() => setIsRakDropdownOpen(true)}
+                placeholder="Cari Rak (cth: AE-22-1A / ae221a)"
+                className={`w-full text-xs font-mono font-bold uppercase pl-7.5 pr-7 py-1.5 rounded-lg border outline-none transition-all shadow-2xs ${
+                  rakFilter
+                    ? 'bg-blue-50/90 text-blue-950 border-blue-400 ring-2 ring-blue-100'
+                    : 'bg-slate-50 hover:bg-white focus:bg-white text-slate-800 border-slate-300/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
                 }`}
-                title={isListeningSearch ? 'Berhenti mendengarkan' : 'Pencarian Suara (Speech to Text)'}
-              >
-                <Mic size={13} />
-              </button>
+                title="Ketik kode rak (cth: AE-22-1A, AE-22, atau ae221a) untuk mencari rak secara akurat"
+              />
+              {rakFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRakFilter('');
+                    setIsRakDropdownOpen(false);
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-slate-100 cursor-pointer"
+                  title="Reset filter rak"
+                >
+                  <X size={12} />
+                </button>
+              )}
+
+              {/* Dropdown Autocomplete Rak */}
+              {isRakDropdownOpen && uniqueRaks.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100 text-xs">
+                  <div className="px-2.5 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 flex items-center justify-between sticky top-0">
+                    <span>Daftar Rak ({filteredRakSuggestions.length})</span>
+                    {rakFilter && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRakFilter('');
+                          setCurrentPage(1);
+                        }}
+                        className="text-blue-700 hover:underline cursor-pointer"
+                      >
+                        Semua Rak
+                      </button>
+                    )}
+                  </div>
+                  {filteredRakSuggestions.length > 0 ? (
+                    filteredRakSuggestions.slice(0, 50).map(loc => (
+                      <button
+                        key={loc}
+                        type="button"
+                        onClick={() => {
+                          setRakFilter(loc);
+                          setIsRakDropdownOpen(false);
+                          setCurrentPage(1);
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 font-mono font-bold flex items-center justify-between hover:bg-blue-50 transition-colors cursor-pointer ${
+                          rakFilter.toUpperCase() === loc.toUpperCase() ? 'bg-blue-50 text-blue-900' : 'text-slate-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <MapPin size={11} className="text-blue-600 shrink-0" />
+                          <span className="truncate">{loc}</span>
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-2.5 text-center text-[11px] text-slate-500">
+                      Rak "{rakFilter}" tidak ditemukan
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2291,7 +2058,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
           </select>
 
           {/* Reset Filters */}
-          {(dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL' || prosesFilter !== 'open' || searchQuery) && (
+          {(dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL' || prosesFilter !== 'open' || searchQuery || rakFilter) && (
             <button
               onClick={() => {
                 setDateFilter('ALL');
@@ -2299,6 +2066,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                 setJenisFilter('ALL');
                 setProsesFilter('open');
                 setSearchQuery('');
+                setRakFilter('');
                 setCurrentPage(1);
               }}
               className="text-[11px] text-red-600 font-bold hover:underline px-2 py-1 shrink-0 cursor-pointer"
@@ -2461,7 +2229,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
             <Truck size={36} className="text-slate-300 mx-auto" />
             <h4 className="text-sm font-bold text-slate-700">Tidak ada data kedatangan ditemukan</h4>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {searchQuery || dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL'
+              {searchQuery || rakFilter || dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL'
                 ? 'Tidak ada baris yang cocok dengan kata kunci atau filter yang dipilih.'
                 : 'Belum ada transaksi kedatangan barang. Klik tombol "Input Kedatangan" atau "Upload Excel" untuk menambahkan.'}
             </p>
@@ -2743,9 +2511,9 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
 
                       {/* 8. Lokasi Penempatan */}
                       <td className="py-2.5 px-3 font-bold text-slate-700">
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-mono">
                           <MapPin size={11} className="text-blue-600 shrink-0" />
-                          {item.location || 'WH-A-01'}
+                          {item.location && item.location !== '-' ? item.location : '-'}
                         </span>
                       </td>
 
@@ -2937,36 +2705,13 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                 </select>
               </div>
 
-              {/* Row 2: Distributor (Pencarian Interaktif dengan Suara / Speech-to-Text) */}
+              {/* Row 2: Distributor (Pencarian Interaktif) */}
               <div className="relative">
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-slate-700 font-bold">
                     Distributor *
                   </label>
                   <div className="flex items-center gap-1.5">
-                    {/* Speech to text indicator / button */}
-                    <button
-                      type="button"
-                      onClick={toggleSpeechToTextDistributor}
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
-                        isListeningDistributor
-                          ? 'bg-rose-500 text-white animate-pulse ring-2 ring-rose-300'
-                          : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
-                      }`}
-                      title={isListeningDistributor ? 'Klik untuk menghentikan pendengaran suara' : 'Klik untuk sebutkan nama distributor (Speech to Text)'}
-                    >
-                      {isListeningDistributor ? (
-                        <>
-                          <Radio size={12} className="animate-spin text-white" />
-                          <span>Mendengarkan Suara...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic size={12} className="text-blue-900" />
-                          <span>Bicara / Suara</span>
-                        </>
-                      )}
-                    </button>
                     {!isEditMode && formData.distributor && (
                       <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200 flex items-center gap-1">
                         <Clock size={10} />
@@ -2975,22 +2720,6 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                     )}
                   </div>
                 </div>
-
-                {/* Speech feedback banner for Distributor */}
-                {speechFeedbackDistributor && (
-                  <div className="mb-2 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between gap-2 text-xs animate-fade-in shadow-2xs">
-                    <div className="flex items-center gap-2 text-blue-900 font-bold overflow-hidden">
-                      <Volume2 size={14} className={`shrink-0 ${isListeningDistributor ? 'animate-bounce text-blue-900' : 'text-blue-900'}`} />
-                      <span className="truncate">{speechFeedbackDistributor}</span>
-                    </div>
-                    {isListeningDistributor && (
-                      <span className="flex h-2 w-2 relative shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                      </span>
-                    )}
-                  </div>
-                )}
 
                 {formData.distributor ? (
                   <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
@@ -3035,15 +2764,11 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                           fetchMasterData();
                           setIsDistributorDropdownOpen(true);
                         }}
-                        placeholder="Ketik atau klik mikrofon untuk sebutkan distributor..."
-                        className={`w-full bg-white text-slate-800 border rounded-xl pl-8.5 pr-16 py-2.5 outline-none focus:ring-2 font-semibold text-xs shadow-2xs transition-all ${
-                          isListeningDistributor
-                            ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
-                            : 'border-slate-300 focus:ring-blue-600'
-                        }`}
+                        placeholder="Ketik nama distributor atau kode LD..."
+                        className="w-full bg-white text-slate-800 border border-slate-300 rounded-xl pl-8.5 pr-9 py-2.5 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-xs shadow-2xs transition-all"
                       />
-                      <div className="absolute right-2 flex items-center gap-1">
-                        {distributorSearchText && (
+                      {distributorSearchText && (
+                        <div className="absolute right-2 flex items-center">
                           <button
                             type="button"
                             onClick={() => {
@@ -3055,20 +2780,8 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                           >
                             <X size={13} />
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={toggleSpeechToTextDistributor}
-                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                            isListeningDistributor
-                              ? 'bg-rose-500 text-white shadow-xs animate-pulse'
-                              : 'text-blue-900 hover:bg-blue-50 hover:text-blue-950'
-                          }`}
-                          title={isListeningDistributor ? 'Berhenti mendengarkan' : 'Pencarian Suara Distributor (Speech to Text)'}
-                        >
-                          <Mic size={14} />
-                        </button>
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {isDistributorDropdownOpen && (
@@ -3352,28 +3065,6 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-slate-700 font-bold">Batch</label>
                     <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={toggleSpeechToTextBatch}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
-                          isListeningBatch
-                            ? 'bg-rose-500 text-white animate-pulse ring-2 ring-rose-300'
-                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
-                        }`}
-                        title={isListeningBatch ? 'Klik untuk menghentikan pendengaran suara' : 'Klik untuk sebutkan nomor batch (Speech to Text)'}
-                      >
-                        {isListeningBatch ? (
-                          <>
-                            <Radio size={12} className="animate-spin text-white" />
-                            <span>Mendengarkan...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Mic size={12} className="text-emerald-700" />
-                            <span>Bicara / Suara</span>
-                          </>
-                        )}
-                      </button>
                       {formData.batch && (
                         <span className="text-[10px] text-blue-900 font-semibold font-mono">
                           Batch: {formData.batch}
@@ -3381,22 +3072,6 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                       )}
                     </div>
                   </div>
-
-                  {/* Speech feedback banner for Batch */}
-                  {speechFeedbackBatch && (
-                    <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-2 text-xs animate-fade-in shadow-2xs">
-                      <div className="flex items-center gap-2 text-emerald-900 font-bold overflow-hidden">
-                        <Volume2 size={14} className={`shrink-0 ${isListeningBatch ? 'animate-bounce text-emerald-600' : 'text-emerald-600'}`} />
-                        <span className="truncate">{speechFeedbackBatch}</span>
-                      </div>
-                      {isListeningBatch && (
-                        <span className="flex h-2 w-2 relative shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                        </span>
-                      )}
-                    </div>
-                  )}
 
                   <div className="relative flex items-center">
                     <input
@@ -3427,24 +3102,8 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                         }));
                       }}
                       placeholder="Contoh: L911346N atau 0456"
-                      className={`w-full bg-white font-mono font-bold text-slate-800 border rounded-xl pl-3 pr-10 py-2 outline-none focus:ring-2 uppercase shadow-2xs transition-all ${
-                        isListeningBatch
-                          ? 'border-rose-400 ring-2 ring-rose-200 focus:ring-rose-400'
-                          : 'border-slate-300 focus:ring-emerald-500'
-                      }`}
+                      className="w-full bg-white font-mono font-bold text-slate-800 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 uppercase shadow-2xs transition-all"
                     />
-                    <button
-                      type="button"
-                      onClick={toggleSpeechToTextBatch}
-                      className={`absolute right-2 p-1.5 rounded-lg transition-all cursor-pointer ${
-                        isListeningBatch
-                          ? 'bg-rose-500 text-white shadow-xs animate-pulse'
-                          : 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900'
-                      }`}
-                      title={isListeningBatch ? 'Berhenti mendengarkan' : 'Pencarian Suara Batch (Speech to Text)'}
-                    >
-                      <Mic size={14} />
-                    </button>
                   </div>
                 </div>
 
@@ -3537,7 +3196,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                       Format: CKB-FG1-XX-YY-ZZ
                     </span>
                   </div>
-                  <div className="relative">
+                  <div className="relative flex items-center">
                     <input
                       type="text"
                       value={formData.location || ''}
@@ -3546,9 +3205,19 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
                         const formatted = formatRakLocation(raw);
                         setFormData(prev => ({ ...prev, location: formatted }));
                       }}
-                      placeholder="Input 6 karakter (cth: ae22ia) -> CKB-FG1-AE-22-1A"
-                      className="w-full bg-white text-slate-800 font-mono font-bold uppercase border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs text-xs"
+                      placeholder="Input 6 karakter (cth: ae221a) -> CKB-FG1-AE-22-1A"
+                      className="w-full bg-white text-slate-800 font-mono font-bold uppercase border border-slate-300 rounded-xl pl-3 pr-8 py-2 outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs text-xs"
                     />
+                    {formData.location && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, location: '' }))}
+                        className="absolute right-2 text-slate-400 hover:text-rose-600 p-1 rounded-full hover:bg-slate-100 cursor-pointer"
+                        title="Hapus Rak / Lokasi"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1 m-0">
                     💡 Cukup ketik 6 karakter (huruf/angka), otomatis diformat ke <span className="font-mono font-bold text-emerald-800">CKB-FG1-XX-YY-ZZ</span>

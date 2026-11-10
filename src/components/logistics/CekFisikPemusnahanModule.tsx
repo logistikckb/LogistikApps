@@ -67,7 +67,7 @@ import { supabase, isSupabaseConfigured, fetchAllRowsFromSupabase, getAppSetting
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { CekFisikPemusnahanItem, PemusnahanItem, DataBarang } from '../../types';
-import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCalculations';
+import { getEdIsoDateString, normalizeToIsoDate, matchesRakLocation, isRakSearchQuery } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 
 // Pilihan Tujuan Transfer Database Massal dari Cek Fisik
@@ -413,15 +413,21 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       }
       if (tujuanFilter !== 'ALL' && (item.tujuan || '').toLowerCase() !== tujuanFilter.toLowerCase()) return false;
       if (isLocationFiltered) {
-        const locQ = locationFilter.trim().toLowerCase();
-        if (!(item.location || '').toLowerCase().includes(locQ)) return false;
+        if (!matchesRakLocation(item.location, locationFilter)) return false;
       }
       if (itemNameFilter && !(item.item_name || '').toLowerCase().includes(itemNameFilter.toLowerCase()) && !(item.item_code || '').toLowerCase().includes(itemNameFilter.toLowerCase())) return false;
 
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const str = `${item.id_cek_fisik} ${item.item_code} ${item.item_name} ${item.location || ''} ${item.batch} ${item.lpn_serial_number} ${item.status} ${item.tujuan} ${item.note}`.toLowerCase();
-        if (!str.includes(q)) return false;
+        const rawQ = searchQuery.trim();
+        const q = rawQ.toLowerCase();
+        const matchLoc = matchesRakLocation(item.location, rawQ);
+        if (isRakSearchQuery(rawQ)) {
+          const strOther = `${item.id_cek_fisik} ${item.item_code} ${item.batch} ${item.lpn_serial_number}`.toLowerCase();
+          if (!matchLoc && !strOther.includes(q)) return false;
+        } else {
+          const str = `${item.id_cek_fisik} ${item.item_code} ${item.item_name} ${item.batch} ${item.lpn_serial_number} ${item.status} ${item.tujuan} ${item.note}`.toLowerCase();
+          if (!str.includes(q) && !matchLoc) return false;
+        }
       }
       return true;
     }).sort((a, b) => {

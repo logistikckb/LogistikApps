@@ -885,7 +885,7 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
             });
           } else {
             const msg =
-              'Suara belum lengkap. Ucapkan Username lalu angka PIN (contoh: "admin 3 9 9 3 3 9").';
+              'Suara belum lengkap. Silakan ucapkan Username diikuti Kode PIN Anda.';
             setErrorMsg(msg);
             setPin('');
             voiceLoginBtnRef.current?.focus();
@@ -1200,16 +1200,12 @@ export function LoginPage({ onOpenBroadcast }: LoginPageProps) {
                   )}
                 </button>
 
-                {voiceTranscript ? (
+                {voiceTranscript && (
                   <p className="text-[11px] text-slate-500 m-0 text-center truncate max-w-full">
                     Terdengar: <span className="font-semibold text-slate-700">"{voiceTranscript}"</span>
                     {matchedAccountHint && (
                       <span className="text-emerald-700 font-bold ml-1">({matchedAccountHint})</span>
                     )}
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-slate-400 m-0 text-center">
-                    Contoh ucap: <span className="font-medium text-slate-500">"admin 3 9 9 3 3 9"</span> atau <span className="font-medium text-slate-500">"admin tiga puluh sembilan..."</span>
                   </p>
                 )}
               </div>

@@ -298,3 +298,142 @@ export function formatRakLocation(input: string): string {
     return `CKB-FG1-${clean.slice(0, 2)}-${clean.slice(2, 4)}-${clean.slice(4)}`;
   }
 }
+
+/**
+ * Mendeteksi apakah kata kunci pencarian merupakan format kode Rak / Lokasi gudang
+ * (misal: "CKB-FG1-AE-22-1A", "AE-22-1A", "AE-22", "ae221a", "ae22", "WH-A-01").
+ */
+export function isRakSearchQuery(query: string | undefined | null): boolean {
+  const raw = String(query || '').trim();
+  if (!raw) return false;
+  const upper = raw.toUpperCase().replace(/[\s_\/\.]+/g, '-').replace(/-+/g, '-');
+
+  // Jangan anggap kode distributor / dokumen (LD-001, PO-123, DO-123, SO-123, QC-PASS, SL01) sebagai rak
+  if (/^(LD|PO|DO|SO|QT|QC|SL|INC|INV)-?\d/i.test(upper) || /^QC-/i.test(upper)) {
+    return false;
+  }
+
+  // 1. Diawali prefix lokasi gudang standar (CKB-FG1-..., WH-...)
+  if (/^CKB-?FG\d*/i.test(upper) || /^WH-[A-Z0-9]/i.test(upper)) {
+    return true;
+  }
+
+  // 2. Format rak dengan tanda hubung: misal "AE-22", "AE-22-1A", "AE-22-1", "22-1A"
+  if (/^[A-Z]{2}-\d{1,2}(-[A-Z0-9]{1,2})?$/.test(upper) || /^\d{2}-[A-Z0-9]{1,2}$/.test(upper)) {
+    return true;
+  }
+
+  // 3. Format input cepat 4-6 karakter rak tanpa tanda hubung:
+  //    2 huruf (Lorong) + 2 angka (Kolom/Bay) + opsional 1-2 karakter (Level, misal 1A / IA / 2B)
+  //    Contoh: "AE22", "AE221", "AE221A", "AE22IA", "AA011A"
+  if (/^[A-Z]{2}\d{2}([A-Z0-9]{1,2})?$/.test(upper)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Pencocokan akurat untuk pencarian Lokasi / Rak Gudang.
+ * Mendukung format standar CKB-FG1-XX-YY-ZZ, ketik singkat 4-6 karakter ("ae22", "ae221a"),
+ * maupun pencarian dengan spasi/tanda hubung ("ae 22 1a", "AE-22-1A", "22-1A").
+ * Mengabaikan prefix statis "CKB-FG1-" agar pencarian karakter seperti "1", "B", "F", "G"
+ * tidak menghasilkan positif palsu pada seluruh rak.
+ */
+export function matchesRakLocation(
+  itemLocation: string | undefined | null,
+  query: string | undefined | null
+): boolean {
+  const rawLoc = String(itemLocation || '').trim();
+  const rawQ = String(query || '').trim();
+  if (!rawLoc || rawLoc === '-' || !rawQ) return false;
+
+  const locUpper = rawLoc.toUpperCase();
+  const qUpper = rawQ.toUpperCase();
+
+  // Normalisasi pemisah (spasi, titik, garis miring, underscore) menjadi '-'
+  const locNorm = locUpper.replace(/[\s_\/\.]+/g, '-').replace(/-+/g, '-');
+  const qNorm = qUpper.replace(/[\s_\/\.]+/g, '-').replace(/-+/g, '-');
+
+  // 1. Exact match penuh
+  if (locNorm === qNorm) return true;
+
+  const stripPrefix = (s: string) => s.replace(/^CKB-?FG\d*-?/i, '');
+  const queryHasCkbPrefix = /^CKB-?FG\d*-?/i.test(qNorm);
+
+  let locCore = stripPrefix(locNorm);
+  // Jika data di DB tersimpan dalam format 4-6 karakter tanpa strip (misal "AE221A"), normalisasikan ke "AE-22-1A"
+  if (/^[A-Z]{2}\d{2}[A-Z0-9]{1,2}$/.test(locCore)) {
+    locCore = `${locCore.slice(0, 2)}-${locCore.slice(2, 4)}-${locCore.slice(4)}`;
+  } else if (/^[A-Z]{2}\d{1,2}$/.test(locCore)) {
+    locCore = `${locCore.slice(0, 2)}-${locCore.slice(2)}`;
+  }
+
+  const isStandardCkbCoordinate = /^[A-Z]{2}(-\d{1,2}(-[A-Z0-9]{1,3})?)?$/.test(locCore);
+  const qCore = stripPrefix(qNorm);
+
+  // Jika user baru mengetik prefix "CKB" atau "CKB-FG1"
+  if (!qCore) {
+    return locNorm.startsWith(qNorm);
+  }
+
+  // Exact match pada bagian inti rak (misal "AE-22-1A")
+  if (locCore === qCore) return true;
+
+  const locCoreAlnum = locCore.replace(/[^A-Z0-9]/g, ''); // misal: "AE221A"
+  const qCoreAlnum = qCore.replace(/[^A-Z0-9]/g, '');     // misal: "AE221A" atau "AE22"
+  const locSegments = locCore.split('-').filter(Boolean); // misal: ["AE", "22", "1A"]
+  const qSegments = qCore.split('-').filter(Boolean);
+
+  if (isStandardCkbCoordinate) {
+    // KASUS A: Query mengandung tanda hubung '-' (misal: "AE-22", "AE-22-1A", "22-1A", "AE-")
+    if (qCore.includes('-')) {
+      // Cocok dari awal bagian inti rak (misal "AE-", "AE-2", "AE-22", "AE-22-1A")
+      if (locCore.startsWith(qCore)) return true;
+
+      // Jika tidak pakai prefix CKB-FG1, izinkan pencarian Bay-Level (misal "22-1A" atau "22-1")
+      if (!queryHasCkbPrefix && locSegments.length >= 2 && qSegments.length >= 1) {
+        const bayLevelCore = locSegments.slice(1).join('-'); // misal: "22-1A"
+        if (bayLevelCore.startsWith(qCore)) return true;
+      }
+
+      return false;
+    }
+
+    // KASUS B: Query tanpa tanda hubung (misal: "ae221a", "ae22", "ae", "22", "1a", "221a")
+    if (!qCoreAlnum) return false;
+
+    // 1. Jika query diawali HURUF (misal "A", "AE", "AE2", "AE22", "AE221", "AE221A"):
+    //    Harus cocok dari awal kode inti rak (Row -> Bay -> Level) agar "B" atau "AE" tidak nyasar ke segmen belakang
+    if (/^[A-Z]/.test(qCoreAlnum)) {
+      return locCoreAlnum.startsWith(qCoreAlnum);
+    }
+
+    // 2. Jika query diawali ANGKA (misal "22", "1A", "221A") dan tanpa prefix CKB:
+    if (!queryHasCkbPrefix) {
+      // a. Query 1-2 digit angka murni (misal "22" atau "01") -> cocokkan dengan segmen Bay (segmen ke-2)
+      if (/^\d{1,2}$/.test(qCoreAlnum) && locSegments.length >= 2) {
+        if (locSegments[1].startsWith(qCoreAlnum)) return true;
+      }
+
+      // b. Query 2 karakter Angka+Huruf (misal "1A", "2B") -> cocokkan tepat dengan segmen Level (segmen ke-3)
+      if (/^\d[A-Z]$/.test(qCoreAlnum) && locSegments.length >= 3) {
+        if (locSegments[2] === qCoreAlnum) return true;
+      }
+
+      // c. Query 3-4 karakter Bay+Level (misal "221", "221A") -> cocokkan dengan gabungan segmen Bay+Level
+      if (qCoreAlnum.length >= 3 && locSegments.length >= 3) {
+        const bayLevelAlnum = `${locSegments[1]}${locSegments[2]}`.replace(/[^A-Z0-9]/g, '');
+        if (bayLevelAlnum.startsWith(qCoreAlnum)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Untuk lokasi non-standar (misal "WH-A-01", "KARANTINA", "STAGING")
+  if (locCore.includes(qCore)) return true;
+  if (qCoreAlnum.length >= 2 && locCoreAlnum.includes(qCoreAlnum)) return true;
+  return false;
+}
+

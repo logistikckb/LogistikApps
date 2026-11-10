@@ -54,7 +54,7 @@ import {
 } from './inventory/InventoryBulkTransferModal';
 import { InventoryBulkLocationModal } from './inventory/InventoryBulkLocationModal';
 import { InventoryScannerModal } from './inventory/InventoryScannerModal';
-import { normalizeToIsoDate } from '../../utils/logisticsCalculations';
+import { normalizeToIsoDate, matchesRakLocation, isRakSearchQuery } from '../../utils/logisticsCalculations';
 
 const INVENTORY_CACHE_KEY = 'ckb_inventory_data_cache_v1';
 const INVENTORY_VIEW_MODE_KEY = 'ckb_inventory_view_mode_v1';
@@ -868,11 +868,9 @@ export function InventoryModule({
         }
       }
 
-      // 2. Location Filter (Mendukung ketik untuk mencari lokasi & filter langsung)
+      // 2. Location Filter (Mendukung ketik untuk mencari lokasi & filter langsung secara akurat)
       if (locationFilter && locationFilter !== 'ALL' && locationFilter.trim() !== '') {
-        const qLoc = locationFilter.toLowerCase().trim();
-        const itemLoc = (item.location || '').toLowerCase().trim();
-        if (!itemLoc.includes(qLoc)) return false;
+        if (!matchesRakLocation(item.location, locationFilter)) return false;
       }
 
       // 3. SLoc Filter
@@ -880,20 +878,33 @@ export function InventoryModule({
         if (item.sloc !== slocFilter) return false;
       }
 
-      // 4. Text Search (SKU, Nama Barang, Batch, LPN, Note - Tidak lagi mencakup lokasi karena sudah ada filter lokasi khusus)
+      // 4. Text Search (SKU, Nama Barang, Batch, LPN, Note, serta Rak/Lokasi)
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchCode = (item.item_code || '').toLowerCase().includes(q);
-        const matchName = (item.item_name || '').toLowerCase().includes(q);
-        const matchBatch = (item.batch || '').toLowerCase().includes(q);
-        const matchStatus = (item.status || '').toLowerCase().includes(q);
-        const matchId = (item.id_inventory || '').toLowerCase().includes(q);
-        const matchNote = (item.note || '').toLowerCase().includes(q);
-        const matchTujuan = (item.tujuan || '').toLowerCase().includes(q);
-        const matchLpn = (item.lpn_serial_number || '').toLowerCase().includes(q);
+        const rawSearch = searchQuery.trim();
+        const q = rawSearch.toLowerCase();
+        const matchLoc = matchesRakLocation(item.location, rawSearch);
 
-        if (!matchCode && !matchName && !matchBatch && !matchStatus && !matchId && !matchNote && !matchTujuan && !matchLpn) {
-          return false;
+        if (isRakSearchQuery(rawSearch)) {
+          const matchCode = (item.item_code || '').toLowerCase().includes(q);
+          const matchBatch = (item.batch || '').toLowerCase().includes(q);
+          const matchId = (item.id_inventory || '').toLowerCase().includes(q);
+          const matchLpn = (item.lpn_serial_number || '').toLowerCase().includes(q);
+          if (!matchLoc && !matchCode && !matchBatch && !matchId && !matchLpn) {
+            return false;
+          }
+        } else {
+          const matchCode = (item.item_code || '').toLowerCase().includes(q);
+          const matchName = (item.item_name || '').toLowerCase().includes(q);
+          const matchBatch = (item.batch || '').toLowerCase().includes(q);
+          const matchStatus = (item.status || '').toLowerCase().includes(q);
+          const matchId = (item.id_inventory || '').toLowerCase().includes(q);
+          const matchNote = (item.note || '').toLowerCase().includes(q);
+          const matchTujuan = (item.tujuan || '').toLowerCase().includes(q);
+          const matchLpn = (item.lpn_serial_number || '').toLowerCase().includes(q);
+
+          if (!matchCode && !matchName && !matchBatch && !matchStatus && !matchId && !matchNote && !matchTujuan && !matchLpn && !matchLoc) {
+            return false;
+          }
         }
       }
 
@@ -1111,8 +1122,7 @@ export function InventoryModule({
     if (!locationFilter || locationFilter === 'ALL' || !locationFilter.trim()) {
       return uniqueLocations;
     }
-    const q = locationFilter.toLowerCase().trim();
-    return uniqueLocations.filter(loc => loc.toLowerCase().includes(q));
+    return uniqueLocations.filter(loc => matchesRakLocation(loc, locationFilter));
   }, [uniqueLocations, locationFilter]);
 
   // Click outside listener for location dropdown

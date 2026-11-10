@@ -67,7 +67,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { PemusnahanItem, DataBarang } from '../../types';
-import { getEdIsoDateString, normalizeToIsoDate } from '../../utils/logisticsCalculations';
+import { getEdIsoDateString, normalizeToIsoDate, matchesRakLocation, isRakSearchQuery } from '../../utils/logisticsCalculations';
 import { fuzzySearchDataBarang } from '../../utils/fuseSearch';
 import { CekFisikPemusnahanModule } from './CekFisikPemusnahanModule';
 
@@ -497,11 +497,19 @@ export function PemusnahanModule({ onNavigateToPenyiapan }: PemusnahanModuleProp
     return pemusnahanList.filter(item => {
       // 1. Text Search Query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const combined = `${item.id_pemusnahan || ''} ${item.item_code || ''} ${item.item_name || ''} ${item.category || ''} ${item.location || ''} ${item.lpn_serial_number || ''} ${item.batch || ''} ${item.vendor_batch || ''} ${item.sloc || ''} ${item.destination_code || ''} ${item.qc_code || ''} ${item.user_tally || ''} ${item.user_input || ''} ${item.tujuan || ''} ${item.source || ''} ${item.status || ''} ${item.note || ''}`.toLowerCase();
-        
-        if (!combined.includes(q)) {
-          return false;
+        const rawQ = searchQuery.trim();
+        const q = rawQ.toLowerCase();
+        const matchLoc = matchesRakLocation(item.location, rawQ);
+        if (isRakSearchQuery(rawQ)) {
+          const combinedId = `${item.id_pemusnahan || ''} ${item.item_code || ''} ${item.batch || ''} ${item.lpn_serial_number || ''}`.toLowerCase();
+          if (!matchLoc && !combinedId.includes(q)) {
+            return false;
+          }
+        } else {
+          const combined = `${item.id_pemusnahan || ''} ${item.item_code || ''} ${item.item_name || ''} ${item.category || ''} ${item.lpn_serial_number || ''} ${item.batch || ''} ${item.vendor_batch || ''} ${item.sloc || ''} ${item.destination_code || ''} ${item.qc_code || ''} ${item.user_tally || ''} ${item.user_input || ''} ${item.tujuan || ''} ${item.source || ''} ${item.status || ''} ${item.note || ''}`.toLowerCase();
+          if (!combined.includes(q) && !matchLoc) {
+            return false;
+          }
         }
       }
 
