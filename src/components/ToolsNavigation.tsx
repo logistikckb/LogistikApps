@@ -4,9 +4,9 @@ import {
   Database,
   Boxes,
   Truck,
+  ClipboardCheck,
   Flame,
-  Package,
-  FlaskConical
+  Package
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -17,8 +17,7 @@ export type ToolId =
   | 'menu-admk'
   | 'menu-d' 
   | 'menu-e'
-  | 'menu-g'
-  | 'menu-sample';
+  | 'menu-g';
 
 export interface ToolItem {
   id: ToolId;
@@ -94,12 +93,12 @@ export const TOOLS_LIST: ToolItem[] = [
     title: 'ADMK',
     shortDesc: 'Pencatatan & Manajemen Transaksi ADMK (Inbound/ADMK)',
     category: 'Inbound & Logistik',
-    icon: Truck,
+    icon: ClipboardCheck,
     isReady: true,
     requiresAdmin: false,
-    colorBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200/80',
-    colorBorder: 'border-emerald-200',
-    colorIcon: 'text-emerald-600',
+    colorBg: 'bg-violet-50 text-violet-600 border border-violet-200/80',
+    colorBorder: 'border-violet-200',
+    colorIcon: 'text-violet-600',
     plannedFeatures: [
       'Pencatatan Transaksi ADMK Realtime',
       'Upload & Batch Import Excel (.xlsx/.xls/.csv) Cepat',
@@ -161,24 +160,6 @@ export const TOOLS_LIST: ToolItem[] = [
       'Upload File Excel Massal Khusus Role Admin (Format Kolom Standar Logistik)',
       'Pencarian Cepat, Voice Search Speech-to-Text & Filter Kategori/SLoc/Status',
       'Export Laporan Excel (.xlsx) & Sinkronisasi Cloud Realtime'
-    ]
-  },
-  {
-    id: 'menu-sample',
-    title: 'Monitoring Sample',
-    shortDesc: 'Monitoring Pengambilan Sample Gudang (STATUS, SPPJ, WMS, SAP, PIC & Note)',
-    category: 'Monitoring & Sample',
-    icon: FlaskConical,
-    isReady: true,
-    requiresAdmin: false,
-    colorBg: 'bg-teal-50 text-teal-700 border border-teal-200/80',
-    colorBorder: 'border-teal-200',
-    colorIcon: 'text-teal-700',
-    plannedFeatures: [
-      'Monitoring Realtime Pengambilan Sample Gudang',
-      'Tracking Status (OPEN/CLOSE), WMS, SAP, No. SPPJ & PIC',
-      'Sinkronisasi Database Cloud Terpusat',
-      'Form Tambah/Edit Data Sample, Export Excel & Quick Status Toggle'
     ]
   }
 ];

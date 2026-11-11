@@ -8,6 +8,16 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Bersihkan tabel / struktur Monitoring Sample jika pernah dibuat sebelumnya
+DROP TABLE IF EXISTS public.monitoring_sample CASCADE;
+DROP TABLE IF EXISTS public.data_monitoring_sample CASCADE;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'app_settings') THEN
+        DELETE FROM public.app_settings WHERE key = 'monitoring_sample_items';
+    END IF;
+END $$;
+
 -- ==============================================================================
 -- TRIGGER FUNCTION: AUTO UPDATE UPDATED_AT
 -- ==============================================================================

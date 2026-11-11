@@ -30,6 +30,11 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
     updated_by VARCHAR(100) DEFAULT 'Admin'
 );
 
+-- Bersihkan data & tabel Monitoring Sample yang sudah dihapus
+DROP TABLE IF EXISTS public.monitoring_sample CASCADE;
+DROP TABLE IF EXISTS public.data_monitoring_sample CASCADE;
+DELETE FROM public.app_settings WHERE key = 'monitoring_sample_items';
+
 -- ==============================================================================
 -- 3. AKTIFKAN ROW LEVEL SECURITY (RLS) PADA SEMUA TABEL
 -- ==============================================================================

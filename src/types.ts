@@ -237,19 +237,3 @@ export interface InventoryItem {
   child_count?: number;
 }
 
-// Transaksi Monitoring Pengambilan Sample
-export interface MonitoringSampleItem {
-  status: string; // STATUS proses, misalnya OPEN, CLOSE
-  tanggal: string; // TANGGAL transaksi/proses
-  no_sppj: string; // NO. SPPJ
-  id_barang: string; // ID barang
-  deskripsi: string; // DESKRIPSI barang atau pekerjaan
-  qty: number | string; // QTY
-  unit: string; // UNIT (CAR, PCS, dll)
-  wms: string; // WMS status/proses
-  sap: string; // SAP status/proses
-  pic: string; // PIC (Person in Charge)
-  note: string; // NOTE (Catatan/keterangan)
-  _rowIndex?: number;
-}
-

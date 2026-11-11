@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
-  Truck,
+  ClipboardCheck,
   Plus,
   Search,
   RefreshCw,
@@ -2226,7 +2226,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
           </div>
         ) : paginatedData.length === 0 ? (
           <div className="p-12 text-center space-y-3">
-            <Truck size={36} className="text-slate-300 mx-auto" />
+            <ClipboardCheck size={36} className="text-slate-300 mx-auto" />
             <h4 className="text-sm font-bold text-slate-700">Tidak ada data kedatangan ditemukan</h4>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               {searchQuery || rakFilter || dateFilter !== 'ALL' || qcFilter !== 'ALL' || jenisFilter !== 'ALL'
@@ -2660,7 +2660,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
             <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Truck size={20} />
+                  <ClipboardCheck size={20} />
                 </div>
                 <div>
                   <h3 className="text-base font-black m-0 leading-tight">
@@ -3335,7 +3335,7 @@ CREATE INDEX IF NOT EXISTS idx_admk_created_at ON public.admk(created_at DESC);`
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center">
-                  <Truck size={20} />
+                  <ClipboardCheck size={20} />
                 </div>
                 <div>
                   <span className="text-[10px] text-emerald-400 font-mono font-bold tracking-wider uppercase">

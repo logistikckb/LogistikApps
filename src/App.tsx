@@ -25,7 +25,7 @@ import { AdmkModule } from './components/logistics/AdmkModule';
 import { PenyiapanModule } from './components/logistics/PenyiapanModule';
 import { PemusnahanModule } from './components/logistics/PemusnahanModule';
 import { InventoryModule } from './components/logistics/InventoryModule';
-import { MonitoringSampleModule } from './components/logistics/MonitoringSampleModule';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 // Dialogs - Direct imports
 import { BroadcastModal } from './components/broadcast/BroadcastModal';
@@ -55,13 +55,23 @@ export default function App() {
       'inventory_cache_v1',
       'pemusnahan_cache_v1',
       'cek_fisik_pemusnahan_cache_v1',
-      'ckb_app_setting_hidden_menu_ids'
+      'ckb_app_setting_hidden_menu_ids',
+      'LOGISTIK_MONITORING_SAMPLE_CACHE',
+      'ckb_app_setting_monitoring_sample_items'
     ];
     TRANSACTION_CACHE_KEYS.forEach((key) => {
       try {
         localStorage.removeItem(key);
       } catch {}
     });
+
+    if (isSupabaseConfigured) {
+      supabase
+        .from('app_settings')
+        .delete()
+        .eq('key', 'monitoring_sample_items')
+        .then(() => {}, () => {});
+    }
   }, []);
 
   // Broadcast intercom system
@@ -303,8 +313,6 @@ export default function App() {
                       onNavigateToPenyiapan={() => handleOpenTool('menu-d')}
                       onNavigateToPemusnahan={() => handleOpenTool('menu-e')}
                     />
-                  ) : activeToolId === 'menu-sample' ? (
-                    <MonitoringSampleModule />
                   ) : null}
                 </div>
 
