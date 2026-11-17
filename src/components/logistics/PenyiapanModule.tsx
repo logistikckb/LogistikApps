@@ -1732,15 +1732,17 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     }
   };
 
-  // Inline Cell Update directly from Table in Penyiapan (Location, Qty, Expired Date, Note, etc.)
+  // Inline Cell Update directly from Table in Penyiapan (Location, Qty, Expired Date, Note, Batch, etc.)
   const handleInlineCellUpdate = async (item: PenyiapanItem, field: keyof PenyiapanItem, newValue: any) => {
-    const oldValue = item[field];
-    if (oldValue === newValue) return;
-
     let processedValue = newValue;
     if (field === 'last_qty' || field === 'first_qty' || field === 'qty_convert') {
       processedValue = Number(newValue) || 0;
+    } else if (field === 'batch') {
+      processedValue = String(newValue ?? '').trim() || '-';
     }
+
+    const oldValue = item[field];
+    if (oldValue === processedValue || (field === 'batch' && (oldValue || '-') === processedValue)) return;
 
     const nowIso = new Date().toISOString();
     const updatedItem = { ...item, [field]: processedValue, updated_at: nowIso };
@@ -1760,14 +1762,25 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
     // 2. Sync to Supabase Cloud
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase
+        const updatePayload: Record<string, any> = {
+          [field]: processedValue,
+          ...(updatedItem.expired_date !== item.expired_date ? { expired_date: updatedItem.expired_date, shelf_life: updatedItem.shelf_life } : {}),
+          updated_at: nowIso
+        };
+
+        let { error } = await supabase
           .from('data_penyiapan')
-          .update({
-            [field]: processedValue,
-            ...(updatedItem.expired_date !== item.expired_date ? { expired_date: updatedItem.expired_date, shelf_life: updatedItem.shelf_life } : {}),
-            updated_at: nowIso
-          })
+          .update(updatePayload)
           .eq('id_penyiapan', item.id_penyiapan);
+
+        if (error && (error.code === 'PGRST204' || error.message?.includes('updated_at') || error.message?.includes('schema cache'))) {
+          const { updated_at: _unused, ...fallbackPayload } = updatePayload;
+          const retry = await supabase
+            .from('data_penyiapan')
+            .update(fallbackPayload)
+            .eq('id_penyiapan', item.id_penyiapan);
+          error = retry.error;
+        }
 
         if (error) throw error;
       } catch (err: any) {
@@ -4344,11 +4357,34 @@ export function PenyiapanModule({ onNavigateToPemusnahan, onNavigateToIncoming, 
                         </div>
                       </td>
 
-                      {/* Batch */}
-                      <td className="px-2.5 py-1.5 min-w-[90px] font-mono text-xs font-semibold text-slate-700">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800">
-                          {item.batch || '-'}
-                        </span>
+                      {/* Batch (Direct inline cell editing) */}
+                      <td
+                        className="px-2 py-1 min-w-[110px] max-w-[160px]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          defaultValue={item.batch && item.batch !== '-' ? item.batch : ''}
+                          key={`batch-${item.id_penyiapan}-${item.batch}`}
+                          placeholder="-"
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            const currentVal = item.batch && item.batch !== '-' ? item.batch.trim() : '';
+                            if (val !== currentVal) {
+                              handleInlineCellUpdate(item, 'batch', val || '-');
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            } else if (e.key === 'Escape') {
+                              (e.target as HTMLInputElement).value = item.batch && item.batch !== '-' ? item.batch : '';
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-full px-1.5 py-0.5 rounded bg-slate-100 hover:bg-white focus:bg-white border border-slate-200 hover:border-blue-300 focus:border-blue-500 focus:ring-1.5 focus:ring-blue-500/30 font-mono text-xs font-semibold text-slate-800 outline-none transition-all placeholder:text-slate-400"
+                          title="Klik untuk edit Batch langsung di tabel (Tekan Enter atau klik di luar untuk menyimpan)"
+                        />
                       </td>
 
                       {/* Expired Date */}

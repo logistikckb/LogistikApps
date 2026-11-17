@@ -1,6 +1,0 @@
-{
-  "summary": "Rencana implementasi duplikasi 100% Menu ADMK dari Menu Kedatangan (termasuk struktur kode, hak akses/role, fitur CRUD, Excel import/export, dan sinkronisasi realtime ke tabel terpisah public.admk), serta pembuatan file skrip SQL Editor khusus untuk tabel database public.admk di luar antarmuka aplikasi.",
-  "updatedAt": "2026-11-06T07:14:13.431324824Z",
-  "requestFeedback": true,
-  "userFacing": true
-}
