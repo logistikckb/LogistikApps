@@ -188,6 +188,18 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
   const [qrModalError, setQrModalError] = useState<string | null>(null);
   const [qrCopied, setQrCopied] = useState<boolean>(false);
+  const [qrModalWasAlreadyScanned, setQrModalWasAlreadyScanned] = useState<boolean>(false);
+  const [qrModalPrevStatus, setQrModalPrevStatus] = useState<string>('Cek');
+  const [scannedLpnMap, setScannedLpnMap] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('cek_fisik_qr_scanned_map_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    return {};
+  });
   const qrCopyTimeoutRef = useRef<number | null>(null);
 
   // Autocomplete Master Barang
@@ -307,16 +319,17 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
     };
   }, []);
 
-  const handleOpenQrModal = useCallback((item: CekFisikPemusnahanItem) => {
-    const rawVal = item.lpn_serial_number?.trim();
-    if (!rawVal || rawVal === '-') return;
-    setQrCopied(false);
-    setQrModalItem(item);
-  }, []);
+  // Persist scanned SN / LPN map to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('cek_fisik_qr_scanned_map_v1', JSON.stringify(scannedLpnMap));
+    } catch {}
+  }, [scannedLpnMap]);
 
   const handleCloseQrModal = useCallback(() => {
     setQrModalItem(null);
     setQrCopied(false);
+    setQrModalWasAlreadyScanned(false);
   }, []);
 
   const handleCopyQrLpn = useCallback(async () => {
@@ -754,9 +767,19 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   };
 
   // Direct Inline Status Update (Ada / Beda / Tidak)
-  const handleUpdateStatusInline = async (id: string, newStatus: string) => {
+  const handleUpdateStatusInline = useCallback(async (id: string, newStatus: string) => {
     const nowIso = new Date().toISOString();
     setCekFisikList(prev => prev.map(item => item.id_cek_fisik === id ? { ...item, status: newStatus, tanggal_update: nowIso, updated_at: nowIso } : item));
+
+    // Sinkronkan penanda scan jika status dikembalikan ke selain 'Ada'
+    if (newStatus !== 'Ada') {
+      setScannedLpnMap(prev => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
 
     if (isSupabaseConfigured) {
       try {
@@ -768,7 +791,61 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
         console.error('Error updating status inline:', e);
       }
     }
-  };
+  }, []);
+
+  // Open QR Modal from SN / LPN cell: mark as scanned & automatically set status to 'Ada'
+  const handleOpenQrModal = useCallback((item: CekFisikPemusnahanItem) => {
+    const rawVal = item.lpn_serial_number?.trim();
+    if (!rawVal || rawVal === '-') return;
+
+    const alreadyScanned = item.status === 'Ada' || Boolean(scannedLpnMap[item.id_cek_fisik]);
+    const previousStatus = item.status === 'Beda' || item.status === 'Tidak' ? item.status : 'Cek';
+
+    setQrCopied(false);
+    setQrModalWasAlreadyScanned(alreadyScanned);
+    setQrModalPrevStatus(previousStatus);
+
+    const nowIso = new Date().toISOString();
+
+    if (alreadyScanned) {
+      setQrModalItem(item);
+      if (item.status !== 'Ada') {
+        handleUpdateStatusInline(item.id_cek_fisik, 'Ada');
+      }
+      showToast(
+        'Sudah Pernah Discan',
+        `SN / LPN "${rawVal}" sudah berstatus Ada sebelumnya (cegah double scan)`,
+        'warning'
+      );
+      return;
+    }
+
+    // Tandai sudah discan dan ubah status menjadi 'Ada' secara otomatis
+    setScannedLpnMap(prev => ({ ...prev, [item.id_cek_fisik]: nowIso }));
+    setQrModalItem({ ...item, status: 'Ada', tanggal_update: nowIso, updated_at: nowIso });
+    handleUpdateStatusInline(item.id_cek_fisik, 'Ada');
+    showToast(
+      'SN / LPN Ditandai Sudah Scan',
+      `Status "${rawVal}" otomatis diperbarui menjadi Ada`,
+      'success'
+    );
+  }, [scannedLpnMap, handleUpdateStatusInline, showToast]);
+
+  // Revert / Cancel scan mark directly from QR modal
+  const handleRevertQrScan = useCallback(() => {
+    if (!qrModalItem) return;
+    const targetId = qrModalItem.id_cek_fisik;
+    const revertStatus = qrModalWasAlreadyScanned ? 'Cek' : qrModalPrevStatus;
+    handleUpdateStatusInline(targetId, revertStatus);
+    setQrModalItem(null);
+    setQrCopied(false);
+    setQrModalWasAlreadyScanned(false);
+    showToast(
+      'Tanda Scan Dibatalkan',
+      `Status dikembalikan ke "${revertStatus}" dan tanda scan dihapus`,
+      'info'
+    );
+  }, [qrModalItem, qrModalWasAlreadyScanned, qrModalPrevStatus, handleUpdateStatusInline, showToast]);
 
   // Bulk Status Update
   const handleExecuteBulkStatusUpdate = async () => {
@@ -786,6 +863,20 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       }
       return item;
     }));
+
+    if (bulkStatusInput !== 'Ada') {
+      setScannedLpnMap(prev => {
+        const next = { ...prev };
+        let changed = false;
+        selectedIds.forEach(id => {
+          if (next[id]) {
+            delete next[id];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
 
     if (isSupabaseConfigured) {
       try {
@@ -2441,12 +2532,18 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
               ) : (
                 paginatedList.map((item) => {
                   const isSelected = selectedIds.includes(item.id_cek_fisik);
-                  const isReadyToScrap = (item.status || '').toLowerCase().includes('musnah') || (item.status || '').toLowerCase().includes('siap');
+                  const isScanned = item.status === 'Ada' || Boolean(scannedLpnMap[item.id_cek_fisik]);
 
                   return (
                     <tr
                       key={item.id_cek_fisik}
-                      className={`hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-rose-50/40' : ''}`}
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'bg-rose-50/40 hover:bg-rose-50/60'
+                          : isScanned
+                          ? 'bg-emerald-50/35 hover:bg-emerald-50/60'
+                          : 'hover:bg-slate-50/80'
+                      }`}
                     >
                       {/* Checkbox */}
                       <td className="px-2 py-1 text-center">
@@ -2509,7 +2606,7 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                         {item.qty_convert ?? 0} <span className="text-[10px] font-normal text-slate-500">{item.uom_convert || 'PCS'}</span>
                       </td>
 
-                      {/* SN / LPN (Klik untuk tampilkan QR Code) */}
+                      {/* SN / LPN (Klik untuk tampilkan QR Code & tandai Sudah Scan -> Status Ada) */}
                       {showLpnColumn && (
                         <td className="px-2.5 py-1 font-mono text-slate-700 whitespace-nowrap">
                           {item.lpn_serial_number && item.lpn_serial_number.trim() && item.lpn_serial_number.trim() !== '-' ? (
@@ -2519,11 +2616,28 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                                 e.stopPropagation();
                                 handleOpenQrModal(item);
                               }}
-                              title={`Klik untuk tampilkan QR Code: ${item.lpn_serial_number.trim()}`}
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 hover:bg-rose-50 text-slate-800 hover:text-rose-700 font-semibold border border-slate-200 hover:border-rose-300 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                              title={
+                                isScanned
+                                  ? `Sudah discan (Status: Ada) — Klik untuk lihat ulang QR Code: ${item.lpn_serial_number.trim()}`
+                                  : `Belum discan — Klik untuk tampilkan QR Code & ubah status ke Ada: ${item.lpn_serial_number.trim()}`
+                              }
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 ${
+                                isScanned
+                                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 focus-visible:ring-emerald-500'
+                                  : 'bg-slate-100 hover:bg-rose-50 text-slate-800 hover:text-rose-700 border-slate-200 hover:border-rose-300 focus-visible:ring-rose-500'
+                              }`}
                             >
-                              <QrCode size={12} className="text-slate-500 shrink-0" />
+                              {isScanned ? (
+                                <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                              ) : (
+                                <QrCode size={12} className="text-slate-500 shrink-0" />
+                              )}
                               <span>{item.lpn_serial_number.trim()}</span>
+                              {isScanned && (
+                                <span className="font-sans text-[10px] font-bold text-emerald-700 pl-1.5 ml-0.5 border-l border-emerald-300">
+                                  Sudah Scan
+                                </span>
+                              )}
                             </button>
                           ) : (
                             <span className="text-slate-400">-</span>
@@ -3966,10 +4080,53 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
             </div>
 
             {/* Body */}
-            <div className="p-5 space-y-5">
+            <div className="p-5 space-y-4">
+              {/* Scan Status Indicator / Anti Double-Scan Banner */}
+              {qrModalWasAlreadyScanned ? (
+                <div className="px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start justify-between gap-3 text-xs">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="font-bold">Sudah Pernah Discan</div>
+                      <p className="text-[11px] text-amber-800 m-0 mt-0.5 leading-snug">
+                        Status item ini sudah <span className="font-bold">Ada</span>. Pastikan tidak terjadi double scan.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRevertQrScan}
+                    className="text-[11px] font-semibold text-amber-800 hover:text-amber-950 underline whitespace-nowrap shrink-0 cursor-pointer"
+                    title="Hapus tanda scan dan kembalikan status ke Cek"
+                  >
+                    Reset ke Cek
+                  </button>
+                </div>
+              ) : (
+                <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-start justify-between gap-3 text-xs">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="font-bold">Sudah Discan · Status: Ada</div>
+                      <p className="text-[11px] text-emerald-800 m-0 mt-0.5 leading-snug">
+                        Kolom status otomatis diperbarui menjadi <span className="font-bold">Ada</span>.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRevertQrScan}
+                    className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 underline whitespace-nowrap shrink-0 cursor-pointer"
+                    title="Batalkan tanda scan jika tidak sengaja diklik"
+                  >
+                    Batalkan
+                  </button>
+                </div>
+              )}
+
               {/* Focal Anchor: High-contrast QR Code */}
               <div className="flex flex-col items-center text-center">
-                <div className="w-64 h-64 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-3 shadow-2xs">
+                <div className="w-60 h-60 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-3 shadow-2xs">
                   {isGeneratingQr ? (
                     <div className="flex flex-col items-center gap-2 text-slate-400 text-xs">
                       <RefreshCw size={22} className="animate-spin text-rose-600" />
