@@ -182,6 +182,14 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
   const [formData, setFormData] = useState<Partial<CekFisikPemusnahanItem>>({});
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
+  // Quick QR Code Modal State (when clicking SN / LPN cell in table)
+  const [qrModalItem, setQrModalItem] = useState<CekFisikPemusnahanItem | null>(null);
+  const [qrModalDataUrl, setQrModalDataUrl] = useState<string>('');
+  const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
+  const [qrModalError, setQrModalError] = useState<string | null>(null);
+  const [qrCopied, setQrCopied] = useState<boolean>(false);
+  const qrCopyTimeoutRef = useRef<number | null>(null);
+
   // Autocomplete Master Barang
   const [barangSearchText, setBarangSearchText] = useState('');
   const [isBarangDropdownOpen, setIsBarangDropdownOpen] = useState(false);
@@ -237,6 +245,124 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
       .then((url: string) => setQrCodeDataUrl(url))
       .catch(() => setQrCodeDataUrl(''));
   }, [formData.lpn_serial_number]);
+
+  // Generate high-contrast QR Code when user clicks SN / LPN cell in table
+  useEffect(() => {
+    const rawVal = qrModalItem?.lpn_serial_number?.trim();
+    if (!qrModalItem || !rawVal || rawVal === '-') {
+      setQrModalDataUrl('');
+      setIsGeneratingQr(false);
+      setQrModalError(null);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsGeneratingQr(true);
+    setQrModalError(null);
+
+    QRCode.toDataURL(rawVal, {
+      width: 512,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#0f172a', light: '#ffffff' }
+    })
+      .then((url: string) => {
+        if (!isCancelled) {
+          setQrModalDataUrl(url);
+          setIsGeneratingQr(false);
+        }
+      })
+      .catch((err: any) => {
+        console.warn('Gagal membuat QR Code SN / LPN:', err);
+        if (!isCancelled) {
+          setQrModalDataUrl('');
+          setQrModalError('Gagal menghasilkan gambar QR Code untuk kode ini.');
+          setIsGeneratingQr(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [qrModalItem]);
+
+  // Close QR modal on Escape key press & clean up copy timer
+  useEffect(() => {
+    if (!qrModalItem) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setQrModalItem(null);
+        setQrCopied(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [qrModalItem]);
+
+  useEffect(() => {
+    return () => {
+      if (qrCopyTimeoutRef.current !== null) {
+        window.clearTimeout(qrCopyTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleOpenQrModal = useCallback((item: CekFisikPemusnahanItem) => {
+    const rawVal = item.lpn_serial_number?.trim();
+    if (!rawVal || rawVal === '-') return;
+    setQrCopied(false);
+    setQrModalItem(item);
+  }, []);
+
+  const handleCloseQrModal = useCallback(() => {
+    setQrModalItem(null);
+    setQrCopied(false);
+  }, []);
+
+  const handleCopyQrLpn = useCallback(async () => {
+    const rawVal = qrModalItem?.lpn_serial_number?.trim();
+    if (!rawVal) return;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(rawVal);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = rawVal;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setQrCopied(true);
+      if (qrCopyTimeoutRef.current !== null) {
+        window.clearTimeout(qrCopyTimeoutRef.current);
+      }
+      qrCopyTimeoutRef.current = window.setTimeout(() => {
+        setQrCopied(false);
+      }, 2000);
+      showToast('SN / LPN Disalin', `Kode "${rawVal}" berhasil disalin ke clipboard`, 'success');
+    } catch {
+      showToast('Gagal Menyalin', 'Browser tidak mengizinkan akses clipboard secara otomatis.', 'warning');
+    }
+  }, [qrModalItem, showToast]);
+
+  const handleDownloadQrPng = useCallback(() => {
+    const rawVal = qrModalItem?.lpn_serial_number?.trim();
+    if (!rawVal || !qrModalDataUrl) return;
+
+    const safeFileName = rawVal.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'SN_LPN';
+    const link = document.createElement('a');
+    link.href = qrModalDataUrl;
+    link.download = `QR_${safeFileName}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('QR Code Diunduh', `File QR_${safeFileName}.png berhasil diunduh`, 'success');
+  }, [qrModalItem, qrModalDataUrl, showToast]);
 
   // Load Master Barang Cache from shared RAM / localStorage
   const loadMasterBarangLocally = useCallback(() => {
@@ -2383,13 +2509,22 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
                         {item.qty_convert ?? 0} <span className="text-[10px] font-normal text-slate-500">{item.uom_convert || 'PCS'}</span>
                       </td>
 
-                      {/* SN / LPN */}
+                      {/* SN / LPN (Klik untuk tampilkan QR Code) */}
                       {showLpnColumn && (
-                        <td className="px-2.5 py-1 font-mono text-slate-700 whitespace-nowrap" title={item.lpn_serial_number || '-'}>
-                          {item.lpn_serial_number ? (
-                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold border border-slate-200">
-                              {item.lpn_serial_number}
-                            </span>
+                        <td className="px-2.5 py-1 font-mono text-slate-700 whitespace-nowrap">
+                          {item.lpn_serial_number && item.lpn_serial_number.trim() && item.lpn_serial_number.trim() !== '-' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenQrModal(item);
+                              }}
+                              title={`Klik untuk tampilkan QR Code: ${item.lpn_serial_number.trim()}`}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 hover:bg-rose-50 text-slate-800 hover:text-rose-700 font-semibold border border-slate-200 hover:border-rose-300 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                            >
+                              <QrCode size={12} className="text-slate-500 shrink-0" />
+                              <span>{item.lpn_serial_number.trim()}</span>
+                            </button>
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
@@ -3792,6 +3927,150 @@ export function CekFisikPemusnahanModule({ onNavigateToPemusnahanFinal, onDataTr
               </button>
             </div>
 
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: QR CODE SN / LPN (DARI KLIK CELL TABEL CEK FISIK) */}
+      {/* ========================================================================= */}
+      {qrModalItem && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+          onClick={handleCloseQrModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="qr-sn-lpn-modal-title"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-3.5 bg-slate-800 text-white flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <QrCode size={18} className="text-rose-400 shrink-0" />
+                <h3 id="qr-sn-lpn-modal-title" className="text-sm font-bold tracking-tight truncate m-0">
+                  QR Code SN / LPN
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseQrModal}
+                aria-label="Tutup modal QR Code"
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-5">
+              {/* Focal Anchor: High-contrast QR Code */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-64 h-64 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-3 shadow-2xs">
+                  {isGeneratingQr ? (
+                    <div className="flex flex-col items-center gap-2 text-slate-400 text-xs">
+                      <RefreshCw size={22} className="animate-spin text-rose-600" />
+                      <span>Membuat QR Code...</span>
+                    </div>
+                  ) : qrModalError ? (
+                    <div className="flex flex-col items-center gap-2 text-rose-600 text-xs px-4">
+                      <AlertCircle size={22} />
+                      <span>{qrModalError}</span>
+                    </div>
+                  ) : qrModalDataUrl ? (
+                    <img
+                      src={qrModalDataUrl}
+                      alt={`QR Code untuk ${qrModalItem.lpn_serial_number}`}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-contain select-none"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="mt-3 w-full">
+                  <div className="text-[11px] font-medium text-slate-500">SN / LPN</div>
+                  <div className="mt-0.5 font-mono text-base font-bold text-slate-900 tracking-wide break-all select-all">
+                    {qrModalItem.lpn_serial_number?.trim()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Clean Item Metadata Summary */}
+              <div className="pt-4 border-t border-slate-200 space-y-2.5 text-xs">
+                <div>
+                  <div className="text-[11px] text-slate-500">Nama Barang</div>
+                  <div className="font-semibold text-slate-900 leading-snug mt-0.5">
+                    {qrModalItem.item_name || '-'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1">
+                  <div>
+                    <span className="text-slate-500">Kode SKU</span>
+                    <div className="font-mono tabular-nums font-semibold text-slate-800 mt-0.5">
+                      {qrModalItem.item_code || '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Lokasi</span>
+                    <div className="font-semibold text-slate-800 mt-0.5">
+                      {qrModalItem.location || '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Batch</span>
+                    <div className="font-mono tabular-nums font-semibold text-slate-800 mt-0.5">
+                      {qrModalItem.batch || '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Last Qty</span>
+                    <div className="font-mono tabular-nums font-semibold text-rose-700 mt-0.5">
+                      {(qrModalItem.last_qty ?? 0).toLocaleString('id-ID')} {qrModalItem.uom || ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyQrLpn}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${
+                    qrCopied
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                  }`}
+                >
+                  {qrCopied ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{qrCopied ? 'Tersalin' : 'Salin SN / LPN'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadQrPng}
+                  disabled={!qrModalDataUrl || isGeneratingQr}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                >
+                  <Download size={14} />
+                  <span>Unduh PNG</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseQrModal}
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>,
         document.body
